@@ -14,8 +14,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'robots.txt'],
       manifest: {
-        name: 'Huozhi 记账',
-        short_name: 'Huozhi',
+        name: '货殖',
+        short_name: '货殖',
         description: '一个简洁纯粹的个人记账系统',
         theme_color: '#10B981',
         background_color: '#ffffff',

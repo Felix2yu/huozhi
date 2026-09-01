@@ -25,11 +25,13 @@ export default function RegisterPage() {
       const res = await authApi.register({
         username: form.username, nickname: form.nickname || form.username,
         email: form.email, password: form.password,
-      }) as any;
+      });
       setAuth(res.token, res.user);
       toast.success('注册成功，已自动登录');
       try { await loadBooks(); } catch {}
       nav('/dashboard', { replace: true });
+    } catch {
+      // 拦截器已 toast 错误，此处捕获避免 unhandled rejection
     } finally {
       setLoading(false);
     }
@@ -43,7 +45,7 @@ export default function RegisterPage() {
             开始你的记账之旅
           </h1>
           <p className="text-slate-500 leading-relaxed">
-            注册一个 Huozhi 账户，你的数据将安全地保存于云端，并支持多设备同步。
+            注册一个货殖账户，你的数据将安全地保存于云端，并支持多设备同步。
           </p>
           <div className="mt-12 card card-body">
             <ul className="space-y-3 text-sm text-slate-600">

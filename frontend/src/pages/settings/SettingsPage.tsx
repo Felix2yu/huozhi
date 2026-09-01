@@ -14,11 +14,11 @@ import { Modal, ConfirmDialog } from '@/components/common';
 
 type TabKey = 'profile' | 'password' | 'prefs' | 'io' | 'about';
 
-const TABS: Array<{ k: TabKey; label: string; Icon: any; badge?: string }> = [
+const TABS: Array<{ k: TabKey; label: string; Icon: any }> = [
   { k: 'profile', label: '个人信息', Icon: UserIcon },
   { k: 'password', label: '修改密码', Icon: Lock },
   { k: 'prefs', label: '偏好设置', Icon: Palette },
-  { k: 'io', label: '导入 / 导出', Icon: FileText, badge: 'PRO' },
+  { k: 'io', label: '导入 / 导出', Icon: FileText },
   { k: 'about', label: '关于版本', Icon: Info },
 ];
 
@@ -171,7 +171,7 @@ export default function SettingsPage() {
       {/* 侧边 Tab */}
       <aside className="card p-2 h-fit sticky top-5">
         <ul className="space-y-1">
-          {TABS.map(({ k, label, Icon, badge }) => (
+          {TABS.map(({ k, label, Icon }) => (
             <li key={k}>
               <button
                 onClick={() => setTab(k)}
@@ -184,9 +184,6 @@ export default function SettingsPage() {
               >
                 <Icon size={16} />
                 <span className="flex-1 text-left">{label}</span>
-                {badge && (
-                  <span className="chip bg-amber-50 text-amber-600 !text-[10px]">{badge}</span>
-                )}
               </button>
             </li>
           ))}
@@ -221,11 +218,6 @@ export default function SettingsPage() {
                 <div>
                   <div className="text-lg font-bold text-slate-800">{user?.nickname}</div>
                   <div className="text-sm text-slate-500 mt-0.5">@{user?.username}</div>
-                  {user?.is_vip && (
-                    <span className="chip bg-gradient-to-r from-amber-400 to-orange-500 text-white mt-2">
-                      ✨ 高级会员
-                    </span>
-                  )}
                   <div className="text-xs text-slate-400 mt-2">
                     注册于 {user?.created_at ? formatDate(user.created_at, 'YYYY-MM-DD') : '-'}
                   </div>
@@ -598,9 +590,9 @@ export default function SettingsPage() {
 
             <section className="card card-body text-center">
               <div className="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-brand-500 via-brand-600 to-purple-600 grid place-items-center text-4xl shadow-lg shadow-brand-200/50">
-                🔥
+                货
               </div>
-              <h2 className="text-2xl font-bold text-slate-800 mt-4">火记 HuoZhi</h2>
+              <h2 className="text-2xl font-bold text-slate-800 mt-4">货殖</h2>
               <p className="text-slate-500 mt-1">一个清爽、好用的个人/家庭记账系统</p>
               <div className="mt-5 inline-flex items-center gap-2 chip bg-slate-100 !py-1.5 !px-3">
                 <Smartphone size={14} /> 版本号 <b>v1.0.0</b> (build 20250101)
@@ -619,11 +611,11 @@ export default function SettingsPage() {
             <section className="card card-body">
               <h3 className="font-semibold text-slate-800 mb-3">感谢您的使用 ❤️</h3>
               <p className="text-sm text-slate-500 leading-relaxed">
-                火记的初衷是做一款足够轻便、数据归自己掌控的记账工具。无论您是在记录日常开支、家庭账本共享，还是为了实现某个存钱小目标，
+                货殖的初衷是做一款足够轻便、数据归自己掌控的记账工具。无论您是在记录日常开支、家庭账本共享，还是为了实现某个存钱小目标，
                 希望我们都能陪伴您一路。如果产品有任何不足之处，欢迎通过反馈告诉我们，我们会认真对待每一条建议。
               </p>
               <div className="mt-5 flex items-center justify-between text-xs text-slate-400">
-                <span>© 2025 HuoZhi Team</span>
+                <span>© 2025 货殖</span>
                 <span>Made with ❤️ in Shanghai</span>
               </div>
             </section>

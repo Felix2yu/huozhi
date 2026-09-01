@@ -28,6 +28,8 @@ export default function LoginPage() {
       } catch {}
       const rd = qs.get('redirect') || '/dashboard';
       nav(rd, { replace: true });
+    } catch {
+      // 拦截器已 toast 错误，此处捕获避免 unhandled rejection
     } finally {
       setLoading(false);
     }
@@ -65,12 +67,12 @@ export default function LoginPage() {
           <div className="md:hidden flex items-center gap-2 mb-10">
             <div className="w-10 h-10 rounded-xl bg-brand-600 text-white grid place-items-center font-bold">账</div>
             <div>
-              <div className="font-semibold text-slate-800">Huozhi 记账</div>
+              <div className="font-semibold text-slate-800">货殖</div>
               <div className="text-xs text-slate-500">简洁纯粹的记账本</div>
             </div>
           </div>
           <h2 className="text-2xl font-bold text-slate-800 mb-1">登录账户</h2>
-          <p className="text-slate-500 text-sm mb-8">输入用户名与密码登录你的 Huozhi 账户</p>
+          <p className="text-slate-500 text-sm mb-8">输入用户名与密码登录你的货殖账户</p>
 
           <form onSubmit={submit} className="space-y-4">
             <div>
@@ -110,7 +112,7 @@ export default function LoginPage() {
           </div>
 
           <div className="mt-10 text-xs text-center text-slate-400">
-            <p>登录即代表你同意 Huozhi 的用户协议与隐私政策</p>
+            <p>登录即代表你同意货殖的用户协议与隐私政策</p>
           </div>
         </div>
       </div>

@@ -21,14 +21,18 @@ http.interceptors.response.use(
     const data = resp.data as ApiResp;
     if (data && typeof data === 'object' && 'code' in data) {
       if (data.code !== 0) {
-        toast.error(data.message || '请求失败');
+        console.warn('[axios] 业务错误 code=%d msg=%s', data.code, data.message);
+        const tid = toast.error(data.message || '请求失败', { id: 'biz-err-' + Date.now(), duration: 5000 });
+        console.log('[axios] toast.error 返回 id:', tid);
         return Promise.reject(new Error(data.message || '业务错误'));
       }
-      resp.data = data.data;
+      // 直接返回解包后的业务数据，与 TypeScript 泛型 R 保持一致
+      return data.data as any;
     }
-    return resp;
+    return resp.data;
   },
   (err: AxiosError<ApiResp>) => {
+    console.warn('[axios] HTTP错误 url=%s status=%d msg=%s', err.config?.url, err.response?.status, err.message);
     if (err.response?.status === 401) {
       localStorage.removeItem('hz_token');
       if (!location.pathname.startsWith('/login')) {
@@ -54,7 +58,7 @@ import type {
 
 // 认证
 export const authApi = {
-  register: (data: any) => http.post<any, User>('/auth/register', data),
+  register: (data: any) => http.post<any, { token: string; expire_in: number; user: User }>('/auth/register', data),
   login:    (data: any) => http.post<any, { token: string; expire_in: number; user: User }>('/auth/login', data),
   me:       () => http.get<any, User>('/auth/me'),
   updateMe: (data: any) => http.put<any, User>('/auth/me', data),

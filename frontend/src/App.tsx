@@ -50,7 +50,7 @@ const RequireAuth = ({ children }: { children: React.ReactNode }) => {
   if (checking) {
     return (
       <div className="min-h-screen grid place-items-center text-slate-500 text-sm">
-        <div className="animate-pulse">正在加载 Huozhi...</div>
+        <div className="animate-pulse">正在加载货殖...</div>
       </div>
     );
   }

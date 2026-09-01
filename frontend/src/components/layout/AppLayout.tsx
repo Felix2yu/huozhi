@@ -61,7 +61,7 @@ export default function AppLayout() {
             {currentBook?.icon?.slice(0, 1) || '账'}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-semibold text-slate-800 leading-tight">Huozhi 记账</div>
+            <div className="font-semibold text-slate-800 leading-tight">货殖</div>
             <div className="text-xs text-slate-500">简洁纯粹的记账本</div>
           </div>
           <button className="md:hidden btn-ghost btn-sm" onClick={toggleSidebar}>
