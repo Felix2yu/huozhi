@@ -244,8 +244,8 @@ export default function StatisticsPage() {
                 />
                 <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
                 <Tooltip
-                  formatter={(v: number, n) => [
-                    formatMoney(v),
+                  formatter={(v, n) => [
+                    formatMoney(Number(v) || 0),
                     n === 'income' ? '收入' : n === 'expense' ? '支出' : '结余',
                   ]}
                   contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0' }}
@@ -304,7 +304,7 @@ export default function StatisticsPage() {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(v: number) => formatMoney(v)}
+                      formatter={(v) => formatMoney(Number(v) || 0)}
                       contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0' }}
                     />
                   </PieChart>
@@ -343,8 +343,8 @@ export default function StatisticsPage() {
                   <YAxis type="category" dataKey="name"
                     tick={{ fontSize: 12, fill: '#475569' }} width={110} />
                   <Tooltip
-                    formatter={(v: number, n) => [
-                      n === 'value' ? formatMoney(v) : `${v} 笔`,
+                    formatter={(v, n) => [
+                      n === 'value' ? formatMoney(Number(v) || 0) : `${v} 笔`,
                       n === 'value' ? '金额' : '笔数',
                     ]}
                     contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0' }}
@@ -424,7 +424,7 @@ export default function StatisticsPage() {
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} />
                 <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
                 <Tooltip
-                  formatter={(v: number) => formatMoney(v)}
+                  formatter={(v) => formatMoney(Number(v) || 0)}
                   contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0' }}
                 />
                 <Legend
@@ -468,8 +468,8 @@ export default function StatisticsPage() {
                 <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} />
                 <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
                 <Tooltip
-                  formatter={(v: number, n) => [
-                    formatMoney(v),
+                  formatter={(v, n) => [
+                    formatMoney(Number(v) || 0),
                     n === 'net_asset' ? '净值' : n === 'total_asset' ? '总资产' : '总负债',
                   ]}
                   contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0' }}

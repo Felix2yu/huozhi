@@ -244,7 +244,7 @@ export default function AccountsPage() {
                 <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} />
                 <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
                 <Tooltip
-                  formatter={(v: number) => formatMoney(v)}
+                  formatter={(v) => formatMoney(Number(v) || 0)}
                   contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0' }}
                 />
                 <Area type="monotone" dataKey="net_asset"

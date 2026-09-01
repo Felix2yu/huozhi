@@ -138,7 +138,7 @@ export default function DashboardPage() {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(v: number) => formatMoney(v)}
+                      formatter={(v) => formatMoney(Number(v) || 0)}
                       contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0' }}
                     />
                   </PieChart>
@@ -177,7 +177,7 @@ export default function DashboardPage() {
                   <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(s) => s.slice(8)} />
                   <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
                   <Tooltip
-                    formatter={(v: number, n) => [formatMoney(v), n === 'income' ? '收入' : n === 'expense' ? '支出' : '结余']}
+                    formatter={(v, n) => [formatMoney(Number(v) || 0), n === 'income' ? '收入' : n === 'expense' ? '支出' : '结余']}
                     contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0' }}
                   />
                   <Line type="monotone" dataKey="income" name="income"
@@ -295,7 +295,7 @@ export default function DashboardPage() {
                   <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={80} />
                   <Tooltip
-                    formatter={(v: number) => formatMoney(v)}
+                    formatter={(v) => formatMoney(Number(v) || 0)}
                     contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0' }}
                   />
                   <Bar dataKey="value" radius={[0, 6, 6, 0]}>
