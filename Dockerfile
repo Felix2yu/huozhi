@@ -17,7 +17,7 @@ RUN go build -trimpath -ldflags="-s -w" \
 
 
 # ===== Stage 2: 构建 Frontend (React + Vite) =====
-FROM node:24-alpine AS fe-builder
+FROM node:26-alpine AS fe-builder
 LABEL stage=fe-builder
 WORKDIR /src/frontend
 
