@@ -31,7 +31,7 @@ RUN npm run build
 
 
 # ===== Stage 3: Runtime =====
-FROM alpine:3.20 AS runtime
+FROM alpine:3.24 AS runtime
 LABEL org.opencontainers.image.authors="huozhi"
 LABEL description="Huozhi Personal Finance App (Go + React + Nginx)"
 
