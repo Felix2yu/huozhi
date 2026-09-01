@@ -1,0 +1,73 @@
+name: Release Build
+on:
+  release:
+    types: [published]
+permissions:
+  contents: write
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+      - name: Build frontend
+        run: npm run build
+        working-directory: frontend
+      - name: Upload frontend dist
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-dist
+          path: frontend/dist
+  build:
+    needs: frontend
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - { os: ubuntu-latest, label: linux-amd64 }
+          - { os: ubuntu-24.04-arm, label: linux-arm64 }
+          - { os: macos-latest, label: darwin-arm64 }
+          - { os: windows-latest, label: windows-amd64 }
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.27"
+          cache-dependency-path: backend/go.sum
+      - name: Build backend (Unix)
+        if: runner.os != 'Windows'
+        run: CGO_ENABLED=1 go build -trimpath -ldflags="-s -w" -o huozhi-server-${{ matrix.label }} ./cmd/huozhi-server
+        working-directory: backend
+      - name: Build backend (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $env:CGO_ENABLED=1
+          go build -trimpath -ldflags="-s -w" -o huozhi-server-${{ matrix.label }}.exe ./cmd/huozhi-server
+        working-directory: backend
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.label }}
+          path: backend/huozhi-server-*
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Upload to release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: dist/huozhi-server-*

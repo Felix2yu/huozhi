@@ -1,0 +1,32 @@
+# ========== 服务配置 ==========
+server:
+  port: "8080"
+  mode: "debug"          # debug / release
+  read_timeout: 30       # 秒
+  write_timeout: 30
+
+# ========== 数据库 ==========
+# 选择驱动: sqlite 或 postgres
+database:
+  driver: "sqlite"
+  # SQLite: 文件路径
+  file: "./data/huozhi.db"
+  # PostgreSQL: 连接参数（driver=postgres时启用）
+  # host: "postgres"
+  # port: "5432"
+  # user: "huozhi"
+  # password: "huozhi_pwd"
+  # name: "huozhi"
+  ssl_mode: "disable"
+
+# ========== JWT ==========
+jwt:
+  secret: "please-change-this-secret-in-production"
+  expire_hours: 168     # 7天
+  issuer: "huozhi"
+
+# ========== 上传 ==========
+upload:
+  path: "./uploads"
+  max_size_mb: 10
+  allowed: "jpg,jpeg,png,gif,webp,pdf,csv,xlsx"

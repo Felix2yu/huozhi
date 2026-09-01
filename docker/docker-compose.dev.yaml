@@ -1,0 +1,19 @@
+# ====== 开发环境编排（仅数据库，前后端本地跑） ======
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: huozhi-dev-pg
+    restart: unless-stopped
+    environment:
+      TZ: "Asia/Shanghai"
+      POSTGRES_USER: huozhi
+      POSTGRES_PASSWORD: huozhi_dev
+      POSTGRES_DB: huozhi_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_dev_data:/var/lib/postgresql/data
+
+  # 可选的 Mailpit / MinIO 以后添加
+volumes:
+  pg_dev_data:
