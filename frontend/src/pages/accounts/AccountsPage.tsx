@@ -6,7 +6,7 @@ import type { Account, AccountType, AccountSummary, AssetPoint } from '@/types';
 import { formatMoney, cn, pct } from '@/utils';
 import {
   Plus, Edit3, Archive, TrendingUp, Wallet, CreditCard, Landmark, PiggyBank,
-  Settings as SettingsIcon, ChevronDown, Check, X, TrendingDown,
+  Settings as SettingsIcon, ChevronDown, Check, X, TrendingDown, Eye, EyeOff,
 } from 'lucide-react';
 import { Modal, ConfirmDialog, Empty } from '@/components/common';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Area, AreaChart } from 'recharts';
@@ -34,6 +34,16 @@ const TYPE_ICONS: Record<AccountType, string> = {
 
 const PRESET_COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316'];
 
+// 国内主流银行（按使用频率排序）
+const POPULAR_BANKS = [
+  '招商银行', '中国工商银行', '中国建设银行', '中国农业银行', '中国银行',
+  '交通银行', '浦发银行', '中信银行', '兴业银行', '民生银行',
+  '光大银行', '平安银行', '华夏银行', '广发银行', '浙商银行',
+  '渤海银行', '恒丰银行', '中国邮政储蓄银行', '北京银行', '上海银行',
+  '宁波银行', '江苏银行', '南京银行', '杭州银行', '微众银行',
+  '网商银行', '新网银行', '其他',
+];
+
 export default function AccountsPage() {
   const bookId = useAppStore(s => s.currentBookId);
   const storeAccounts = useAppStore(s => s.accounts);
@@ -59,12 +69,33 @@ export default function AccountsPage() {
 
   const [archiveTarget, setArchiveTarget] = useState<Account | null>(null);
 
+  // 按需解密的完整卡信息缓存（accountId -> { full_card_no, cvv, expire_month, expire_year }）
+  const [revealedCards, setRevealedCards] = useState<Record<number, {
+    full_card_no: string; cvv: string; expire_month: number; expire_year: number;
+  }>>({});
+
+  const toggleRevealCardNo = async (acc: Account) => {
+    if (revealedCards[acc.id]) {
+      setRevealedCards(prev => { const n = { ...prev }; delete n[acc.id]; return n; });
+      return;
+    }
+    try {
+      const data = await accountApi.getFullCardNo(acc.id);
+      if (data) setRevealedCards(prev => ({ ...prev, [acc.id]: data as any }));
+      else toast.error('该账户未保存完整卡信息');
+    } catch {
+      toast.error('该账户未保存完整卡信息');
+    }
+  };
+
   function blankForm() {
     return {
       name: '', type: 'bank' as AccountType, currency: 'CNY',
       balance: '0', initial_amount: '0',
       color: PRESET_COLORS[0], icon: '',
-      bank_name: '', card_no4: '', credit_limit: '', bill_day: '', repay_day: '',
+      bank_name: '', card_no4: '', full_card_no: '', cvv: '',
+      expire_month: '', expire_year: '',
+      credit_limit: '', bill_day: '', repay_day: '',
       include_in_total: true, include_in_budget: true,
       remark: '',
     };
@@ -109,7 +140,9 @@ export default function AccountsPage() {
       balance: String(a.balance),
       initial_amount: String(a.initial_amount),
       color: a.color || PRESET_COLORS[0], icon: a.icon || '',
-      bank_name: a.bank_name || '', card_no4: a.card_no4 || '',
+      bank_name: a.bank_name || '', card_no4: a.card_no4 || '', full_card_no: '', cvv: '',
+      expire_month: a.expire_month ? String(a.expire_month) : '',
+      expire_year: a.expire_year ? String(a.expire_year) : '',
       credit_limit: a.credit_limit != null ? String(a.credit_limit) : '',
       bill_day: a.bill_day != null ? String(a.bill_day) : '',
       repay_day: a.repay_day != null ? String(a.repay_day) : '',
@@ -133,6 +166,10 @@ export default function AccountsPage() {
       icon: editForm.icon,
       bank_name: editForm.bank_name || undefined,
       card_no4: editForm.card_no4 || undefined,
+      full_card_no: editForm.full_card_no?.replace(/\s/g, '') || undefined,
+      cvv: editForm.cvv?.replace(/\D/g, '') || undefined,
+      expire_month: editForm.expire_month ? Number(editForm.expire_month) : undefined,
+      expire_year: editForm.expire_year ? Number(editForm.expire_year) : undefined,
       credit_limit: editForm.credit_limit ? parseFloat(editForm.credit_limit) : undefined,
       bill_day: editForm.bill_day ? Number(editForm.bill_day) : undefined,
       repay_day: editForm.repay_day ? Number(editForm.repay_day) : undefined,
@@ -318,10 +355,38 @@ export default function AccountsPage() {
                   </div>
                   <div>
                     <div className="font-semibold text-slate-800">{a.name}</div>
-                    <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                    <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-1 flex-wrap">
                       <CreditCard size={12} /> {TYPE_LABELS[a.type]}
                       {a.bank_name && ` · ${a.bank_name}`}
-                      {a.card_no4 && ` ****${a.card_no4}`}
+                      {a.card_no4 && (
+                        <>
+                          <span className="ml-1 flex items-center gap-1">
+                            {revealedCards[a.id]?.full_card_no ? (
+                              <span className="font-mono tracking-wider text-slate-600">
+                                {revealedCards[a.id].full_card_no.replace(/(.{4})/g, '$1 ').trim()}
+                              </span>
+                            ) : (
+                              <span className="font-mono tracking-wider">** ** **** {a.card_no4}</span>
+                            )}
+                            <button
+                              type="button"
+                              className="p-0.5 hover:text-brand-600 transition rounded"
+                              onClick={() => toggleRevealCardNo(a)}
+                              title={revealedCards[a.id] ? '隐藏完整卡信息' : '查看完整卡信息'}
+                            >
+                              {revealedCards[a.id] ? <EyeOff size={11} /> : <Eye size={11} />}
+                            </button>
+                          </span>
+                        </>
+                      )}
+                      {a.expire_month > 0 && a.expire_year > 0 && (
+                        <span className="font-mono text-slate-500 ml-1">
+                          · 有效 {String(a.expire_month).padStart(2, '0')}/{String(a.expire_year).padStart(2, '0')}
+                        </span>
+                      )}
+                      {revealedCards[a.id]?.cvv && (
+                        <span className="font-mono text-slate-500 ml-1">· CVV {revealedCards[a.id].cvv}</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -459,20 +524,43 @@ export default function AccountsPage() {
           </div>
 
           {(editForm.type === 'bank' || editForm.type === 'credit') && (
-            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+            <div className="pt-2 border-t border-slate-100 space-y-3">
               <div>
                 <label className="label">银行名称</label>
-                <input
-                  className="input"
-                  placeholder="招商/建设..."
+                <BankCombobox
                   value={editForm.bank_name}
-                  onChange={e => setEditForm(f => ({ ...f, bank_name: e.target.value }))}
+                  onChange={v => setEditForm(f => ({ ...f, bank_name: v }))}
                 />
               </div>
               <div>
-                <label className="label">尾号 4 位</label>
+                <label className="label flex items-center gap-1">
+                  完整卡号
+                  <span className="text-[11px] font-normal text-slate-400">· 加密存储 · 可留空</span>
+                </label>
                 <input
-                  className="input"
+                  className="input font-mono tracking-wider"
+                  placeholder="如 6222 **** **** 1234"
+                  maxLength={26}
+                  value={editForm.full_card_no}
+                  onChange={e => {
+                    const raw = e.target.value.replace(/\D/g, '').slice(0, 19);
+                    // 每 4 位加一个空格
+                    const formatted = raw.replace(/(\d{4})(?=\d)/g, '$1 ');
+                    setEditForm(f => ({ ...f, full_card_no: formatted }));
+                    // 自动同步尾号
+                    if (raw.length >= 4) {
+                      setEditForm(f => ({ ...f, card_no4: raw.slice(-4) }));
+                    }
+                  }}
+                />
+                {editForm.full_card_no && !isValidLuhn(editForm.full_card_no.replace(/\s/g, '')) && (
+                  <div className="text-[11px] text-amber-600 mt-1">卡号校验位未通过，可能输入有误</div>
+                )}
+              </div>
+              <div>
+                <label className="label">尾号 4 位 {editForm.full_card_no && <span className="text-[11px] text-slate-400 font-normal">（已从完整卡号自动填充）</span>}</label>
+                <input
+                  className="input font-mono"
                   placeholder="如 1234"
                   maxLength={4}
                   value={editForm.card_no4}
@@ -482,35 +570,84 @@ export default function AccountsPage() {
             </div>
           )}
           {editForm.type === 'credit' && (
-            <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-100">
-              <div>
-                <label className="label">信用额度</label>
-                <input
-                  className="input"
-                  type="number"
-                  value={editForm.credit_limit}
-                  onChange={e => setEditForm(f => ({ ...f, credit_limit: e.target.value }))}
-                />
+            <div className="pt-2 border-t border-slate-100 space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="label">信用额度</label>
+                  <input
+                    className="input"
+                    type="number"
+                    value={editForm.credit_limit}
+                    onChange={e => setEditForm(f => ({ ...f, credit_limit: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="label">账单日</label>
+                  <input
+                    className="input"
+                    type="number" min={1} max={31}
+                    placeholder="1-31"
+                    value={editForm.bill_day}
+                    onChange={e => setEditForm(f => ({ ...f, bill_day: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="label">还款日</label>
+                  <input
+                    className="input"
+                    type="number" min={1} max={31}
+                    placeholder="1-31"
+                    value={editForm.repay_day}
+                    onChange={e => setEditForm(f => ({ ...f, repay_day: e.target.value }))}
+                  />
+                </div>
               </div>
-              <div>
-                <label className="label">账单日</label>
-                <input
-                  className="input"
-                  type="number" min={1} max={31}
-                  placeholder="1-31"
-                  value={editForm.bill_day}
-                  onChange={e => setEditForm(f => ({ ...f, bill_day: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="label">还款日</label>
-                <input
-                  className="input"
-                  type="number" min={1} max={31}
-                  placeholder="1-31"
-                  value={editForm.repay_day}
-                  onChange={e => setEditForm(f => ({ ...f, repay_day: e.target.value }))}
-                />
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="label flex items-center gap-1">
+                    卡有效期
+                    <span className="text-[11px] text-slate-400 font-normal">MM / YY</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      className="input text-center font-mono"
+                      type="number" min={1} max={12}
+                      placeholder="MM"
+                      maxLength={2}
+                      value={editForm.expire_month}
+                      onChange={e => setEditForm(f => ({ ...f, expire_month: e.target.value.replace(/\D/g, '').slice(0, 2) }))}
+                    />
+                    <span className="text-slate-400">/</span>
+                    <input
+                      className="input text-center font-mono"
+                      type="number" min={0} max={99}
+                      placeholder="YY"
+                      maxLength={2}
+                      value={editForm.expire_year}
+                      onChange={e => setEditForm(f => ({ ...f, expire_year: e.target.value.replace(/\D/g, '').slice(0, 2) }))}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="label flex items-center gap-1">
+                    CVV2/CVC2
+                    <span className="text-[11px] text-slate-400 font-normal">· 加密存储</span>
+                  </label>
+                  <input
+                    className="input font-mono tracking-widest"
+                    type="password"
+                    placeholder="卡背面3位"
+                    maxLength={4}
+                    value={editForm.cvv}
+                    onChange={e => setEditForm(f => ({ ...f, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
+                  />
+                </div>
+                <div>
+                  <label className="label">&nbsp;</label>
+                  <div className="text-[11px] text-slate-400 leading-relaxed">
+                    有效期明文存便于筛选；CVV 后端 AES-GCM 加密存，默认不返回前端。
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -614,6 +751,67 @@ export default function AccountsPage() {
             : `归档账户「${archiveTarget?.name}」后，它将不再出现在记账默认列表中，但历史数据保留。`
         }
       />
+    </div>
+  );
+}
+
+// ========= 辅助：Luhn 校验 =========
+function isValidLuhn(num: string): boolean {
+  if (!num || !/^\d+$/.test(num)) return false;
+  if (num.length < 13 || num.length > 19) return false;
+  let sum = 0;
+  let shouldDouble = false;
+  for (let i = num.length - 1; i >= 0; i--) {
+    let d = parseInt(num[i], 10);
+    if (shouldDouble) { d *= 2; if (d > 9) d -= 9; }
+    sum += d;
+    shouldDouble = !shouldDouble;
+  }
+  return sum % 10 === 0;
+}
+
+// ========= 辅助：银行名下拉选择器 =========
+function BankCombobox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = (e: HTMLDivElement | null) => {
+    // click outside
+  };
+  const filtered = POPULAR_BANKS.filter(b => b.toLowerCase().includes(value.toLowerCase())).slice(0, 12);
+  return (
+    <div ref={ref} className="relative">
+      <div className="relative">
+        <input
+          className="input pr-8"
+          placeholder="搜索或选择银行..."
+          value={value}
+          onFocus={() => setOpen(true)}
+          onChange={e => { onChange(e.target.value); setOpen(true); }}
+        />
+        <ChevronDown size={16} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+      </div>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 right-0 mt-1 z-20 bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+            {filtered.length === 0 && (
+              <div className="px-3 py-2 text-xs text-slate-400">无匹配，可直接输入</div>
+            )}
+            {filtered.map(b => (
+              <button
+                key={b}
+                type="button"
+                className={cn(
+                  'w-full text-left px-3 py-2 text-sm hover:bg-slate-50 transition',
+                  b === value && 'bg-brand-50 text-brand-600',
+                )}
+                onClick={() => { onChange(b); setOpen(false); }}
+              >
+                {b}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

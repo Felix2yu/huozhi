@@ -88,6 +88,7 @@ export const accountApi = {
   listGroups: () => http.get<any, any[]>('/accounts/groups'),
   createGroup: (data: any) => http.post<any, any>('/accounts/groups', data),
   removeGroup: (id: number) => http.delete<any, void>(`/accounts/groups/${id}`),
+  getFullCardNo: (id: number) => http.get<any, { full_card_no: string }>(`/accounts/${id}/full-card`),
 };
 
 // 分类
@@ -180,3 +181,39 @@ export const ioApi = {
     );
   },
 };
+
+// AI 智能分类 / 智能记账
+export const aiApi = {
+  status: () => http.get<any, { enabled: boolean; model?: string; configured: boolean }>('/ai/status'),
+  classify: (data: { description: string; amount?: number; type?: string; book_id?: number }) =>
+    http.post<any, { category_id: number; category: string; type: string; confidence: number; explanation?: string }>('/ai/classify', data),
+  smartRecord: (data: { text: string; book_id?: number }) =>
+    http.post<any, { description: string; amount: number; type: string; category_id: number; account_id?: number; tx_date: string; tags?: string[]; raw?: string }>('/ai/smart-record', data),
+};
+
+// 信用卡还款倒计时
+export const creditApi = {
+  summary: () => http.get<any, CreditRepayItem[]>('/accounts/credit-summary'),
+};
+
+export interface CreditRepayItem {
+  id: number; name: string; bank_name: string; card_no4: string;
+  repay_day: number; bill_day: number; balance: number; credit_limit: number;
+  days_left: number; repay_date: string; bill_amount: number; overdue: boolean;
+}
+
+// 月度账单
+export const billApi = {
+  get: (params: { month: string; book_id?: number }) =>
+    http.get<any, BillData>(`/io/bill?month=${params.month}${params.book_id ? `&book_id=${params.book_id}` : ''}`),
+};
+
+export interface BillData {
+  meta: { month: string; range_start: string; range_end: string; book_name: string; user_name: string; generated_at: string };
+  summary: { total_income: number; total_expense: number; net: number; income_count: number; expense_count: number; transaction_count: number; avg_daily_expense: number };
+  category_expense: { id: number; name: string; icon: string; color: string; amount: number; count: number; percent: number }[];
+  category_income: { id: number; name: string; icon: string; color: string; amount: number; count: number; percent: number }[];
+  daily_trend: { date: string; income: number; expense: number; net: number }[];
+  budgets: { id: number; name: string; amount: number; used_amount: number; remaining: number; usage_rate: number; is_over_budget: boolean }[];
+  assets: { total_asset: number; total_debt: number; net_asset: number };
+}

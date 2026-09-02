@@ -3,6 +3,7 @@ package router
 import (
 	"huozhi/internal/handlers"
 	"huozhi/internal/middleware"
+	"huozhi/internal/ws"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -35,11 +36,19 @@ func New(mode string) *gin.Engine {
 		auth := api.Group("")
 		auth.Use(middleware.JWTAuth())
 		{
+			// WebSocket 实时同步
+			auth.GET("/ws", ws.ServeWS(ws.DefaultHub))
+
 			// 用户
 			auth.GET("/auth/me", handlers.GetMe)
 			auth.PUT("/auth/me", handlers.UpdateMe)
 			auth.POST("/auth/password", handlers.ChangePassword)
 			auth.POST("/auth/logout", handlers.Logout)
+
+			// AI 智能分类 & 智能记账
+			auth.GET("/ai/status", handlers.AIStatus)
+			auth.POST("/ai/classify", handlers.AIClassify)
+			auth.POST("/ai/smart-record", handlers.AISmartRecord)
 
 			// 账本
 			books := auth.Group("/books")
@@ -62,6 +71,7 @@ func New(mode string) *gin.Engine {
 				accounts.PUT("/:id", handlers.UpdateAccount)
 				accounts.DELETE("/:id", handlers.DeleteAccount)
 				accounts.POST("/:id/adjust", handlers.AdjustAccountBalance)
+				accounts.GET("/:id/full-card", handlers.GetFullCardNo)
 				accounts.GET("/groups", handlers.ListAccountGroups)
 				accounts.POST("/groups", handlers.CreateAccountGroup)
 				accounts.DELETE("/groups/:id", handlers.DeleteAccountGroup)
@@ -155,7 +165,11 @@ func New(mode string) *gin.Engine {
 				io.GET("/export", handlers.ExportTransactions)
 				io.POST("/import", handlers.ImportTransactions)
 				io.GET("/template", handlers.DownloadImportTemplate)
+				io.GET("/bill", handlers.GetBill)
 			}
+
+			// 信用卡还款倒计时
+			auth.GET("/accounts/credit-summary", handlers.GetCreditSummary)
 		}
 	}
 

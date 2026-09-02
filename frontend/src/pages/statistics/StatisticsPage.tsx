@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/stores/app';
 import { statsApi } from '@/api';
 import type { StatisticsData, StatsItem, AssetPoint, TrendPoint } from '@/types';
@@ -6,7 +7,7 @@ import { formatMoney, formatDate, cn, pct } from '@/utils';
 import {
   Calendar, BarChart3, PieChart as PieIcon, TrendingUp,
   ArrowUpRight, ArrowDownRight, Wallet, ChevronDown,
-  Trophy, AlertCircle,
+  Trophy, AlertCircle, Download,
 } from 'lucide-react';
 import { AmountBadge, Empty } from '@/components/common';
 import {
@@ -69,6 +70,7 @@ function getRange(preset: RangePreset, customStart = '', customEnd = '') {
 }
 
 export default function StatisticsPage() {
+  const navigate = useNavigate();
   const bookId = useAppStore(s => s.currentBookId);
   const accounts = useAppStore(s => s.accounts);
   const { expense: expCats, income: incCats } = useAppStore(s => s.categories);
@@ -180,6 +182,18 @@ export default function StatisticsPage() {
               />
             </div>
           )}
+          {preset === 'this_month' || preset === 'last_month' ? (
+            <button
+              className="btn-secondary shrink-0"
+              onClick={() => navigate(`/bill-export?month=${preset === 'this_month'
+                ? new Date().toISOString().slice(0, 7)
+                : (() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 7); })()
+              }`)}
+            >
+              <Download size={14} />
+              导出账单 PDF
+            </button>
+          ) : null}
           <span className="ml-auto text-xs text-slate-400 whitespace-nowrap">
             {range.start_str} ~ {range.end_str}
             {data?.range?.days ? ` (${data.range.days} 天)` : ''}

@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAppStore } from '@/stores/app';
-import { txApi } from '@/api';
+import { txApi, aiApi } from '@/api';
 import type { Transaction, TransactionType, Tag as TagType } from '@/types';
 import { formatMoney, formatDate, cn } from '@/utils';
 import {
   ArrowLeft, ArrowRightLeft, Minus, Plus, Calendar as CalendarIcon,
   Tag, ImagePlus, Save, Repeat1, ChevronDown, Upload, X, Image,
+  Sparkles, Wand2,
 } from 'lucide-react';
 import { Drawer, TagChip } from '@/components/common';
 
@@ -49,6 +50,63 @@ export default function TransactionAddPage() {
   const [catDrawerOpen, setCatDrawerOpen] = useState(false);
   const [accDrawerOpen, setAccDrawerOpen] = useState(false);
   const [toAccDrawerOpen, setToAccDrawerOpen] = useState(false);
+
+  // AI 相关状态
+  const [aiInput, setAiInput] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiClassifying, setAiClassifying] = useState(false);
+
+  // AI 智能记账：自然语言 → 自动填充表单
+  const runAiSmartRecord = async () => {
+    if (!aiInput.trim()) { toast.error('说点什么吧~'); return; }
+    setAiLoading(true);
+    try {
+      const res = await aiApi.smartRecord({ text: aiInput, book_id: bookId });
+      const f: typeof DEFAULT_FORM = { ...DEFAULT_FORM };
+      if (res.type === 'income' || res.type === 'expense' || res.type === 'transfer') {
+        f.type = res.type as TransactionType;
+      }
+      f.amount = String(res.amount || '');
+      f.description = res.description || aiInput;
+      f.category_id = res.category_id || 0;
+      if (res.account_id) f.account_id = res.account_id;
+      if (res.tx_date) {
+        f.tx_date = res.tx_date;
+      }
+      if (res.tags?.length) {
+        // 名字 → id（后续可扩展：前端维护 tag 映射）
+      }
+      setForm(f);
+      setAiInput('');
+      toast.success('AI 已帮你填好，确认后保存即可 ✨');
+    } catch (e: any) {
+      toast.error(e?.message?.includes('503') ? 'AI 未启用，请联系管理员配置 API Key' : 'AI 暂时没猜出来 😅');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // AI 自动分类
+  const runAiClassify = async () => {
+    if (!form.description.trim()) { toast.info('先填一下描述'); return; }
+    setAiClassifying(true);
+    try {
+      const res = await aiApi.classify({
+        description: form.description,
+        amount: parseFloat(form.amount) || 0,
+        type: tab === 'transfer' ? undefined : tab,
+        book_id: bookId,
+      });
+      if (res.category_id) {
+        setForm(prev => ({ ...prev, category_id: res.category_id }));
+        toast.success(`AI 推荐：${res.category}${res.confidence ? ` (置信度 ${Math.round(res.confidence * 100)}%)` : ''}`);
+      }
+    } catch (e: any) {
+      toast.error(e?.message?.includes('503') ? 'AI 未启用' : '分类失败');
+    } finally {
+      setAiClassifying(false);
+    }
+  };
 
   const tab = useMemo<TabType>(() => {
     if (form.type === 'income') return 'income';
@@ -196,6 +254,33 @@ export default function TransactionAddPage() {
               {label}
             </button>
           ))}
+        </div>
+      </section>
+
+      {/* AI 智能记账 */}
+      <section className="card card-body !bg-gradient-to-br from-violet-50 via-white to-indigo-50 border-violet-200">
+        <div className="flex items-center gap-2 mb-2">
+          <Sparkles size={16} className="text-violet-600" />
+          <span className="text-sm font-medium text-violet-700">AI 智能记账</span>
+          <span className="text-xs text-slate-400">说一句话就能自动填好</span>
+        </div>
+        <div className="flex gap-2">
+          <input
+            className="input !bg-white/80 flex-1"
+            placeholder="例如：午饭35 / 昨天打车花了20 / 这个月工资8000"
+            value={aiInput}
+            onChange={e => setAiInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') runAiSmartRecord(); }}
+          />
+          <button
+            className="btn bg-violet-600 hover:bg-violet-700 text-white whitespace-nowrap"
+            disabled={aiLoading}
+            onClick={runAiSmartRecord}
+          >
+            {aiLoading ? (
+              <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            ) : <><Wand2 size={14} className="mr-1 inline" />试试</>}
+          </button>
         </div>
       </section>
 
@@ -348,7 +433,22 @@ export default function TransactionAddPage() {
       {/* 描述 / 商户 */}
       <section className="card card-body space-y-3">
         <div>
-          <label className="label">{tab === 'transfer' ? '备注' : '描述'}</label>
+          <div className="flex items-center justify-between">
+            <label className="label mb-0">{tab === 'transfer' ? '备注' : '描述'}</label>
+            {tab !== 'transfer' && (
+              <button
+                type="button"
+                className="text-xs text-violet-600 hover:text-violet-700 flex items-center gap-1 disabled:opacity-50"
+                disabled={aiClassifying}
+                onClick={runAiClassify}
+              >
+                {aiClassifying
+                  ? <span className="inline-block w-3 h-3 border border-violet-300 border-t-violet-600 rounded-full animate-spin" />
+                  : <Wand2 size={12} />}
+                AI 自动分类
+              </button>
+            )}
+          </div>
           <input
             className="input"
             placeholder={tab === 'transfer' ? '转账备注（可选）' : '简单描述一下这笔...'}

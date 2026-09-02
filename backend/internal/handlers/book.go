@@ -71,6 +71,7 @@ func CreateBook(c *gin.Context) {
 	}
 	database.DB.Create(&cats)
 
+	Broadcast(c, "books", "create", book.ID)
 	Created(c, book)
 }
 
@@ -108,6 +109,7 @@ func UpdateBook(c *gin.Context) {
 
 	var book models.Book
 	database.DB.First(&book, reqUri.ID)
+	Broadcast(c, "books", "update", book.ID)
 	OK(c, book)
 }
 
@@ -126,6 +128,7 @@ func DeleteBook(c *gin.Context) {
 		return
 	}
 	database.DB.Delete(&book)
+	Broadcast(c, "books", "delete", req.ID)
 	OK(c, nil)
 }
 

@@ -7,6 +7,7 @@ import (
 	"huozhi/internal/database"
 	"huozhi/internal/models"
 	"huozhi/internal/router"
+	"huozhi/internal/ws"
 	"log"
 	"os"
 	"os/signal"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func main() {
@@ -89,6 +91,10 @@ func main() {
 	// 资产快照（每日凌晨）
 	go dailySnapshot()
 
+	// WebSocket Hub
+	go ws.DefaultHub.Run()
+	log.Println("[WS] WebSocket Hub 已启动，监听 /api/ws")
+
 	// 优雅退出
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -99,7 +105,7 @@ func main() {
 // recurringRunner 每分钟扫描需执行的周期记账任务
 func recurringRunner() {
 	log.Println("[Cron] 周期记账调度器已启动")
-	tick := time.NewTicker(60 * time.Second)
+	tick := time.NewTicker(30 * time.Second)
 	defer tick.Stop()
 	for range tick.C {
 		runDueRecurrings()
@@ -110,86 +116,134 @@ func runDueRecurrings() {
 	if database.DB == nil {
 		return
 	}
+	now := time.Now()
 	var list []models.Recurring
-	database.DB.Where("status = 'active' AND next_run_at <= ?", time.Now()).Find(&list)
+	// 1. 执行到期的 active 任务
+	database.DB.Where("status = 'active' AND next_run_at <= ?", now).Find(&list)
 	for _, r := range list {
 		processRecurring(&r)
 	}
+	// 2. 自动暂停已结束 / 已达上限的任务
+	database.DB.Exec(`
+		UPDATE recurrings SET status = 'paused', next_run_at = NULL
+		WHERE status = 'active' AND (
+			(end_date IS NOT NULL AND end_date != '0001-01-01' AND end_date <= ?)
+			OR (max_times > 0 AND run_count >= max_times)
+		)`, now)
 }
 
 func processRecurring(r *models.Recurring) {
+	now := time.Now()
+	// 事务 + 行锁，防并发重复执行
 	db := database.DB.Begin()
+	var lock models.Recurring
+	if err := db.Clauses(clause.Locking{Strength: "UPDATE"}).
+		First(&lock, r.ID).Error; err != nil {
+		db.Rollback()
+		return
+	}
+	// 二次检查（可能已被其他 worker 处理 / 暂停 / 达上限）
+	if lock.Status != "active" {
+		db.Rollback()
+		return
+	}
+	if !lock.EndDate.IsZero() && lock.EndDate.Before(now) {
+		db.Model(&lock).Updates(map[string]interface{}{"status": "paused", "next_run_at": nil})
+		db.Commit()
+		return
+	}
+	if lock.MaxTimes > 0 && lock.RunCount >= lock.MaxTimes {
+		db.Model(&lock).Updates(map[string]interface{}{"status": "paused", "next_run_at": nil})
+		db.Commit()
+		return
+	}
+	if lock.NextRunAt.After(now) {
+		db.Rollback()
+		return
+	}
+
+	// 防止同一分钟内被执行多次（兜底）
+	windowStart := now.Add(-2 * time.Minute)
+	var recentTx models.Transaction
+	if err := db.Where("recurring_id = ? AND tx_date >= ?", lock.ID, windowStart).
+		First(&recentTx).Error; err == nil {
+		// 已执行过，跳过
+		db.Model(&lock).Updates(map[string]interface{}{
+			"last_run_at": now,
+			"next_run_at": lock.ComputeNextRun(now),
+		})
+		db.Commit()
+		return
+	}
+
+	// 创建交易
 	tx := models.Transaction{
-		UserID:        r.UserID,
-		BookID:        r.BookID,
-		Type:          r.Type,
-		Amount:        r.Amount,
+		UserID:        lock.UserID,
+		BookID:        lock.BookID,
+		Type:          lock.Type,
+		Amount:        lock.Amount,
 		Currency:      "CNY",
-		CategoryID:    r.CategoryID,
-		AccountID:     r.AccountID,
-		ToAccountID:   r.ToAccountID,
-		TxDate:        time.Now(),
-		Description:   "[周期]" + r.Description,
-		RecurringID:   r.ID,
+		CategoryID:    lock.CategoryID,
+		AccountID:     lock.AccountID,
+		ToAccountID:   lock.ToAccountID,
+		TxDate:        now,
+		Description:   "[周期]" + lock.Description,
+		RecurringID:   lock.ID,
 		IncludeInBalance: true,
 		IncludeInBudget:  true,
 	}
-	if err := db.Create(&tx).Error; err == nil {
-		// 更新余额
-		var from, to models.Account
-		db.First(&from, tx.AccountID)
-		if tx.ToAccountID > 0 {
-			db.First(&to, tx.ToAccountID)
-		}
-		// 使用闭包反射式调用：简化直接手动处理
-		updateRecurBalances(db, &tx, &from, &to)
+	if err := db.Create(&tx).Error; err != nil {
+		log.Printf("[Cron] 周期记账创建交易失败 recurring_id=%d err=%v", lock.ID, err)
+		db.Rollback()
+		return
 	}
-	// 计算下一次
-	next := computeNextRun(r)
-	db.Model(r).Updates(map[string]interface{}{
-		"last_run_at": time.Now(),
-		"next_run_at": next,
-	})
+	// 复制标签关联
+	for _, tagID := range lock.TagIDs {
+		db.Create(&models.TransactionTag{TransactionID: tx.ID, TagID: tagID})
+	}
+	// 更新余额
+	updateRecurBalances(db, &tx)
+
+	// 更新任务状态
+	updates := map[string]interface{}{
+		"run_count":   gorm.Expr("run_count + 1"),
+		"last_run_at": now,
+		"next_run_at": lock.ComputeNextRun(now),
+	}
+	newRunCount := lock.RunCount + 1
+	if lock.MaxTimes > 0 && newRunCount >= lock.MaxTimes {
+		updates["status"] = "paused"
+		updates["next_run_at"] = nil
+	}
+	if !lock.EndDate.IsZero() && !updates["next_run_at"].(time.Time).Before(lock.EndDate) {
+		updates["status"] = "paused"
+		updates["next_run_at"] = nil
+	}
+	db.Model(&lock).Updates(updates)
 	db.Commit()
+	log.Printf("[Cron] 周期记账执行 ok recurring_id=%d tx_id=%d amount=%.2f type=%s next=%v",
+		lock.ID, tx.ID, lock.Amount, lock.Type, updates["next_run_at"])
 }
 
-func updateRecurBalances(db *gorm.DB, tx *models.Transaction, from, to *models.Account) {
+func updateRecurBalances(db *gorm.DB, tx *models.Transaction) {
 	if !tx.IncludeInBalance {
 		return
 	}
 	switch tx.Type {
 	case models.TxExpense, models.TxReimburse:
-		db.Model(from).Update("balance", gorm.Expr("balance - ?", tx.Amount))
+		db.Model(&models.Account{}).Where("id = ?", tx.AccountID).
+			Update("balance", gorm.Expr("balance - ?", tx.Amount))
 	case models.TxIncome:
-		db.Model(from).Update("balance", gorm.Expr("balance + ?", tx.Amount))
+		db.Model(&models.Account{}).Where("id = ?", tx.AccountID).
+			Update("balance", gorm.Expr("balance + ?", tx.Amount))
 	case models.TxTransfer:
-		db.Model(from).Update("balance", gorm.Expr("balance - ?", tx.Amount))
-		if to != nil && to.ID > 0 {
-			db.Model(to).Update("balance", gorm.Expr("balance + ?", tx.Amount))
+		db.Model(&models.Account{}).Where("id = ?", tx.AccountID).
+			Update("balance", gorm.Expr("balance - ?", tx.Amount))
+		if tx.ToAccountID > 0 {
+			db.Model(&models.Account{}).Where("id = ?", tx.ToAccountID).
+				Update("balance", gorm.Expr("balance + ?", tx.Amount))
 		}
 	}
-}
-
-func computeNextRun(r *models.Recurring) time.Time {
-	now := r.NextRunAt
-	if now.IsZero() {
-		now = time.Now()
-	}
-	switch r.RecurringType {
-	case models.RecDaily:
-		return now.AddDate(0, 0, r.Interval)
-	case models.RecWeekly:
-		return now.AddDate(0, 0, 7)
-	case models.RecBiWeek:
-		return now.AddDate(0, 0, 14)
-	case models.RecMonthly:
-		return now.AddDate(0, 1, 0)
-	case models.RecYearly:
-		return now.AddDate(1, 0, 0)
-	case models.RecCustom:
-		return now.AddDate(0, 0, r.Interval)
-	}
-	return now.AddDate(0, 0, 1)
 }
 
 func dailySnapshot() {

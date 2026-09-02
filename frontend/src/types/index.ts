@@ -65,6 +65,8 @@ export interface Account {
   credit_limit?: number;
   bill_day?: number;
   repay_day?: number;
+  expire_month?: number;
+  expire_year?: number;
   apr?: number;
   include_in_total: boolean;
   include_in_budget: boolean;

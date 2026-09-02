@@ -42,7 +42,7 @@ func GetStatistics(c *gin.Context) {
 		"range": gin.H{
 			"start":         req.StartDate.Format("2006-01-02"),
 			"end":           req.EndDate.Format("2006-01-02"),
-			"days":          int(req.EndDate.Sub(req.StartDate).Hours()/24) + 1,
+			"days":          int(req.EndDate.T().Sub(req.StartDate.T()).Hours()/24) + 1,
 		},
 		"summary": gin.H{
 			"total_income":  totalIncome,
@@ -54,7 +54,7 @@ func GetStatistics(c *gin.Context) {
 			"avg_daily_expense": 0.0,
 		},
 	}
-	days := int(req.EndDate.Sub(req.StartDate).Hours()/24) + 1
+	days := int(req.EndDate.T().Sub(req.StartDate.T()).Hours()/24) + 1
 	if days > 0 {
 		result["summary"].(gin.H)["avg_daily_expense"] = round2(totalExpense / float64(days))
 		result["summary"].(gin.H)["avg_daily_income"] = round2(totalIncome / float64(days))
@@ -393,10 +393,11 @@ func CreateSavingPlan(c *gin.Context) {
 		UserID: uid, BookID: req.BookID, AccountID: req.AccountID,
 		Name: req.Name, Icon: req.Icon, Color: req.Color,
 		TargetAmount: req.TargetAmount, CurrentAmount: req.CurrentAmount,
-		StartDate: req.StartDate, TargetDate: req.TargetDate,
+		StartDate: req.StartDate.T(), TargetDate: req.TargetDate.T(),
 		Status: "active",
 	}
 	database.DB.Create(&s)
+	Broadcast(c, "saving_plans", "create", s.ID)
 	Created(c, s)
 }
 func UpdateSavingPlan(c *gin.Context) {
@@ -418,6 +419,7 @@ func DeleteSavingPlan(c *gin.Context) {
 	var req dto.IDRequest
 	c.ShouldBindUri(&req)
 	database.DB.Where("id = ? AND user_id = ?", req.ID, uid).Delete(&models.SavingPlan{})
+	Broadcast(c, "saving_plans", "delete", req.ID)
 	OK(c, nil)
 }
 func AddSavingRecord(c *gin.Context) {
@@ -428,7 +430,7 @@ func AddSavingRecord(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil { Bad(c, err.Error()); return }
 	rec := models.SavingRecord{
 		UserID: uid, SavingPlanID: reqUri.ID,
-		Amount: req.Amount, RecordDate: req.RecordDate,
+		Amount: req.Amount, RecordDate: req.RecordDate.T(),
 		TransactionID: req.TransactionID, Note: req.Note,
 	}
 	database.DB.Create(&rec)
@@ -461,23 +463,41 @@ func CreateRecurring(c *gin.Context) {
 		RecurringType: models.RecurringType(req.RecurringType),
 		Interval: req.Interval, Weekday: req.Weekday, MonthDay: req.MonthDay,
 		StartDate: sd, EndDate: ed, MaxTimes: req.MaxTimes,
-		Status: "active", NextRunAt: sd,
+		Status: "active",
 	}
+	// 正确计算首次执行时间
+	r.NextRunAt = r.ComputeNextRun(sd.AddDate(0, 0, -1))
 	database.DB.Create(&r)
+	Broadcast(c, "recurring", "create", r.ID)
 	Created(c, r)
 }
+
 func ToggleRecurring(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var reqUri dto.IDRequest
 	c.ShouldBindUri(&reqUri)
 	var r models.Recurring
-	database.DB.Where("id = ? AND user_id = ?", reqUri.ID, uid).First(&r)
-	if r.Status == "active" {
-		r.Status = "paused"
-	} else {
-		r.Status = "active"
+	if err := database.DB.Where("id = ? AND user_id = ?", reqUri.ID, uid).First(&r).Error; err != nil {
+		Bad(c, "未找到该周期任务");
+		return
 	}
-	database.DB.Save(&r)
+	if r.Status == "active" {
+		database.DB.Model(&r).Update("status", "paused")
+	} else {
+		// 恢复时重算 next_run_at（避免 next_run_at 已过期导致立即触发）
+		now := time.Now()
+		nextRun := r.NextRunAt
+		if nextRun.IsZero() || nextRun.Before(now) {
+			nextRun = r.ComputeNextRun(now)
+		}
+		database.DB.Model(&r).Updates(map[string]interface{}{
+			"status":     "active",
+			"next_run_at": nextRun,
+		})
+	}
+	// 重新查询返回最新值
+	database.DB.First(&r, reqUri.ID)
+	Broadcast(c, "recurring", "update", r.ID)
 	OK(c, r)
 }
 func DeleteRecurring(c *gin.Context) {
@@ -485,6 +505,7 @@ func DeleteRecurring(c *gin.Context) {
 	var req dto.IDRequest
 	c.ShouldBindUri(&req)
 	database.DB.Where("id = ? AND user_id = ?", req.ID, uid).Delete(&models.Recurring{})
+	Broadcast(c, "recurring", "delete", req.ID)
 	OK(c, nil)
 }
 
@@ -510,6 +531,7 @@ func CreateInstallment(c *gin.Context) {
 		Description: req.Description, Status: "active",
 	}
 	database.DB.Create(&ins)
+	Broadcast(c, "installments", "create", ins.ID)
 	Created(c, ins)
 }
 func DeleteInstallment(c *gin.Context) {
@@ -517,6 +539,7 @@ func DeleteInstallment(c *gin.Context) {
 	var req dto.IDRequest
 	c.ShouldBindUri(&req)
 	database.DB.Where("id = ? AND user_id = ?", req.ID, uid).Delete(&models.Installment{})
+	Broadcast(c, "installments", "delete", req.ID)
 	OK(c, nil)
 }
 
@@ -543,6 +566,7 @@ func CreateReimbursement(c *gin.Context) {
 		database.DB.Model(&models.Transaction{}).Where("id = ?", tid).
 			Updates(map[string]interface{}{"reimburse_status": "pending"})
 	}
+	Broadcast(c, "reimbursements", "create", r.ID)
 	Created(c, r)
 }
 func UpdateReimbursement(c *gin.Context) {
@@ -568,6 +592,7 @@ func UpdateReimbursement(c *gin.Context) {
 			database.DB.Model(&models.Transaction{}).Where("id = ?", tid).Update("reimburse_status", "done")
 		}
 	}
+	Broadcast(c, "reimbursements", "update", reqUri.ID)
 	OK(c, nil)
 }
 func DeleteReimbursement(c *gin.Context) {
@@ -575,5 +600,6 @@ func DeleteReimbursement(c *gin.Context) {
 	var req dto.IDRequest
 	c.ShouldBindUri(&req)
 	database.DB.Where("id = ? AND user_id = ?", req.ID, uid).Delete(&models.Reimbursement{})
+	Broadcast(c, "reimbursements", "delete", req.ID)
 	OK(c, nil)
 }

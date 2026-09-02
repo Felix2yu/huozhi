@@ -433,3 +433,248 @@ func DownloadImportTemplate(c *gin.Context) {
 	w.Write([]string{now.Format("2006-01-02"), "income", "8000.00", "工资", "8月工资"})
 	w.Flush()
 }
+
+// GetBill 获取月度账单完整数据（前端可渲染 + window.print() 导出 PDF）
+// Query: month=2026-09, book_id=2
+func GetBill(c *gin.Context) {
+	uid := middleware.GetUID(c)
+	monthStr := c.Query("month")
+	if monthStr == "" {
+		monthStr = time.Now().Format("2006-01")
+	}
+	bookIDStr := c.Query("book_id")
+
+	// 解析月份
+	loc := time.Now().Location()
+	parsed, err := time.Parse("2006-01", monthStr)
+	if err != nil {
+		Bad(c, "月份格式错误，应为 YYYY-MM")
+		return
+	}
+	first := time.Date(parsed.Year(), parsed.Month(), 1, 0, 0, 0, 0, loc)
+	last := first.AddDate(0, 1, -1)
+
+	q := database.DB.Where("user_id = ?", uid)
+	if bookIDStr != "" && bookIDStr != "0" {
+		var bid uint
+		fmt.Sscanf(bookIDStr, "%d", &bid)
+		if bid > 0 {
+			q = q.Where("book_id = ?", bid)
+		}
+	}
+
+	// === 收支汇总 ===
+	var income, expense float64
+	var incomeCnt, expenseCnt int64
+	q.Model(&models.Transaction{}).
+		Where("tx_date >= ? AND tx_date < ? AND type IN ? AND include_in_balance = ?",
+			first, last.AddDate(0, 0, 1), []string{string(models.TxIncome), string(models.TxRefund)}, true).
+		Select("COALESCE(SUM(amount), 0), COUNT(*)").Row().Scan(&income, &incomeCnt)
+	q.Model(&models.Transaction{}).
+		Where("tx_date >= ? AND tx_date < ? AND type = ? AND include_in_balance = ?",
+			first, last.AddDate(0, 0, 1), string(models.TxExpense), true).
+		Select("COALESCE(SUM(amount), 0), COUNT(*)").Row().Scan(&expense, &expenseCnt)
+
+	// === 分类汇总 ===
+	var catRows []struct {
+		CategoryID uint
+		Kind       string
+		SumAmount  float64
+		Count      int64
+	}
+	q.Model(&models.Transaction{}).
+		Where("tx_date >= ? AND tx_date < ? AND type IN ?",
+			first, last.AddDate(0, 0, 1), []string{string(models.TxExpense), string(models.TxIncome), string(models.TxRefund)}).
+		Select("category_id, type, SUM(amount) sum_amount, COUNT(*) count").
+		Group("category_id, type").Scan(&catRows)
+
+	catMap := make(map[uint]map[string]float64)
+	catCntMap := make(map[uint]int64)
+	for _, r := range catRows {
+		if _, ok := catMap[r.CategoryID]; !ok {
+			catMap[r.CategoryID] = map[string]float64{"expense": 0, "income": 0}
+		}
+		switch r.Kind {
+		case string(models.TxExpense):
+			catMap[r.CategoryID]["expense"] += r.SumAmount
+		default:
+			catMap[r.CategoryID]["income"] += r.SumAmount
+		}
+		catCntMap[r.CategoryID] += r.Count
+	}
+
+	var cats []models.Category
+	database.DB.Where("id IN ?", mapKeys(catMap)).Find(&cats)
+	catInfo := make(map[uint]models.Category)
+	for _, c := range cats {
+		catInfo[c.ID] = c
+	}
+
+	type catOut struct {
+		ID      uint    `json:"id"`
+		Name    string  `json:"name"`
+		Icon    string  `json:"icon"`
+		Color   string  `json:"color"`
+		Amount  float64 `json:"amount"`
+		Count   int64   `json:"count"`
+		Percent float64 `json:"percent"`
+		Kind    string  `json:"kind"`
+	}
+	var expRank, incRank []catOut
+	for id, m := range catMap {
+		info := catInfo[id]
+		if m["expense"] > 0 {
+			pct := 0.0
+			if expense > 0 {
+				pct = round2(m["expense"] / expense * 100)
+			}
+			expRank = append(expRank, catOut{
+				ID: id, Name: info.Name, Icon: info.Icon, Color: info.Color,
+				Amount: round2(m["expense"]), Count: catCntMap[id], Percent: pct, Kind: "expense",
+			})
+		}
+		if m["income"] > 0 {
+			pct := 0.0
+			if income > 0 {
+				pct = round2(m["income"] / income * 100)
+			}
+			incRank = append(incRank, catOut{
+				ID: id, Name: info.Name, Icon: info.Icon, Color: info.Color,
+				Amount: round2(m["income"]), Count: catCntMap[id], Percent: pct, Kind: "income",
+			})
+		}
+	}
+	sortByAmountDesc(expRank)
+	sortByAmountDesc(incRank)
+
+	// === 每日趋势 ===
+	type trendPoint struct {
+		Date    string  `json:"date"`
+		Income  float64 `json:"income"`
+		Expense float64 `json:"expense"`
+		Net     float64 `json:"net"`
+	}
+	var days []trendPoint
+	for d := first; !d.After(last); d = d.AddDate(0, 0, 1) {
+		var inc, exp float64
+		q.Model(&models.Transaction{}).
+			Where("tx_date >= ? AND tx_date < ? AND type IN ? AND include_in_balance = ?",
+				d, d.AddDate(0, 0, 1), []string{string(models.TxIncome), string(models.TxRefund)}, true).
+			Select("COALESCE(SUM(amount), 0)").Row().Scan(&inc)
+		q.Model(&models.Transaction{}).
+			Where("tx_date >= ? AND tx_date < ? AND type = ? AND include_in_balance = ?",
+				d, d.AddDate(0, 0, 1), string(models.TxExpense), true).
+			Select("COALESCE(SUM(amount), 0)").Row().Scan(&exp)
+		days = append(days, trendPoint{
+			Date:    d.Format("01-02"),
+			Income:  round2(inc),
+			Expense: round2(exp),
+			Net:     round2(inc - exp),
+		})
+	}
+
+	// === 预算执行 ===
+	var budgets []models.Budget
+	database.DB.Where("user_id = ? AND start_date <= ? AND end_date >= ?", uid, last, first).Find(&budgets)
+	type budgOut struct {
+		ID          uint    `json:"id"`
+		Name        string  `json:"name"`
+		Amount      float64 `json:"amount"`
+		UsedAmount  float64 `json:"used_amount"`
+		Remaining   float64 `json:"remaining"`
+		UsageRate   float64 `json:"usage_rate"`
+		IsOverBudget bool    `json:"is_over_budget"`
+		CategoryID  uint    `json:"category_id"`
+		CategoryName string `json:"category_name"`
+	}
+	var budgOuts []budgOut
+	for _, b := range budgets {
+		name := "总预算"
+		if b.CategoryID > 0 {
+			if c, ok := catInfo[b.CategoryID]; ok {
+				name = c.Name
+			}
+		}
+		rate := 0.0
+		if b.Amount > 0 {
+			rate = round2(b.UsedAmount / b.Amount * 100)
+		}
+		budgOuts = append(budgOuts, budgOut{
+			ID: b.ID, Amount: b.Amount, UsedAmount: round2(b.UsedAmount),
+			Remaining: round2(b.Amount - b.UsedAmount), UsageRate: rate,
+			IsOverBudget: b.UsedAmount > b.Amount, CategoryID: b.CategoryID,
+			Name: name, CategoryName: name,
+		})
+	}
+
+	// === 账户资产快照 ===
+	var accounts []models.Account
+	database.DB.Where("user_id = ? AND is_archived = ?", uid, false).Find(&accounts)
+	var totalAsset, totalDebt float64
+	for _, a := range accounts {
+		if !a.IncludeInTotal {
+			continue
+		}
+		switch a.Type {
+		case models.AccLiability, models.AccCredit:
+			totalDebt += a.Balance
+		default:
+			totalAsset += a.Balance
+		}
+	}
+
+	// === 书籍信息 ===
+	var bookName string
+	if bookIDStr != "" && bookIDStr != "0" {
+		var b models.Book
+		database.DB.Where("id = ? AND user_id = ?", mustUint(bookIDStr), uid).First(&b)
+		bookName = b.Name
+	}
+
+	// === 用户信息 ===
+	var user models.User
+	database.DB.First(&user, uid)
+
+	OK(c, gin.H{
+		"meta": gin.H{
+			"month":       monthStr,
+			"range_start": first.Format("2006-01-02"),
+			"range_end":   last.Format("2006-01-02"),
+			"book_name":   bookName,
+			"user_name":   user.Nickname,
+			"generated_at": time.Now().Format("2006-01-02 15:04:05"),
+		},
+		"summary": gin.H{
+			"total_income":      round2(income),
+			"total_expense":     round2(expense),
+			"net":               round2(income - expense),
+			"income_count":      incomeCnt,
+			"expense_count":     expenseCnt,
+			"transaction_count": incomeCnt + expenseCnt,
+			"avg_daily_expense": round2(expense / float64(last.Day())),
+		},
+		"category_expense": expRank,
+		"category_income":  incRank,
+		"daily_trend":      days,
+		"budgets":          budgOuts,
+		"assets": gin.H{
+			"total_asset": round2(totalAsset),
+			"total_debt":  round2(totalDebt),
+			"net_asset":   round2(totalAsset - totalDebt),
+		},
+	})
+}
+
+func mapKeys(m map[uint]map[string]float64) []uint {
+	out := make([]uint, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
+}
+
+func mustUint(s string) uint {
+	var n uint
+	fmt.Sscanf(s, "%d", &n)
+	return n
+}

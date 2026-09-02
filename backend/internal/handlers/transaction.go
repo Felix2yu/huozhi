@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"encoding/json"
 	"huozhi/internal/database"
 	"huozhi/internal/dto"
 	"huozhi/internal/middleware"
 	"huozhi/internal/models"
+	"huozhi/internal/ws"
 	"math"
 	"time"
 
@@ -65,7 +67,7 @@ func CreateTransaction(c *gin.Context) {
 		TransferFee:      req.TransferFee,
 		TransferDiscount: req.TransferDiscount,
 		RefundOfID:       req.RefundOfID,
-		TxDate:           req.TxDate,
+		TxDate:           req.TxDate.T(),
 		Description:      req.Description,
 		Images:           req.Images,
 		Merchant:         req.Merchant,
@@ -106,7 +108,7 @@ func CreateTransaction(c *gin.Context) {
 	updateAccountBalances(tx, &newTx, &fromAcc, &toAcc, true)
 
 	if req.BookID > 0 {
-		updateBudgetUsed(tx, uid, req.BookID, newTx.CategoryID, newTx.TxDate, req.Amount, models.TransactionType(req.Type))
+		applyBudgetUsed(tx, uid, req.BookID, newTx.CategoryID, newTx.TxDate, newTx.Amount, newTx.Type, newTx.IncludeInBudget, 1)
 	}
 
 	if err := tx.Commit().Error; err != nil {
@@ -115,8 +117,30 @@ func CreateTransaction(c *gin.Context) {
 		return
 	}
 
+	// 检查预算超限 → 推送 alert（仅支出且计入预算）
+	if newTx.Type == models.TxExpense && newTx.IncludeInBudget && req.BookID > 0 {
+		var overBudgets []models.Budget
+		database.DB.Where(
+			"user_id = ? AND book_id = ? AND start_date <= ? AND end_date >= ? AND used_amount > amount",
+			uid, req.BookID, newTx.TxDate, newTx.TxDate,
+		).Find(&overBudgets)
+		if len(overBudgets) > 0 {
+			data, _ := json.Marshal(map[string]interface{}{
+				"count":     len(overBudgets),
+				"tx_amount": newTx.Amount,
+			})
+			ws.DefaultHub.BroadcastWithData(uid, ws.Message{
+				Type:   "alert",
+				Table:  "budgets",
+				Action: "over_budget",
+				Data:   data,
+			})
+		}
+	}
+
 	// 重新加载完整信息
 	database.DB.Preload("Tags").First(&newTx, newTx.ID)
+	Broadcast(c, "transactions", "create", newTx.ID)
 	Created(c, newTx)
 }
 
@@ -150,25 +174,24 @@ func updateAccountBalances(db *gorm.DB, tx *models.Transaction, from, to *models
 	}
 }
 
-// updateBudgetUsed 更新预算使用额
-func updateBudgetUsed(db *gorm.DB, uid, bookID, catID uint, date time.Time, amount float64, txType models.TransactionType) {
-	if txType != models.TxExpense {
+// applyBudgetUsed 应用预算 used_amount 变更（支持所有 period_type，通过 start/end_date 范围匹配）
+// factor=+1 增加（创建/修改为新值），factor=-1 减少（删除/撤销旧值）
+func applyBudgetUsed(db *gorm.DB, uid, bookID, catID uint, date time.Time, amount float64, txType models.TransactionType, includeInBudget bool, factor float64) {
+	if txType != models.TxExpense || !includeInBudget || amount <= 0 {
 		return
 	}
-	ym := time.Date(date.Year(), date.Month(), 1, 0, 0, 0, 0, date.Location())
-	start := ym
-	end := ym.AddDate(0, 1, -1)
-	// 总预算
+	delta := amount * factor
+	// 总预算（category_id=0）
 	db.Model(&models.Budget{}).
-		Where("user_id = ? AND book_id = ? AND category_id = 0 AND period_type = ? AND start_date <= ? AND end_date >= ?",
-			uid, bookID, "monthly", start, end).
-		Update("used_amount", gorm.Expr("used_amount + ?", amount))
+		Where("user_id = ? AND book_id = ? AND category_id = 0 AND start_date <= ? AND end_date >= ?",
+			uid, bookID, date, date).
+		Update("used_amount", gorm.Expr("used_amount + ?", delta))
 	// 分类预算
 	if catID > 0 {
 		db.Model(&models.Budget{}).
-			Where("user_id = ? AND book_id = ? AND category_id = ? AND period_type = ? AND start_date <= ? AND end_date >= ?",
-				uid, bookID, catID, "monthly", start, end).
-			Update("used_amount", gorm.Expr("used_amount + ?", amount))
+			Where("user_id = ? AND book_id = ? AND category_id = ? AND start_date <= ? AND end_date >= ?",
+				uid, bookID, catID, date, date).
+			Update("used_amount", gorm.Expr("used_amount + ?", delta))
 	}
 }
 
@@ -326,6 +349,9 @@ func UpdateTransaction(c *gin.Context) {
 	}
 	updateAccountBalances(db, &old, &from, &to, false)
 
+	// 撤销旧预算 used_amount
+	applyBudgetUsed(db, uid, old.BookID, old.CategoryID, old.TxDate, old.Amount, old.Type, old.IncludeInBudget, -1)
+
 	// 更新字段
 	updates := map[string]interface{}{
 		"book_id":            req.BookID,
@@ -339,7 +365,7 @@ func UpdateTransaction(c *gin.Context) {
 		"transfer_fee":       req.TransferFee,
 		"transfer_discount":  req.TransferDiscount,
 		"refund_of_id":       req.RefundOfID,
-		"tx_date":            req.TxDate,
+		"tx_date":            req.TxDate.T(),
 		"description":        req.Description,
 		"images":             req.Images,
 		"merchant":           req.Merchant,
@@ -366,9 +392,13 @@ func UpdateTransaction(c *gin.Context) {
 	}
 	updateAccountBalances(db, &newTx, &from2, &to2, true)
 
+	// 应用新预算 used_amount
+	applyBudgetUsed(db, uid, newTx.BookID, newTx.CategoryID, newTx.TxDate, newTx.Amount, newTx.Type, newTx.IncludeInBudget, 1)
+
 	db.Commit()
 
 	database.DB.Preload("Tags").First(&newTx, old.ID)
+	Broadcast(c, "transactions", "update", old.ID)
 	OK(c, newTx)
 }
 
@@ -393,8 +423,12 @@ func DeleteTransaction(c *gin.Context) {
 	}
 	updateAccountBalances(db, &tx, &from, &to, false)
 
+	// 撤销预算 used_amount（删除交易）
+	applyBudgetUsed(db, uid, tx.BookID, tx.CategoryID, tx.TxDate, tx.Amount, tx.Type, tx.IncludeInBudget, -1)
+
 	db.Delete(&tx)
 	db.Commit()
+	Broadcast(c, "transactions", "delete", req.ID)
 	OK(c, nil)
 }
 
@@ -422,6 +456,7 @@ func BatchDeleteTransactions(c *gin.Context) {
 			db.First(&to, tx.ToAccountID)
 		}
 		updateAccountBalances(db, &tx, &from, &to, false)
+		applyBudgetUsed(db, uid, tx.BookID, tx.CategoryID, tx.TxDate, tx.Amount, tx.Type, tx.IncludeInBudget, -1)
 		db.Delete(&tx)
 	}
 	db.Commit()
@@ -476,8 +511,8 @@ func CreateBudget(c *gin.Context) {
 		PeriodType: req.PeriodType,
 		CategoryID: req.CategoryID,
 		Amount:     req.Amount,
-		StartDate:  req.StartDate,
-		EndDate:    req.EndDate,
+		StartDate:  req.StartDate.T(),
+		EndDate:    req.EndDate.T(),
 		AlertRate:  req.AlertRate,
 		RollOver:   req.RollOver,
 	}
