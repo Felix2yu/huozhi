@@ -298,19 +298,31 @@ func ListTransactions(c *gin.Context) {
 		grouped = append(grouped, g)
 	}
 
-	// 汇总
+	// 汇总 — 必须用新 query，不能复用已执行过 Find 的 q
 	var sumIn, sumOut float64
-	rows, _ := q.Select("type, SUM(amount)").Group("type").Rows()
-	defer rows.Close()
-	for rows.Next() {
-		var tp string
-		var amt float64
-		rows.Scan(&tp, &amt)
-		switch tp {
-		case string(models.TxIncome), string(models.TxRefund):
-			sumIn += amt
-		case string(models.TxExpense):
-			sumOut += amt
+	sq := database.DB.Model(&models.Transaction{}).Where("user_id = ?", uid)
+	if req.BookID > 0 {
+		sq = sq.Where("book_id = ?", req.BookID)
+	}
+	if !req.StartDate.IsZero() {
+		sq = sq.Where("tx_date >= ?", req.StartDate)
+	}
+	if !req.EndDate.IsZero() {
+		sq = sq.Where("tx_date <= ?", req.EndDate.AddDate(0, 0, 1))
+	}
+	type sumRow struct {
+		Type string  `gorm:"column:type"`
+		Amt  float64 `gorm:"column:amt"`
+	}
+	var sums []sumRow
+	if err := sq.Select("type, SUM(amount) as amt").Group("type").Scan(&sums).Error; err == nil {
+		for _, s := range sums {
+			switch s.Type {
+			case string(models.TxIncome), string(models.TxRefund):
+				sumIn += s.Amt
+			case string(models.TxExpense):
+				sumOut += s.Amt
+			}
 		}
 	}
 
