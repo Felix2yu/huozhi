@@ -97,3 +97,169 @@
   .bill-paper { box-shadow: none !important; border-radius: 0 !important; }
   @page { margin: 15mm; }
 }
+
+/* ============ 3D 银行卡卡面 ============ */
+.card3d-wrap {
+  perspective: 1200px;
+}
+.card3d {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1.586 / 1; /* 标准银行卡比例 */
+  transform-style: preserve-3d;
+  transition: transform 600ms cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+.card3d.flipped {
+  transform: rotateY(180deg);
+}
+.card3d-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: 18px;
+  overflow: hidden;
+  color: #fff;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow:
+    0 10px 30px -10px rgba(0, 0, 0, 0.35),
+    0 2px 6px rgba(0, 0, 0, 0.15);
+}
+.card3d-face.back {
+  transform: rotateY(180deg);
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  padding: 0;
+}
+/* 银行自动渐变：基于 bank_name hash */
+.card3d-bank-0 { background: linear-gradient(135deg, #1e3a8a, #3b82f6); } /* 招行/工行蓝 */
+.card3d-bank-1 { background: linear-gradient(135deg, #7f1d1d, #ef4444); } /* 建行红 */
+.card3d-bank-2 { background: linear-gradient(135deg, #134e4a, #14b8a6); } /* 农行绿 */
+.card3d-bank-3 { background: linear-gradient(135deg, #4c1d95, #8b5cf6); } /* 中行紫 */
+.card3d-bank-4 { background: linear-gradient(135deg, #78350f, #f59e0b); } /* 交行金 */
+.card3d-bank-5 { background: linear-gradient(135deg, #0f172a, #475569); } /* 黑金 */
+.card3d-bank-6 { background: linear-gradient(135deg, #831843, #ec4899); } /* 粉紫 */
+.card3d-bank-7 { background: linear-gradient(135deg, #134e4a, #06b6d4); } /* 青绿 */
+.card3d-credit {
+  background: linear-gradient(135deg, #0c0a09, #292524) !important;
+  box-shadow:
+    0 10px 30px -10px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.card3d-credit::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(251, 191, 36, 0.18), transparent 45%),
+    radial-gradient(ellipse at 85% 75%, rgba(139, 92, 246, 0.22), transparent 40%);
+  pointer-events: none;
+}
+/* 金属光泽条 */
+.card3d-shine {
+  position: absolute;
+  top: -40%;
+  left: -30%;
+  width: 60%;
+  height: 180%;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.12) 42%,
+    rgba(255, 255, 255, 0.25) 50%,
+    rgba(255, 255, 255, 0.12) 58%,
+    transparent 70%
+  );
+  transform: skewX(-22deg);
+  pointer-events: none;
+  opacity: 0.7;
+  animation: card3d-shine 8s ease-in-out infinite;
+}
+@keyframes card3d-shine {
+  0%, 100% { transform: translateX(-40%) skewX(-22deg); }
+  50% { transform: translateX(200%) skewX(-22deg); }
+}
+/* 芯片 */
+.card3d-chip {
+  width: 44px;
+  height: 34px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #d4a94a 0%, #8a6a1a 50%, #d4a94a 100%);
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2);
+}
+.card3d-chip::before, .card3d-chip::after {
+  content: '';
+  position: absolute;
+  background: rgba(0,0,0,0.25);
+}
+.card3d-chip::before {
+  inset: 3px;
+  border-radius: 4px;
+  border: 1px solid rgba(0,0,0,0.3);
+}
+.card3d-chip::after {
+  top: 50%; left: 0; right: 0; height: 1px;
+  box-shadow: 0 -6px 0 rgba(0,0,0,0.25), 0 6px 0 rgba(0,0,0,0.25);
+}
+/* 磁条 */
+.card3d-magstripe {
+  height: 44px;
+  background: #000;
+  margin-top: 24px;
+}
+.card3d-sigstrip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 22px;
+  height: 42px;
+  background: repeating-linear-gradient(
+    -45deg,
+    #e5e7eb, #e5e7eb 6px,
+    #f3f4f6 6px, #f3f4f6 12px
+  );
+  margin: 18px 22px 0;
+  border-radius: 4px;
+  color: #1e293b;
+}
+.card3d-cvv-box {
+  background: #fff;
+  color: #1e293b;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-weight: 700;
+  letter-spacing: 2px;
+  font-size: 14px;
+}
+.card3d-number {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 20px;
+  letter-spacing: 3px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+}
+.card3d-name {
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.card3d-small {
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  opacity: 0.7;
+  text-transform: uppercase;
+}
+.card3d:hover:not(.flipped) {
+  transform: translateY(-4px);
+  transition: transform 300ms ease-out;
+}
+.card3d.flipped:hover {
+  transform: rotateY(180deg) translateY(-4px);
+  transition: transform 300ms ease-out;
+}

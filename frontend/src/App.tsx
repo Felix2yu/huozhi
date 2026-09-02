@@ -12,6 +12,7 @@ import DashboardPage from '@/pages/dashboard/DashboardPage';
 import TransactionsPage from '@/pages/transactions/TransactionsPage';
 import TransactionAddPage from '@/pages/transactions/TransactionAddPage';
 import AccountsPage from '@/pages/accounts/AccountsPage';
+import CardsPage from '@/pages/cards/CardsPage';
 import CategoriesPage from '@/pages/categories/CategoriesPage';
 import BudgetsPage from '@/pages/budgets/BudgetsPage';
 import StatisticsPage from '@/pages/statistics/StatisticsPage';
@@ -117,6 +118,7 @@ export default function App() {
         <Route path="transactions/add" element={<TransactionAddPage />} />
         <Route path="transactions/edit/:id" element={<TransactionAddPage />} />
         <Route path="accounts" element={<AccountsPage />} />
+        <Route path="cards" element={<CardsPage />} />
         <Route path="categories" element={<CategoriesPage />} />
         <Route path="budgets" element={<BudgetsPage />} />
         <Route path="statistics" element={<StatisticsPage />} />

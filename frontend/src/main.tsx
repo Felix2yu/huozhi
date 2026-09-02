@@ -4,6 +4,10 @@ import { BrowserRouter } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import App from './App';
 import './styles/index.css';
+import { initOfflineQueue } from './utils/offline';
+
+// 初始化离线请求队列（注册 online/offline 事件 + 启动时重放残留）
+initOfflineQueue();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <BrowserRouter>
