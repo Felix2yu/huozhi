@@ -60,7 +60,7 @@ export default function SettingsPage() {
   const [prefsSaving, setPrefsSaving] = useState(false);
 
   // 导入
-  const [importSource, setImportSource] = useState<'wechat' | 'alipay' | 'template' | 'csv'>('template');
+  const [importSource, setImportSource] = useState<'wechat' | 'alipay' | 'template' | 'qianji' | 'csv'>('template');
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importBookId, setImportBookId] = useState<number>(currentBookId);
   const [importing, setImporting] = useState(false);
@@ -438,7 +438,7 @@ export default function SettingsPage() {
           <div className="space-y-5">
             <SectionHeader
               title="导入 / 导出数据"
-              subtitle="支持微信、支付宝、通用模板格式，快速迁移历史账单"
+              subtitle="支持微信、支付宝、钱迹、通用模板格式，快速迁移历史账单"
               Icon={FileText}
             />
 
@@ -488,6 +488,7 @@ export default function SettingsPage() {
                     { k: 'template', label: '通用 CSV 模板', desc: '适用于模板导入', emoji: '📋' },
                     { k: 'wechat', label: '微信账单', desc: '微信支付导出', emoji: '💬' },
                     { k: 'alipay', label: '支付宝账单', desc: '支付宝导出', emoji: '🅰️' },
+                    { k: 'qianji', label: '钱迹账单', desc: '钱迹 App 导出 xlsx', emoji: '📒' },
                     { k: 'csv', label: '自定义 CSV', desc: '自定义列映射', emoji: '📄' },
                   ].map(s => (
                     <button
@@ -576,6 +577,7 @@ export default function SettingsPage() {
                   <li><b>通用 CSV 模板</b>：推荐方式，先点击"下载 CSV 模板"填写后上传。</li>
                   <li><b>微信账单</b>：在微信【我 → 服务 → 钱包 → 账单 → 常见问题 → 下载账单 → 用于个人对账】获取。</li>
                   <li><b>支付宝账单</b>：在支付宝【我的 → 账单 → 右上角 ... → 开具交易流水证明 → 用于个人对账】获取。</li>
+                  <li><b>钱迹账单</b>：在钱迹 App 导出账单（xlsx），自动识别「支出/收入/转账/退款」、账户、分类、标签、币种与转账手续费/优惠券。</li>
                   <li>系统会自动进行分类匹配，部分无法识别的记录会标记为「未分类」。</li>
                 </ul>
               </div>

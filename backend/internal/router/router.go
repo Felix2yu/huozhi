@@ -3,6 +3,7 @@ package router
 import (
 	"huozhi/internal/handlers"
 	"huozhi/internal/middleware"
+	"huozhi/internal/ws"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -35,11 +36,19 @@ func New(mode string) *gin.Engine {
 		auth := api.Group("")
 		auth.Use(middleware.JWTAuth())
 		{
+			// WebSocket 实时同步
+			auth.GET("/ws", ws.ServeWS(ws.DefaultHub))
+
 			// 用户
 			auth.GET("/auth/me", handlers.GetMe)
 			auth.PUT("/auth/me", handlers.UpdateMe)
 			auth.POST("/auth/password", handlers.ChangePassword)
 			auth.POST("/auth/logout", handlers.Logout)
+
+			// AI 智能分类 & 智能记账
+			auth.GET("/ai/status", handlers.AIStatus)
+			auth.POST("/ai/classify", handlers.AIClassify)
+			auth.POST("/ai/smart-record", handlers.AISmartRecord)
 
 			// 账本
 			books := auth.Group("/books")
@@ -57,14 +66,17 @@ func New(mode string) *gin.Engine {
 			accounts := auth.Group("/accounts")
 			{
 				accounts.GET("", handlers.ListAccounts)
+				// ⚠️ 静态路径必须在 /:id 之前注册，否则被参数路由劫持
+				accounts.GET("/credit-summary", handlers.GetCreditSummary)
+				accounts.GET("/groups", handlers.ListAccountGroups)
+				accounts.POST("/groups", handlers.CreateAccountGroup)
+				accounts.DELETE("/groups/:id", handlers.DeleteAccountGroup)
 				accounts.GET("/:id", handlers.GetAccount)
 				accounts.POST("", handlers.CreateAccount)
 				accounts.PUT("/:id", handlers.UpdateAccount)
 				accounts.DELETE("/:id", handlers.DeleteAccount)
 				accounts.POST("/:id/adjust", handlers.AdjustAccountBalance)
-				accounts.GET("/groups", handlers.ListAccountGroups)
-				accounts.POST("/groups", handlers.CreateAccountGroup)
-				accounts.DELETE("/groups/:id", handlers.DeleteAccountGroup)
+				accounts.GET("/:id/full-card", handlers.GetFullCardNo)
 			}
 
 			// 分类
@@ -155,6 +167,7 @@ func New(mode string) *gin.Engine {
 				io.GET("/export", handlers.ExportTransactions)
 				io.POST("/import", handlers.ImportTransactions)
 				io.GET("/template", handlers.DownloadImportTemplate)
+				io.GET("/bill", handlers.GetBill)
 			}
 		}
 	}

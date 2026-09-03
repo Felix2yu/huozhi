@@ -8,24 +8,27 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// JWTAuth JWT鉴权中间件
+// JWTAuth JWT鉴权中间件（支持 Authorization header 或 ?token= query 参数）
 func JWTAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header required"})
+		var tokenStr string
+		if authHeader := c.GetHeader("Authorization"); authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if !(len(parts) == 2 && parts[0] == "Bearer") {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header format must be Bearer {token}"})
+				c.Abort()
+				return
+			}
+			tokenStr = parts[1]
+		} else if qt := c.Query("token"); qt != "" {
+			tokenStr = qt
+		} else {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "authorization required"})
 			c.Abort()
 			return
 		}
 
-		parts := strings.SplitN(authHeader, " ", 2)
-		if !(len(parts) == 2 && parts[0] == "Bearer") {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header format must be Bearer {token}"})
-			c.Abort()
-			return
-		}
-
-		claims, err := jwt.ParseToken(parts[1])
+		claims, err := jwt.ParseToken(tokenStr)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 			c.Abort()
