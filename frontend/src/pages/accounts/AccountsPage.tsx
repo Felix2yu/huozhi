@@ -379,7 +379,7 @@ export default function AccountsPage() {
                           </span>
                         </>
                       )}
-                      {a.expire_month > 0 && a.expire_year > 0 && (
+                      {(a.expire_month ?? 0) > 0 && (a.expire_year ?? 0) > 0 && (
                         <span className="font-mono text-slate-500 ml-1">
                           · 有效 {String(a.expire_month).padStart(2, '0')}/{String(a.expire_year).padStart(2, '0')}
                         </span>
@@ -392,24 +392,35 @@ export default function AccountsPage() {
                 </div>
               </div>
               <div className="mt-5">
-                <div className="text-xs text-slate-500">余额</div>
+                <div className="text-xs text-slate-500">
+                  {a.type === 'credit' || a.type === 'liability'
+                    ? (a.balance > 0 ? '应还' : a.balance < 0 ? '溢缴' : '应还')
+                    : '余额'}
+                </div>
                 <div className={cn(
                   'text-2xl font-bold tabular-nums mt-1',
-                  a.balance < 0 ? 'text-red-500' : 'text-slate-800'
+                  a.type === 'credit' || a.type === 'liability'
+                    ? (a.balance > 0 ? 'text-red-500' : a.balance < 0 ? 'text-emerald-500' : 'text-slate-800')
+                    : (a.balance < 0 ? 'text-red-500' : 'text-slate-800')
                 )}>
                   {formatMoney(a.balance)}
                 </div>
+                {a.type === 'credit' && a.credit_limit ? (
+                  <div className="text-xs text-slate-400 mt-0.5">
+                    可用额度 {formatMoney(Math.max(0, (a.credit_limit || 0) - a.balance))}
+                  </div>
+                ) : null}
               </div>
               {a.type === 'credit' && a.credit_limit ? (
                 <div className="mt-4">
                   <div className="flex justify-between text-xs text-slate-500 mb-1">
-                    <span>额度使用 {pct(a.balance < 0 ? 0 : a.balance, a.credit_limit)}%</span>
-                    <span>{formatMoney(a.balance < 0 ? 0 : a.balance)} / {formatMoney(a.credit_limit)}</span>
+                    <span>额度使用 {pct(Math.max(0, a.balance), a.credit_limit)}%</span>
+                    <span>{formatMoney(Math.max(0, a.balance))} / {formatMoney(a.credit_limit)}</span>
                   </div>
                   <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full bg-brand-500"
-                      style={{ width: `${pct(a.balance < 0 ? 0 : a.balance, a.credit_limit)}%` }}
+                      style={{ width: `${pct(Math.max(0, a.balance), a.credit_limit)}%` }}
                     />
                   </div>
                   {(a.bill_day || a.repay_day) && (
@@ -698,13 +709,17 @@ export default function AccountsPage() {
       >
         <div className="space-y-3">
           <div>
-            <label className="label">当前余额</label>
+            <label className="label">
+              {adjustItem && (adjustItem.type === 'credit' || adjustItem.type === 'liability') ? '当前应还' : '当前余额'}
+            </label>
             <div className="text-lg font-semibold tabular-nums text-slate-700">
               {formatMoney(adjustItem?.balance || 0)}
             </div>
           </div>
           <div>
-            <label className="label">新的余额</label>
+            <label className="label">
+              {adjustItem && (adjustItem.type === 'credit' || adjustItem.type === 'liability') ? '新的应还' : '新的余额'}
+            </label>
             <input
               className="input !text-xl !font-semibold"
               type="number"

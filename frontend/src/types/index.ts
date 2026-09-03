@@ -84,6 +84,22 @@ export interface AccountSummary {
   cash_flow: number;
 }
 
+// 信用卡还款倒计时项（/accounts/credit-summary 返回）
+export interface CreditRepayItem {
+  id: number;
+  name: string;
+  bank_name: string;
+  card_no4: string;
+  repay_day: number;
+  bill_day: number;
+  balance: number;
+  credit_limit: number;
+  days_left: number;
+  repay_date: string;
+  bill_amount: number;
+  overdue: boolean;
+}
+
 // ====== 分类 ======
 export interface Category {
   id: number;

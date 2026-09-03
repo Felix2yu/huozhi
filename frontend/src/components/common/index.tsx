@@ -79,13 +79,14 @@ export function ConfirmDialog({
   );
 }
 
-export function Empty({ text = '暂无数据', icon }: { text?: string; icon?: ReactNode }) {
+export function Empty({ text = '暂无数据', icon, hint }: { text?: string; icon?: ReactNode; hint?: ReactNode }) {
   return (
     <div className="py-16 flex flex-col items-center justify-center text-slate-400">
       <div className="w-16 h-16 rounded-full bg-slate-100 grid place-items-center mb-3">
         {icon || <span className="text-2xl">📭</span>}
       </div>
       <div className="text-sm">{text}</div>
+      {hint && <div className="text-xs text-slate-400 mt-1 max-w-xs text-center leading-relaxed">{hint}</div>}
     </div>
   );
 }
