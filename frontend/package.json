@@ -13,7 +13,7 @@
     "postinstall": "node scripts/patch-pwa.cjs"
   },
   "dependencies": {
-    "@types/node": "^20.14.0",
+    "@types/node": "^26.4.0",
     "axios": "^1.7.2",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.11",
