@@ -1,13 +1,6 @@
 const fs = require('fs');
 let code = fs.readFileSync('node_modules/vite-plugin-pwa/dist/index.js', 'utf8');
 
-// First, restore from npm cache to be safe
-const { execSync } = require('child_process');
-const contentPath = '/Users/yufei/.npm/_cacache/content-v2/sha512/73/99/0c80df884eb3ad1d7a7c3c0b64dae38811e6ba5e33ffba7086c4e59607343aa9aeb9aa3fdac07834c1ff9017d13fdaef6f87ce8bab13f0cc43cd6ccdabe4';
-execSync('rm -rf /tmp/vite-pwa-restore && mkdir -p /tmp/vite-pwa-restore && tar -xzf ' + contentPath + ' -C /tmp/vite-pwa-restore', { encoding: 'utf8' });
-code = fs.readFileSync('/tmp/vite-pwa-restore/package/dist/index.js', 'utf8');
-console.log('Restored original from npm cache');
-
 // Now apply runtimeCaching patch with proper escaping
 // We want this exact code in the file:
 //   if (strategies === 'generateSW' && !workbox.runtimeCaching) {
