@@ -50,7 +50,7 @@ export default function TransactionsPage() {
       if (!params.keyword) delete params.keyword;
       if (params.type === 'all') delete params.type;
       const res = await txApi.list(params);
-      setData(res);
+      setData(res.list ?? res);
     } finally {
       setLoading(false);
     }

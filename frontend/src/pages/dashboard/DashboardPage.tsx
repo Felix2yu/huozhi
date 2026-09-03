@@ -43,7 +43,7 @@ export default function DashboardPage() {
       setAsset(a);
       setStats(s);
       setBudgets(b);
-      setRecent(t.flat_list || []);
+      setRecent((t.list ?? t).flat_list || []);
       setCreditRepays(c || []);
     }).finally(() => setLoading(false));
   }, [bookId]);

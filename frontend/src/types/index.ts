@@ -177,6 +177,11 @@ export interface TransactionListData {
   flat_list: Transaction[];
 }
 
+export interface TransactionListResponse {
+  list: TransactionListData;
+  pagination: { page: number; page_size: number; total: number };
+}
+
 // ====== 预算 ======
 export interface Budget {
   id: number;

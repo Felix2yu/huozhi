@@ -187,12 +187,13 @@ function TopMiniStats() {
     (async () => {
       try {
         const { start, end } = getMonthRange();
-        const { summary } = await txApi.list({
+        const txRes = await txApi.list({
           book_id: bookId,
           start_date: start,
           end_date: end,
           page_size: 1,
         });
+        const summary = (txRes.list ?? txRes).summary;
         const { accounts } = await accountApi.list({ book_id: bookId });
         const asset = accounts.reduce((s, a) => s + (a.include_in_total ? a.balance : 0), 0);
         setSt({ in: summary.total_income, out: summary.total_expense, net: summary.net, asset });
