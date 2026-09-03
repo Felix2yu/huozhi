@@ -124,10 +124,13 @@ func runDueRecurrings() {
 		processRecurring(&r)
 	}
 	// 2. 自动暂停已结束 / 已达上限的任务
+	// 注意：SQLite / MySQL 将零值 time.Time 存为 '0000-00-00 00:00:00'（而非 Go 的
+	// '0001-01-01'），不能简单用 != '0001-01-01' 判断。用 end_date > '0001-02-01'
+	// 排除所有零值表示，避免把"未设结束时间"的周期性任务误判为已到期而自动暂停。
 	database.DB.Exec(`
 		UPDATE recurrings SET status = 'paused', next_run_at = NULL
 		WHERE status = 'active' AND (
-			(end_date IS NOT NULL AND end_date != '0001-01-01' AND end_date <= ?)
+			(end_date IS NOT NULL AND end_date > '0001-02-01' AND end_date <= ?)
 			OR (max_times > 0 AND run_count >= max_times)
 		)`, now)
 }
@@ -148,12 +151,14 @@ func processRecurring(r *models.Recurring) {
 		return
 	}
 	if !lock.EndDate.IsZero() && lock.EndDate.Before(now) {
-		db.Model(&lock).Updates(map[string]interface{}{"status": "paused", "next_run_at": nil})
+		db.Model(&lock).Update("status", "paused")
+		db.Model(&lock).Update("next_run_at", nil)
 		db.Commit()
 		return
 	}
 	if lock.MaxTimes > 0 && lock.RunCount >= lock.MaxTimes {
-		db.Model(&lock).Updates(map[string]interface{}{"status": "paused", "next_run_at": nil})
+		db.Model(&lock).Update("status", "paused")
+		db.Model(&lock).Update("next_run_at", nil)
 		db.Commit()
 		return
 	}
@@ -168,10 +173,8 @@ func processRecurring(r *models.Recurring) {
 	if err := db.Where("recurring_id = ? AND tx_date >= ?", lock.ID, windowStart).
 		First(&recentTx).Error; err == nil {
 		// 已执行过，跳过
-		db.Model(&lock).Updates(map[string]interface{}{
-			"last_run_at": now,
-			"next_run_at": lock.ComputeNextRun(now),
-		})
+		db.Model(&lock).Update("last_run_at", now)
+		db.Model(&lock).Update("next_run_at", lock.ComputeNextRun(now))
 		db.Commit()
 		return
 	}
@@ -205,24 +208,25 @@ func processRecurring(r *models.Recurring) {
 	updateRecurBalances(db, &tx)
 
 	// 更新任务状态
-	updates := map[string]interface{}{
-		"run_count":   gorm.Expr("run_count + 1"),
-		"last_run_at": now,
-		"next_run_at": lock.ComputeNextRun(now),
-	}
+	// 注意：gorm.Expr 与时间字段不能放在同一个 map 中 Update，否则时间字段会被丢弃，
+	// 导致 next_run_at / last_run_at 不落库。且 sqlite 驱动下纯 map 的 time.Time 字段
+	// 也存在偶发丢弃，统一改用单列 Update 以保证 time.Time 字段可靠落库。
 	newRunCount := lock.RunCount + 1
+	next := lock.ComputeNextRun(now)
+	db.Model(&lock).Update("run_count", gorm.Expr("run_count + 1"))
+	db.Model(&lock).Update("last_run_at", now)
 	if lock.MaxTimes > 0 && newRunCount >= lock.MaxTimes {
-		updates["status"] = "paused"
-		updates["next_run_at"] = nil
+		db.Model(&lock).Update("status", "paused")
+		db.Model(&lock).Update("next_run_at", nil)
+	} else if !lock.EndDate.IsZero() && !next.Before(lock.EndDate) {
+		db.Model(&lock).Update("status", "paused")
+		db.Model(&lock).Update("next_run_at", nil)
+	} else {
+		db.Model(&lock).Update("next_run_at", next)
 	}
-	if !lock.EndDate.IsZero() && !updates["next_run_at"].(time.Time).Before(lock.EndDate) {
-		updates["status"] = "paused"
-		updates["next_run_at"] = nil
-	}
-	db.Model(&lock).Updates(updates)
 	db.Commit()
 	log.Printf("[Cron] 周期记账执行 ok recurring_id=%d tx_id=%d amount=%.2f type=%s next=%v",
-		lock.ID, tx.ID, lock.Amount, lock.Type, updates["next_run_at"])
+		lock.ID, tx.ID, lock.Amount, lock.Type, next)
 }
 
 func updateRecurBalances(db *gorm.DB, tx *models.Transaction) {

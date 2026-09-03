@@ -1,0 +1,33 @@
+# Codecov 配置
+# 目标：新增代码（patch）覆盖率需达到 80% 以上；
+# 整个仓库（project）采用 auto 基线，避免未单测的前端页面拖垮 CI。
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 2%
+        informational: true
+    patch:
+      default:
+        target: 80%
+        threshold: 5%
+  flags:
+    backend:
+      paths:
+        - backend/
+    frontend:
+      paths:
+        - frontend/src/
+  ignore:
+    - "**/*.test.ts"
+    - "**/*.test.tsx"
+    - "**/*.spec.ts"
+    - "frontend/src/main.tsx"
+    - "frontend/src/App.tsx"
+
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: false
+  show_carryforward: true

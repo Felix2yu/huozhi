@@ -13,6 +13,37 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'robots.txt'],
+      // 生成 SW 时的 Workbox 运行时缓存规则
+      workbox: {
+        runtimeCaching: [
+          // API GET 请求：NetworkFirst（在线拿最新，断网回退缓存快照）
+          {
+            urlPattern: /^\/api\//,
+            handler: 'NetworkFirst',
+            method: 'GET',
+            options: {
+              cacheName: 'hz-api-cache',
+              expiration: {
+                maxEntries: 500,
+                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 天
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // 上传的图片/头像：CacheFirst（一次请求永久受益）
+          {
+            urlPattern: /^\/uploads\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'hz-uploads-cache',
+              expiration: {
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 天
+              },
+            },
+          },
+        ],
+      },
       manifest: {
         name: '货殖',
         short_name: '货殖',

@@ -145,6 +145,21 @@ func CreateTransaction(c *gin.Context) {
 }
 
 // updateAccountBalances 更新相关账户余额
+// isDebtAccount 信用卡 / 负债类账户：balance 正数表示「欠款」，与 statistics 资产概览口径一致。
+// 这类账户的余额方向与普通资产账户相反，记账时需要对消增减方向。
+func isDebtAccount(a *models.Account) bool {
+	return a != nil && (a.Type == models.AccCredit || a.Type == models.AccLiability)
+}
+
+// debtSign 返回账户余额方向系数：普通资产账户为 +1（正数=我拥有的钱）；
+// 信用卡/负债账户为 -1（正数=欠款，增减方向与资产相反）。
+func debtSign(a *models.Account) float64 {
+	if isDebtAccount(a) {
+		return -1
+	}
+	return 1
+}
+
 func updateAccountBalances(db *gorm.DB, tx *models.Transaction, from, to *models.Account, isAdd bool) {
 	factor := 1.0
 	if !isAdd {
@@ -153,21 +168,24 @@ func updateAccountBalances(db *gorm.DB, tx *models.Transaction, from, to *models
 	if !tx.IncludeInBalance {
 		return
 	}
+	// ds = 账户方向系数，债务类账户取反
+	dsFrom := debtSign(from)
+	dsTo := debtSign(to)
 	switch tx.Type {
 	case models.TxExpense, models.TxReimburse:
-		// 支出：from账户余额减少
-		db.Model(from).Update("balance", gorm.Expr("balance - ?", tx.Amount*factor))
+		// 支出：from账户余额减少（信用卡则欠款增加）
+		db.Model(from).Update("balance", gorm.Expr("balance - ?", tx.Amount*factor*dsFrom))
 	case models.TxIncome, models.TxRefund:
-		// 收入/退款：from账户余额增加
-		db.Model(from).Update("balance", gorm.Expr("balance + ?", tx.Amount*factor))
+		// 收入/退款：from账户余额增加（信用卡则欠款减少）
+		db.Model(from).Update("balance", gorm.Expr("balance + ?", tx.Amount*factor*dsFrom))
 	case models.TxTransfer:
-		// 转账：from -amount +discount, to +amount
-		db.Model(from).Update("balance", gorm.Expr("balance - ? + ?", tx.Amount*factor, tx.TransferDiscount*factor))
+		// 转账：from 减少 amount、增加 discount（信用卡侧方向取反）；to 增加 amount
+		db.Model(from).Update("balance", gorm.Expr("balance - ? + ?", tx.Amount*factor*dsFrom, tx.TransferDiscount*factor*dsFrom))
 		if tx.TransferFee > 0 {
-			db.Model(from).Update("balance", gorm.Expr("balance - ?", tx.TransferFee*factor))
+			db.Model(from).Update("balance", gorm.Expr("balance - ?", tx.TransferFee*factor*dsFrom))
 		}
 		if to != nil && to.ID > 0 {
-			db.Model(to).Update("balance", gorm.Expr("balance + ?", tx.Amount*factor))
+			db.Model(to).Update("balance", gorm.Expr("balance + ?", tx.Amount*factor*dsTo))
 		}
 	case models.TxAdjust:
 		// 调整：直接设置（由Adjust处理，这里不做）
@@ -298,19 +316,31 @@ func ListTransactions(c *gin.Context) {
 		grouped = append(grouped, g)
 	}
 
-	// 汇总
+	// 汇总 — 必须用新 query，不能复用已执行过 Find 的 q
 	var sumIn, sumOut float64
-	rows, _ := q.Select("type, SUM(amount)").Group("type").Rows()
-	defer rows.Close()
-	for rows.Next() {
-		var tp string
-		var amt float64
-		rows.Scan(&tp, &amt)
-		switch tp {
-		case string(models.TxIncome), string(models.TxRefund):
-			sumIn += amt
-		case string(models.TxExpense):
-			sumOut += amt
+	sq := database.DB.Model(&models.Transaction{}).Where("user_id = ?", uid)
+	if req.BookID > 0 {
+		sq = sq.Where("book_id = ?", req.BookID)
+	}
+	if !req.StartDate.IsZero() {
+		sq = sq.Where("tx_date >= ?", req.StartDate)
+	}
+	if !req.EndDate.IsZero() {
+		sq = sq.Where("tx_date <= ?", req.EndDate.AddDate(0, 0, 1))
+	}
+	type sumRow struct {
+		Type string  `gorm:"column:type"`
+		Amt  float64 `gorm:"column:amt"`
+	}
+	var sums []sumRow
+	if err := sq.Select("type, SUM(amount) as amt").Group("type").Scan(&sums).Error; err == nil {
+		for _, s := range sums {
+			switch s.Type {
+			case string(models.TxIncome), string(models.TxRefund):
+				sumIn += s.Amt
+			case string(models.TxExpense):
+				sumOut += s.Amt
+			}
 		}
 	}
 

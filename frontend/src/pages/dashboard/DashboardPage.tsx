@@ -321,7 +321,7 @@ export default function DashboardPage() {
               <CreditCard size={18} className="text-rose-500" />
               信用卡还款提醒
             </h3>
-            <Link to="/accounts" className="text-xs text-brand-600 hover:underline">账户管理 →</Link>
+            <Link to="/cards" className="text-xs text-brand-600 hover:underline">卡面管理 →</Link>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {creditRepays.map((c) => {

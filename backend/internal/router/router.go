@@ -66,15 +66,17 @@ func New(mode string) *gin.Engine {
 			accounts := auth.Group("/accounts")
 			{
 				accounts.GET("", handlers.ListAccounts)
+				// ⚠️ 静态路径必须在 /:id 之前注册，否则被参数路由劫持
+				accounts.GET("/credit-summary", handlers.GetCreditSummary)
+				accounts.GET("/groups", handlers.ListAccountGroups)
+				accounts.POST("/groups", handlers.CreateAccountGroup)
+				accounts.DELETE("/groups/:id", handlers.DeleteAccountGroup)
 				accounts.GET("/:id", handlers.GetAccount)
 				accounts.POST("", handlers.CreateAccount)
 				accounts.PUT("/:id", handlers.UpdateAccount)
 				accounts.DELETE("/:id", handlers.DeleteAccount)
 				accounts.POST("/:id/adjust", handlers.AdjustAccountBalance)
 				accounts.GET("/:id/full-card", handlers.GetFullCardNo)
-				accounts.GET("/groups", handlers.ListAccountGroups)
-				accounts.POST("/groups", handlers.CreateAccountGroup)
-				accounts.DELETE("/groups/:id", handlers.DeleteAccountGroup)
 			}
 
 			// 分类
@@ -167,9 +169,6 @@ func New(mode string) *gin.Engine {
 				io.GET("/template", handlers.DownloadImportTemplate)
 				io.GET("/bill", handlers.GetBill)
 			}
-
-			// 信用卡还款倒计时
-			auth.GET("/accounts/credit-summary", handlers.GetCreditSummary)
 		}
 	}
 

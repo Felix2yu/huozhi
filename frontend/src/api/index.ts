@@ -1,6 +1,7 @@
 import axios, { AxiosError, AxiosInstance } from 'axios';
 import { toast } from 'sonner';
-import type { ApiResp } from '@/types';
+import type { ApiResp, CreditRepayItem } from '@/types';
+import { enqueue, isMutatingMethod, queueCount, isOnline } from '@/utils/offline';
 
 const http: AxiosInstance = axios.create({
   baseURL: '/api',
@@ -32,13 +33,44 @@ http.interceptors.response.use(
     return resp.data;
   },
   (err: AxiosError<ApiResp>) => {
-    console.warn('[axios] HTTP错误 url=%s status=%d msg=%s', err.config?.url, err.response?.status, err.message);
+    const method = err.config?.method?.toUpperCase() || 'GET';
+    const url = err.config?.url || '';
+    const isNetworkErr = !err.response && (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED' || !isOnline());
+    const isServerDown = !!err.response && err.response.status >= 500;
+
+    console.warn('[axios] HTTP错误 url=%s method=%s status=%d msg=%s offline=%s', url, method, err.response?.status, err.message, !isOnline());
+
+    // --- 离线或服务端不可达时：写操作入队 ---
+    if ((isNetworkErr || isServerDown) && isMutatingMethod(method)) {
+      const fullUrl = url.startsWith('/') ? url : `/api/${url}`;
+      try {
+        enqueue({
+          method: method as any,
+          url: fullUrl,
+          data: err.config?.data ? JSON.parse(err.config.data) : undefined,
+          headers: err.config?.headers as Record<string, string> | undefined,
+        });
+        toast.success(`已离线，${queueCount()} 条请求将在恢复网络后自动同步`, {
+          id: 'hz-offline-enqueued',
+          duration: 4000,
+        });
+        // 返回一个"离线占位成功"的 reject，让业务层知道这不是正常完成
+        const wrapped: any = new Error('OFFLINE_QUEUED');
+        wrapped.isOffline = true;
+        return Promise.reject(wrapped);
+      } catch (e) {
+        console.error('[axios] 离线入队失败', e);
+      }
+    }
+
+    // --- 401 登录失效 ---
     if (err.response?.status === 401) {
       localStorage.removeItem('hz_token');
       if (!location.pathname.startsWith('/login')) {
         location.href = '/login?redirect=' + encodeURIComponent(location.pathname);
       }
     }
+
     const msg = (err.response?.data as any)?.message || err.message || '网络错误';
     toast.error(msg);
     return Promise.reject(err);
@@ -195,12 +227,6 @@ export const aiApi = {
 export const creditApi = {
   summary: () => http.get<any, CreditRepayItem[]>('/accounts/credit-summary'),
 };
-
-export interface CreditRepayItem {
-  id: number; name: string; bank_name: string; card_no4: string;
-  repay_day: number; bill_day: number; balance: number; credit_limit: number;
-  days_left: number; repay_date: string; bill_amount: number; overdue: boolean;
-}
 
 // 月度账单
 export const billApi = {
