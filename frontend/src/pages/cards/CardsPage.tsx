@@ -152,14 +152,12 @@ export default function CardsPage() {
   };
 
   // 顶部汇总
+  // 后端语义：信用卡 balance > 0 表示已用/应还额度（负债），< 0 表示溢缴
   const creditSummary = useMemo(() => {
     const total = credits.reduce((s, c) => s + (c.credit_limit || 0), 0);
-    // 已用额度 = credit_limit - balance（信用卡 balance 是已用额）
-    const used = credits.reduce((s, c) => s + Math.max(0, -(c.balance || 0)), 0) +
-                 credits.reduce((s, c) => s + (c.credit_limit ? Math.max(0, c.credit_limit - (c.credit_limit - Math.max(0, -(c.balance || 0)))) : 0), 0);
-    // 简化：balance 为负表示已使用额度
-    const used2 = credits.reduce((s, c) => s + Math.max(0, -(c.balance || 0)), 0);
-    return { total, used: used2, available: Math.max(0, total - used2) };
+    const used = credits.reduce((s, c) => s + Math.max(0, c.balance || 0), 0);
+    const available = Math.max(0, total - used);
+    return { total, used, available };
   }, [credits]);
 
   const debitTotal = useMemo(
@@ -287,10 +285,10 @@ export default function CardsPage() {
                   <span>额度 {formatMoney(c.credit_limit || 0)}</span>
                   <span className={cn(
                     'tabular-nums',
-                    c.credit_limit && (Math.max(0, -(c.balance || 0)) / c.credit_limit) > 0.8
+                    c.credit_limit && (Math.max(0, c.balance || 0) / c.credit_limit) > 0.8
                       ? 'text-red-500 font-medium' : '',
                   )}>
-                    已用 {formatMoney(Math.max(0, -(c.balance || 0)))}
+                    已用 {formatMoney(Math.max(0, c.balance || 0))}
                   </span>
                 </div>
               </div>

@@ -22,6 +22,7 @@ LABEL stage=fe-builder
 WORKDIR /src/frontend
 
 COPY frontend/package.json frontend/package-lock.json* ./
+COPY frontend/scripts scripts
 RUN npm install --no-audit --no-fund --registry=https://registry.npmmirror.com || \
     npm install --no-audit --no-fund
 

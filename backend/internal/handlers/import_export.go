@@ -165,9 +165,15 @@ func pickParser(source string, header *multipart.FileHeader) func(io.Reader, uin
 		return parseWeChat
 	case "alipay":
 		return parseAlipay
+	case "qianji":
+		return parseQianJi
 	case "template":
 		fallthrough
 	default:
+		// 钱迹导出为 xlsx，按扩展名自动识别
+		if header != nil && isXLSX(header.Filename) {
+			return parseQianJi
+		}
 		return parseTemplateCSV
 	}
 }

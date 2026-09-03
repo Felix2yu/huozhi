@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosInstance } from 'axios';
 import { toast } from 'sonner';
-import type { ApiResp } from '@/types';
+import type { ApiResp, CreditRepayItem } from '@/types';
 import { enqueue, isMutatingMethod, queueCount, isOnline } from '@/utils/offline';
 
 const http: AxiosInstance = axios.create({
@@ -227,12 +227,6 @@ export const aiApi = {
 export const creditApi = {
   summary: () => http.get<any, CreditRepayItem[]>('/accounts/credit-summary'),
 };
-
-export interface CreditRepayItem {
-  id: number; name: string; bank_name: string; card_no4: string;
-  repay_day: number; bill_day: number; balance: number; credit_limit: number;
-  days_left: number; repay_date: string; bill_amount: number; overdue: boolean;
-}
 
 // 月度账单
 export const billApi = {
