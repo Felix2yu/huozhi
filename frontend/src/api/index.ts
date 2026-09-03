@@ -1,6 +1,7 @@
 import axios, { AxiosError, AxiosInstance } from 'axios';
 import { toast } from 'sonner';
-import type { ApiResp } from '@/types';
+import type { ApiResp, CreditRepayItem } from '@/types';
+import { enqueue, isMutatingMethod, queueCount, isOnline } from '@/utils/offline';
 
 const http: AxiosInstance = axios.create({
   baseURL: '/api',
@@ -32,13 +33,44 @@ http.interceptors.response.use(
     return resp.data;
   },
   (err: AxiosError<ApiResp>) => {
-    console.warn('[axios] HTTP错误 url=%s status=%d msg=%s', err.config?.url, err.response?.status, err.message);
+    const method = err.config?.method?.toUpperCase() || 'GET';
+    const url = err.config?.url || '';
+    const isNetworkErr = !err.response && (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED' || !isOnline());
+    const isServerDown = !!err.response && err.response.status >= 500;
+
+    console.warn('[axios] HTTP错误 url=%s method=%s status=%d msg=%s offline=%s', url, method, err.response?.status, err.message, !isOnline());
+
+    // --- 离线或服务端不可达时：写操作入队 ---
+    if ((isNetworkErr || isServerDown) && isMutatingMethod(method)) {
+      const fullUrl = url.startsWith('/') ? url : `/api/${url}`;
+      try {
+        enqueue({
+          method: method as any,
+          url: fullUrl,
+          data: err.config?.data ? JSON.parse(err.config.data) : undefined,
+          headers: err.config?.headers as Record<string, string> | undefined,
+        });
+        toast.success(`已离线，${queueCount()} 条请求将在恢复网络后自动同步`, {
+          id: 'hz-offline-enqueued',
+          duration: 4000,
+        });
+        // 返回一个"离线占位成功"的 reject，让业务层知道这不是正常完成
+        const wrapped: any = new Error('OFFLINE_QUEUED');
+        wrapped.isOffline = true;
+        return Promise.reject(wrapped);
+      } catch (e) {
+        console.error('[axios] 离线入队失败', e);
+      }
+    }
+
+    // --- 401 登录失效 ---
     if (err.response?.status === 401) {
       localStorage.removeItem('hz_token');
       if (!location.pathname.startsWith('/login')) {
         location.href = '/login?redirect=' + encodeURIComponent(location.pathname);
       }
     }
+
     const msg = (err.response?.data as any)?.message || err.message || '网络错误';
     toast.error(msg);
     return Promise.reject(err);
@@ -88,6 +120,7 @@ export const accountApi = {
   listGroups: () => http.get<any, any[]>('/accounts/groups'),
   createGroup: (data: any) => http.post<any, any>('/accounts/groups', data),
   removeGroup: (id: number) => http.delete<any, void>(`/accounts/groups/${id}`),
+  getFullCardNo: (id: number) => http.get<any, { full_card_no: string }>(`/accounts/${id}/full-card`),
 };
 
 // 分类
@@ -180,3 +213,33 @@ export const ioApi = {
     );
   },
 };
+
+// AI 智能分类 / 智能记账
+export const aiApi = {
+  status: () => http.get<any, { enabled: boolean; model?: string; configured: boolean }>('/ai/status'),
+  classify: (data: { description: string; amount?: number; type?: string; book_id?: number }) =>
+    http.post<any, { category_id: number; category: string; type: string; confidence: number; explanation?: string }>('/ai/classify', data),
+  smartRecord: (data: { text: string; book_id?: number }) =>
+    http.post<any, { description: string; amount: number; type: string; category_id: number; account_id?: number; tx_date: string; tags?: string[]; raw?: string }>('/ai/smart-record', data),
+};
+
+// 信用卡还款倒计时
+export const creditApi = {
+  summary: () => http.get<any, CreditRepayItem[]>('/accounts/credit-summary'),
+};
+
+// 月度账单
+export const billApi = {
+  get: (params: { month: string; book_id?: number }) =>
+    http.get<any, BillData>(`/io/bill?month=${params.month}${params.book_id ? `&book_id=${params.book_id}` : ''}`),
+};
+
+export interface BillData {
+  meta: { month: string; range_start: string; range_end: string; book_name: string; user_name: string; generated_at: string };
+  summary: { total_income: number; total_expense: number; net: number; income_count: number; expense_count: number; transaction_count: number; avg_daily_expense: number };
+  category_expense: { id: number; name: string; icon: string; color: string; amount: number; count: number; percent: number }[];
+  category_income: { id: number; name: string; icon: string; color: string; amount: number; count: number; percent: number }[];
+  daily_trend: { date: string; income: number; expense: number; net: number }[];
+  budgets: { id: number; name: string; amount: number; used_amount: number; remaining: number; usage_rate: number; is_over_budget: boolean }[];
+  assets: { total_asset: number; total_debt: number; net_asset: number };
+}

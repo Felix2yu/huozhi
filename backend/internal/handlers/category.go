@@ -79,6 +79,7 @@ func CreateCategory(c *gin.Context) {
 		InternalErr(c, "创建失败")
 		return
 	}
+	Broadcast(c, "categories", "create", cat.ID)
 	Created(c, cat)
 }
 
@@ -110,6 +111,7 @@ func UpdateCategory(c *gin.Context) {
 	database.DB.Model(&old).Updates(updates)
 	var cat models.Category
 	database.DB.First(&cat, reqUri.ID)
+	Broadcast(c, "categories", "update", cat.ID)
 	OK(c, cat)
 }
 
@@ -126,6 +128,7 @@ func DeleteCategory(c *gin.Context) {
 	}
 	// 归档而非硬删除
 	database.DB.Model(&cat).Update("is_archived", true)
+	Broadcast(c, "categories", "delete", req.ID)
 	OK(c, nil)
 }
 
@@ -156,6 +159,7 @@ func CreateTag(c *gin.Context) {
 		Fail(c, 4001, "标签已存在")
 		return
 	}
+	Broadcast(c, "tags", "create", tag.ID)
 	Created(c, tag)
 }
 
@@ -172,6 +176,7 @@ func UpdateTag(c *gin.Context) {
 		Updates(map[string]interface{}{"name": t.Name, "color": t.Color, "sort": t.Sort})
 	var nt models.Tag
 	database.DB.First(&nt, reqUri.ID)
+	Broadcast(c, "tags", "update", nt.ID)
 	OK(c, nt)
 }
 
@@ -180,5 +185,6 @@ func DeleteTag(c *gin.Context) {
 	var req dto.IDRequest
 	c.ShouldBindUri(&req)
 	database.DB.Where("id = ? AND user_id = ?", req.ID, uid).Delete(&models.Tag{})
+	Broadcast(c, "tags", "delete", req.ID)
 	OK(c, nil)
 }

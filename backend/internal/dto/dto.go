@@ -1,6 +1,84 @@
 package dto
 
-import "time"
+import (
+	"encoding/json"
+	"strings"
+	"time"
+)
+
+// FlexDate 兼容多种日期格式的类型
+// 支持: "2006-01-02", "2006-01-02T15:04:05Z07:00", "2006-01-02T15:04:05.000Z"
+// 时间部分会被忽略（截断到日期当日 00:00:00）
+type FlexDate struct {
+	time.Time
+}
+
+func (d *FlexDate) UnmarshalJSON(data []byte) error {
+	// 先尝试标准方式
+	var t time.Time
+	if err := json.Unmarshal(data, &t); err == nil {
+		d.Time = t
+		return nil
+	}
+	// 再尝试字符串
+	s := strings.Trim(string(data), `"`)
+	return d.parseString(s)
+}
+
+func (d *FlexDate) parseString(s string) error {
+	s = strings.TrimSpace(s)
+	if s == "" || s == "null" {
+		d.Time = time.Time{}
+		return nil
+	}
+	// 按优先级尝试多种格式
+	formats := []string{
+		"2006-01-02",
+		time.RFC3339,
+		time.RFC3339Nano,
+		"2006-01-02T15:04:05",
+		"2006/01/02",
+		"2006/01/02 15:04:05",
+	}
+	for _, f := range formats {
+		if t, err := time.Parse(f, s); err == nil {
+			d.Time = t
+			return nil
+		}
+	}
+	// 最后兜底：只取前 10 个字符按 "2006-01-02" 解析
+	if len(s) >= 10 {
+		if t, err := time.Parse("2006-01-02", s[:10]); err == nil {
+			d.Time = t
+			return nil
+		}
+	}
+	return &time.ParseError{Layout: "2006-01-02|2006-01-02T15:04:05Z07:00", Value: s}
+}
+
+// UnmarshalQuery 兼容 form/query 绑定
+func (d *FlexDate) UnmarshalParam(param string) error {
+	return d.parseString(param)
+}
+
+// MarshalJSON 序列化为 "YYYY-MM-DD"（纯日期）
+func (d FlexDate) MarshalJSON() ([]byte, error) {
+	if d.Time.IsZero() {
+		return []byte("null"), nil
+	}
+	return []byte(`"` + d.Time.Format("2006-01-02") + `"`), nil
+}
+
+// String 方便日志和调试
+// T 取出底层 time.Time
+func (d FlexDate) T() time.Time { return d.Time }
+
+func (d FlexDate) String() string {
+	if d.Time.IsZero() {
+		return ""
+	}
+	return d.Time.Format("2006-01-02")
+}
 
 // ====== 通用 ======
 
@@ -93,9 +171,13 @@ type CreateAccountRequest struct {
 	Color           string  `json:"color" binding:"omitempty,max=20"`
 	BankName        string  `json:"bank_name" binding:"omitempty,max=100"`
 	CardNo4         string  `json:"card_no4" binding:"omitempty,max=10"`
+	FullCardNo      string  `json:"full_card_no" binding:"omitempty,max=32"` // 完整卡号，后端加密存
 	CreditLimit     float64 `json:"credit_limit"`
 	BillDay         int     `json:"bill_day" binding:"omitempty,min=1,max=31"`
 	RepayDay        int     `json:"repay_day" binding:"omitempty,min=1,max=31"`
+	ExpireMonth     int     `json:"expire_month" binding:"omitempty,min=1,max=12"`
+	ExpireYear      int     `json:"expire_year" binding:"omitempty,min=0,max=99"`
+	CVV             string  `json:"cvv" binding:"omitempty,max=10"` // CVV2/CVC2，后端加密存
 	APR             float64 `json:"apr"`
 	IncludeInTotal  bool    `json:"include_in_total"`
 	IncludeInBudget bool    `json:"include_in_budget"`
@@ -110,7 +192,7 @@ type UpdateAccountRequest = CreateAccountRequest
 type AdjustAccountRequest struct {
 	Amount      float64   `json:"amount" binding:"required"`
 	Description string    `json:"description" binding:"omitempty,max=500"`
-	Date        time.Time `json:"date" binding:"required"`
+	Date        FlexDate `json:"date" binding:"required"`
 }
 
 // ====== 分类 ======
@@ -142,7 +224,7 @@ type CreateTransactionRequest struct {
 	TransferFee      float64   `json:"transfer_fee"`
 	TransferDiscount float64   `json:"transfer_discount"`
 	RefundOfID       uint      `json:"refund_of_id"`
-	TxDate           time.Time `json:"tx_date" binding:"required"`
+	TxDate           FlexDate `json:"tx_date" binding:"required"`
 	Description      string    `json:"description" binding:"omitempty,max=500"`
 	TagIDs           []uint    `json:"tag_ids"`
 	Images           []string  `json:"images"`
@@ -163,8 +245,8 @@ type QueryTransactionRequest struct {
 	CategoryID uint      `form:"category_id"`
 	AccountID  uint      `form:"account_id"`
 	TagID      uint      `form:"tag_id"`
-	StartDate  time.Time `form:"start_date" time_format:"2006-01-02"`
-	EndDate    time.Time `form:"end_date" time_format:"2006-01-02"`
+	StartDate  FlexDate `form:"start_date"`
+	EndDate    FlexDate `form:"end_date"`
 	Keyword    string    `form:"keyword"`
 	MinAmount  float64   `form:"min_amount"`
 	MaxAmount  float64   `form:"max_amount"`
@@ -188,8 +270,8 @@ type CreateBudgetRequest struct {
 	PeriodType string    `json:"period_type" binding:"required,oneof=monthly yearly custom"`
 	CategoryID uint      `json:"category_id"`
 	Amount     float64   `json:"amount" binding:"required,gt=0"`
-	StartDate  time.Time `json:"start_date" binding:"required"`
-	EndDate    time.Time `json:"end_date" binding:"required"`
+	StartDate  FlexDate `json:"start_date" binding:"required"`
+	EndDate    FlexDate `json:"end_date" binding:"required"`
 	AlertRate  float64   `json:"alert_rate" binding:"omitempty,min=0,max=1"`
 	RollOver   bool      `json:"roll_over"`
 }
@@ -204,13 +286,13 @@ type CreateSavingPlanRequest struct {
 	Color         string    `json:"color" binding:"omitempty,max=20"`
 	TargetAmount  float64   `json:"target_amount" binding:"required,gt=0"`
 	CurrentAmount float64   `json:"current_amount"`
-	StartDate     time.Time `json:"start_date" binding:"required"`
-	TargetDate    time.Time `json:"target_date" binding:"required"`
+	StartDate     FlexDate `json:"start_date" binding:"required"`
+	TargetDate    FlexDate `json:"target_date" binding:"required"`
 }
 
 type AddSavingRecordRequest struct {
 	Amount      float64   `json:"amount" binding:"required,gt=0"`
-	RecordDate  time.Time `json:"record_date" binding:"required"`
+	RecordDate  FlexDate `json:"record_date" binding:"required"`
 	TransactionID uint    `json:"transaction_id"`
 	Note        string    `json:"note" binding:"omitempty,max=500"`
 }
@@ -270,8 +352,8 @@ type UpdateReimbursementRequest struct {
 
 type StatisticsRequest struct {
 	BookID    uint      `form:"book_id"`
-	StartDate time.Time `form:"start_date" binding:"required" time_format:"2006-01-02"`
-	EndDate   time.Time `form:"end_date" binding:"required" time_format:"2006-01-02"`
+	StartDate FlexDate `form:"start_date" binding:"required"`
+	EndDate   FlexDate `form:"end_date" binding:"required"`
 	Dimension string    `form:"dimension,default=category"` // category, account, tag, month, week, day
 	Kind      string    `form:"kind"` // expense, income, all
 }

@@ -1,19 +1,21 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Receipt, Wallet as WalletIcon, PieChart, BarChart3,
   Tags, Target, Users as UsersGroupIcon, Settings, Plus, BookMarked,
-  Menu, X, LogOut, TrendingUp,
+  Menu, X, LogOut, TrendingUp, CloudOff, CreditCard,
 } from 'lucide-react';
 import { useAppStore } from '@/stores/app';
 import { cn, formatMoney } from '@/utils';
 import { authApi } from '@/api';
 import { toast } from 'sonner';
+import { queueCount as getQueueCount, subscribe, replay, snapshot, clearAll } from '@/utils/offline';
 
 const navItems = [
   { to: '/dashboard',    label: '首页总览', icon: LayoutDashboard },
   { to: '/transactions', label: '账单流水', icon: Receipt },
   { to: '/accounts',     label: '账户资产', icon: WalletIcon },
+  { to: '/cards',        label: '我的银行卡', icon: CreditCard },
   { to: '/categories',   label: '分类管理', icon: PieChart },
   { to: '/budgets',      label: '预算管理', icon: Target },
   { to: '/statistics',   label: '统计分析', icon: BarChart3 },
@@ -158,6 +160,7 @@ export default function AppLayout() {
                 {currentBook?.icon || '📘'} {currentBook?.name || '账本'}
               </h1>
             </div>
+            <OfflineBadge />
             <TopMiniStats />
           </div>
         </header>
@@ -173,7 +176,6 @@ export default function AppLayout() {
   );
 }
 
-import { useState } from 'react';
 import { accountApi, txApi } from '@/api';
 import { getMonthRange } from '@/utils';
 
@@ -213,6 +215,97 @@ function Stat({ label, value, cls }: { label: string; value: string; cls: string
     <div className="text-right leading-tight">
       <div className="text-slate-400">{label}</div>
       <div className={cn('font-semibold tabular-nums text-sm', cls)}>{value}</div>
+    </div>
+  );
+}
+
+/** 离线待同步角标 */
+function OfflineBadge() {
+  const [count, setCount] = useState(0);
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    setCount(getQueueCount());
+    const unsub = subscribe(() => setCount(getQueueCount()));
+    const onOnline = () => setCount(getQueueCount());
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOnline);
+    return () => {
+      unsub();
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOnline);
+    };
+  }, []);
+
+  if (count === 0) return null;
+
+  const items = snapshot().slice(-5).reverse();
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setShow(s => !s)}
+        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium hover:bg-amber-100 transition"
+        title="有离线请求待同步"
+      >
+        <CloudOff size={14} />
+        <span>{count} 条待同步</span>
+      </button>
+
+      {show && (
+        <div
+          className="absolute right-0 mt-2 w-80 max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl p-3 z-50"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-semibold text-slate-700">离线请求队列</div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={async () => {
+                  setShow(false);
+                  const r = await replay();
+                  if (r.ok > 0) toast.success(`已同步 ${r.ok} 条请求`);
+                  if (r.remaining > 0) toast.warning(`${r.remaining} 条仍未同步，稍后重试`);
+                  window.dispatchEvent(new CustomEvent('hz:data-changed'));
+                }}
+                className="px-2 py-1 text-xs rounded-md bg-brand-600 text-white hover:bg-brand-700"
+              >立即同步</button>
+              <button
+                onClick={() => { clearAll(); toast.success('已清空离线队列'); setShow(false); }}
+                className="px-2 py-1 text-xs rounded-md text-slate-500 hover:text-red-600 hover:bg-red-50"
+                title="清空队列"
+              >清空</button>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            {items.map(it => (
+              <div key={it.id} className="px-2 py-1.5 rounded-md bg-slate-50 border border-slate-100 text-[11px]">
+                <div className="flex items-center gap-1.5">
+                  <span className={cn(
+                    'px-1.5 py-0.5 rounded text-[10px] font-bold',
+                    it.method === 'POST' && 'bg-blue-100 text-blue-700',
+                    it.method === 'PUT' && 'bg-amber-100 text-amber-700',
+                    it.method === 'DELETE' && 'bg-red-100 text-red-700',
+                    it.method === 'PATCH' && 'bg-purple-100 text-purple-700',
+                  )}>{it.method}</span>
+                  <span className="text-slate-600 truncate flex-1">{it.url}</span>
+                  <span className="text-slate-400">{it.retries > 0 ? `${it.retries}/${3}` : ''}</span>
+                </div>
+                {it.data && (
+                  <div className="text-slate-400 truncate">
+                    {JSON.stringify(it.data).slice(0, 80)}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 text-[11px] text-slate-400 text-center">共 {count} 条，联网后自动同步</div>
+        </div>
+      )}
+
+      {show && (
+        <div className="fixed inset-0 z-40" onClick={() => setShow(false)} />
+      )}
     </div>
   );
 }

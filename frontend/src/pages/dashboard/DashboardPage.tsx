@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '@/stores/app';
-import { statsApi, txApi, budgetApi } from '@/api';
-import type { AssetOverview, StatisticsData, BudgetView, TrendPoint } from '@/types';
-import { formatMoney, getMonthRange, pct } from '@/utils';
+import { statsApi, txApi, budgetApi, creditApi } from '@/api';
+import type { AssetOverview, StatisticsData, BudgetView, TrendPoint, CreditRepayItem } from '@/types';
+import { formatMoney, formatDate, getMonthRange, pct } from '@/utils';
 import {
   ArrowUpRight, ArrowDownRight, Wallet, PiggyBank, PieChart as PieIcon,
-  Plus, ChevronRight, Receipt, Target, CalendarDays,
+  Plus, ChevronRight, Receipt, Target, CalendarDays, CreditCard, AlertCircle, Clock,
 } from 'lucide-react';
 import { AmountBadge, Empty, Progress } from '@/components/common';
 import {
@@ -20,6 +20,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<StatisticsData | null>(null);
   const [budgets, setBudgets] = useState<BudgetView[]>([]);
   const [recent, setRecent] = useState<any[]>([]);
+  const [creditRepays, setCreditRepays] = useState<CreditRepayItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const range = getMonthRange();
@@ -31,17 +32,19 @@ export default function DashboardPage() {
       statsApi.assets(),
       statsApi.overview({
         book_id: bookId, dimension: 'all',
-        start_date: range.start, end_date: range.end,
+        start_date: formatDate(range.start), end_date: formatDate(range.end),
       }),
       budgetApi.list({ book_id: bookId }),
       txApi.list({
         book_id: bookId, page_size: 6, page: 1,
       }),
-    ]).then(([a, s, b, t]) => {
+      creditApi.summary().catch(() => []),
+    ]).then(([a, s, b, t, c]) => {
       setAsset(a);
       setStats(s);
       setBudgets(b);
       setRecent(t.flat_list || []);
+      setCreditRepays(c || []);
     }).finally(() => setLoading(false));
   }, [bookId]);
 
@@ -309,6 +312,76 @@ export default function DashboardPage() {
           ) : null}
         </section>
       </div>
+
+      {/* 信用卡还款提醒 */}
+      {creditRepays.length > 0 && (
+        <section className="card card-body">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+              <CreditCard size={18} className="text-rose-500" />
+              信用卡还款提醒
+            </h3>
+            <Link to="/cards" className="text-xs text-brand-600 hover:underline">卡面管理 →</Link>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {creditRepays.map((c) => {
+              const urgent = !c.overdue && c.days_left <= 3;
+              const warn = !c.overdue && c.days_left <= 7 && c.days_left > 3;
+              return (
+                <div
+                  key={c.id}
+                  className={[
+                    'rounded-xl border p-4 transition',
+                    c.overdue ? 'bg-red-50 border-red-200' :
+                    urgent ? 'bg-amber-50 border-amber-200' :
+                    'bg-slate-50 border-slate-200',
+                  ].join(' ')}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="text-lg">💳</div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-800 truncate">{c.name}</div>
+                        {c.bank_name && <div className="text-[11px] text-slate-500 truncate">{c.bank_name} · 尾号{c.card_no4}</div>}
+                      </div>
+                    </div>
+                    {c.overdue ? (
+                      <span className="shrink-0 flex items-center gap-1 text-[11px] font-semibold text-red-600 bg-red-100 px-2 py-0.5 rounded-full">
+                        <AlertCircle size={12} /> 逾期{c.days_left}天
+                      </span>
+                    ) : urgent ? (
+                      <span className="shrink-0 flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                        <Clock size={12} /> 仅剩{c.days_left}天
+                      </span>
+                    ) : warn ? (
+                      <span className="shrink-0 text-[11px] font-medium text-slate-600 bg-white px-2 py-0.5 rounded-full">
+                        {c.days_left}天后
+                      </span>
+                    ) : (
+                      <span className="shrink-0 text-[11px] text-slate-500">{c.days_left}天后</span>
+                    )}
+                  </div>
+                  <div className="flex items-end justify-between text-sm">
+                    <div>
+                      <div className="text-[11px] text-slate-400">已出账</div>
+                      <div className={[
+                        'font-bold tabular-nums',
+                        c.overdue ? 'text-red-600' : 'text-slate-800',
+                      ].join(' ')}>
+                        {formatMoney(c.bill_amount || Math.max(0, c.balance))}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[11px] text-slate-400">还款日</div>
+                      <div className="text-xs font-medium text-slate-600 tabular-nums">{c.repay_date}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

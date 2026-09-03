@@ -87,12 +87,16 @@ type Account struct {
 	InitialAmount float64     `gorm:"default:0" json:"initial_amount"`  // 初始金额
 	Icon          string      `gorm:"size:50" json:"icon"`
 	Color         string      `gorm:"size:20" json:"color"`
-	BankName      string      `gorm:"size:100" json:"bank_name"`      // 银行名
-	CardNo4       string      `gorm:"size:10" json:"card_no4"`         // 尾号4位
+	BankName        string `gorm:"size:100" json:"bank_name"`          // 银行名
+	CardNo4         string `gorm:"size:10" json:"card_no4"`            // 尾号4位
+	EncryptedCardNo string `gorm:"size:512" json:"-"`                  // 完整卡号（AES-GCM 加密存，默认不返回前端）
 	// 信用卡专属
-	CreditLimit   float64 `gorm:"default:0" json:"credit_limit"`       // 额度
-	BillDay       int     `gorm:"default:0" json:"bill_day"`           // 账单日
-	RepayDay      int     `gorm:"default:0" json:"repay_day"`          // 还款日
+	CreditLimit     float64 `gorm:"default:0" json:"credit_limit"`       // 额度
+	BillDay         int     `gorm:"default:0" json:"bill_day"`           // 账单日
+	RepayDay        int     `gorm:"default:0" json:"repay_day"`          // 还款日
+	ExpireMonth     int     `gorm:"default:0" json:"expire_month"`       // 卡有效期月份 1-12
+	ExpireYear      int     `gorm:"default:0" json:"expire_year"`        // 卡有效期年份 如 27（2027年）
+	EncryptedCVV    string  `gorm:"size:128" json:"-"`                   // CVV2/CVC2（AES-GCM 加密存）
 	// 负债专属
 	APR           float64 `gorm:"default:0" json:"apr"`                // 年化利率
 	// 通用设置
@@ -297,9 +301,73 @@ type Recurring struct {
 	StartDate     time.Time     `gorm:"not null" json:"start_date"`
 	EndDate       time.Time     `json:"end_date"`
 	MaxTimes      int           `gorm:"default:0" json:"max_times"` // 0=无限
+	RunCount      int           `gorm:"default:0" json:"run_count"`
 	LastRunAt     time.Time     `json:"last_run_at"`
 	NextRunAt     time.Time     `gorm:"index" json:"next_run_at"`
 	Status        string        `gorm:"size:20;default:active" json:"status"`
+}
+
+// ComputeNextRun 根据周期类型计算下一次执行时间（基于 from 时刻）
+func (r *Recurring) ComputeNextRun(from time.Time) time.Time {
+	if r == nil {
+		return from
+	}
+	switch r.RecurringType {
+	case RecDaily:
+		interval := r.Interval
+		if interval < 1 {
+			interval = 1
+		}
+		return from.AddDate(0, 0, interval)
+
+	case RecWeekly:
+		target := r.Weekday
+		if target < 1 || target > 7 {
+			target = int(from.Weekday())
+			if target == 0 {
+				target = 7
+			}
+		}
+		fromWeekday := int(from.Weekday())
+		if fromWeekday == 0 {
+			fromWeekday = 7
+		}
+		diff := target - fromWeekday
+		if diff <= 0 {
+			diff += 7
+		}
+		return time.Date(from.Year(), from.Month(), from.Day(), 9, 0, 0, 0, from.Location()).AddDate(0, 0, diff)
+
+	case RecBiWeek:
+		interval := r.Interval
+		if interval < 1 {
+			interval = 2
+		}
+		return from.AddDate(0, 0, 7*interval)
+
+	case RecMonthly:
+		day := r.MonthDay
+		if day < 1 || day > 31 {
+			day = from.Day()
+		}
+		nextMonth := from.AddDate(0, 1, 0)
+		lastDay := time.Date(nextMonth.Year(), nextMonth.Month()+1, 0, 0, 0, 0, 0, from.Location()).Day()
+		if day > lastDay {
+			day = lastDay
+		}
+		return time.Date(nextMonth.Year(), nextMonth.Month(), day, 9, 0, 0, 0, from.Location())
+
+	case RecYearly:
+		return time.Date(from.Year()+1, from.Month(), from.Day(), 9, 0, 0, 0, from.Location())
+
+	case RecCustom:
+		interval := r.Interval
+		if interval < 1 {
+			interval = 1
+		}
+		return from.AddDate(0, 0, interval)
+	}
+	return from.AddDate(0, 0, 1)
 }
 
 // Installment 分期

@@ -2,11 +2,23 @@ package handlers
 
 import (
 	"huozhi/internal/dto"
+	"huozhi/internal/middleware"
+	"huozhi/internal/ws"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
+
+// Broadcast 向当前请求用户的所有连接推送变更通知
+// table: transactions / accounts / categories / tags / budgets / books ...
+// action: create / update / delete
+func Broadcast(c *gin.Context, table, action string, id uint) {
+	uid := middleware.GetUID(c)
+	if uid > 0 {
+		ws.DefaultHub.Broadcast(uid, table, action, id)
+	}
+}
 
 // OK 成功响应
 func OK(c *gin.Context, data interface{}) {
