@@ -17,10 +17,13 @@ interface AppState {
   categories: { expense: Category[]; income: Category[]; system: Category[] };
   tags: Tag[];
   accounts: Account[];
+  // 列表刷新触发器
+  listVersion: number;
 
   // actions
   setLoading: (b: boolean) => void;
   toggleSidebar: () => void;
+  bumpListVersion: () => void;
 
   // auth
   setAuth: (token: string, user: User) => void;
@@ -46,9 +49,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   categories: { expense: [], income: [], system: [] },
   tags: [],
   accounts: [],
+  listVersion: 0,
 
   setLoading: (b) => set({ loading: b }),
   toggleSidebar: () => set({ sidebarOpen: !get().sidebarOpen }),
+  bumpListVersion: () => set({ listVersion: get().listVersion + 1 }),
 
   setAuth(token, user) {
     localStorage.setItem('hz_token', token);

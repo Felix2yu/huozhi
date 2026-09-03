@@ -138,10 +138,12 @@ export default function SettingsPage() {
       const r = await ioApi.import(importSource, importBookId, importFile);
       toast.success(
         `导入完成：成功 ${r.created} 条，跳过 ${r.skipped} 条，共 ${r.total} 条`,
-        { duration: 4000 }
+        { duration: Infinity, closeButton: true }
       );
       setImportFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
+      useAppStore.getState().bumpListVersion();
+      useAppStore.getState().loadDictionaries(importBookId);
     } finally {
       setImporting(false);
     }

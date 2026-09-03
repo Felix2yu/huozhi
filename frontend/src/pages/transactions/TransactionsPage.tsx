@@ -16,6 +16,7 @@ export default function TransactionsPage() {
   const bookId = useAppStore(s => s.currentBookId);
   const accounts = useAppStore(s => s.accounts);
   const tags = useAppStore(s => s.tags);
+  const listVersion = useAppStore(s => s.listVersion);
   const { expense: expCats, income: incCats } = useAppStore(s => s.categories);
 
   const [loading, setLoading] = useState(false);
@@ -58,7 +59,7 @@ export default function TransactionsPage() {
   useEffect(() => {
     loadList();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookId, filters.type, filters.category_id, filters.account_id, filters.tag_id, filters.start_date, filters.end_date]);
+  }, [bookId, filters.type, filters.category_id, filters.account_id, filters.tag_id, filters.start_date, filters.end_date, listVersion]);
 
   const summary = data?.summary;
   const groups: DayGroup[] = data?.grouped || [];

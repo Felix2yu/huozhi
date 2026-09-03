@@ -135,6 +135,18 @@ func ImportTransactions(c *gin.Context) {
 			skipped++
 			continue
 		}
+		// 去重检测：同一账本、同一天、相同金额、相同类型、相同描述的记录视为重复
+		txDay := time.Date(rec.TxDate.Year(), rec.TxDate.Month(), rec.TxDate.Day(), 0, 0, 0, 0, rec.TxDate.Location())
+		txNextDay := txDay.AddDate(0, 0, 1)
+		var exists int64
+		db.Model(&models.Transaction{}).Where(
+			"user_id = ? AND book_id = ? AND type = ? AND amount = ? AND tx_date >= ? AND tx_date < ? AND description = ?",
+			uid, req.BookID, rec.Type, rec.Amount, txDay, txNextDay, rec.Description,
+		).Count(&exists)
+		if exists > 0 {
+			skipped++
+			continue
+		}
 		if err := db.Create(&rec).Error; err == nil {
 			created++
 			// 更新余额
