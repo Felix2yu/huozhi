@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosInstance } from 'axios';
 import { toast } from 'sonner';
-import type { ApiResp, CreditRepayItem, TransactionListResponse } from '@/types';
+import type { ApiResp, CreditRepayItem } from '@/types';
 import { enqueue, isMutatingMethod, queueCount, isOnline } from '@/utils/offline';
 
 const http: AxiosInstance = axios.create({
@@ -142,7 +142,7 @@ export const tagApi = {
 
 // 交易
 export const txApi = {
-  list: (params?: any) => http.get<any, TransactionListResponse>('/transactions', { params }),
+  list: (params?: any) => http.get<any, any>('/transactions', { params }).then((res: any) => res.list ?? res) as Promise<TransactionListData>,
   get:  (id: number) => http.get<any, Transaction>(`/transactions/${id}`),
   create: (data: any) => http.post<any, Transaction>('/transactions', data),
   update: (id: number, data: any) => http.put<any, Transaction>(`/transactions/${id}`, data),
