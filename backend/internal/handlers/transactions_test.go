@@ -310,3 +310,39 @@ func TestReimbursements(t *testing.T) {
 		t.Fatalf("delete reimbursement %d", w.Code)
 	}
 }
+
+// TestListWithMonthFilterNotInFlexDateValuer 回归测试：
+// 之前 FlexDate 未实现 driver.Valuer，导致带日期筛选的列表查询
+// （q.Where("tx_date >= ?", req.StartDate)）静默失败、返回空列表，
+// 表现为「账单流水页为空、收入支出结余均为 0」。修复后日期筛选应正常生效。
+func TestListWithMonthFilterNotInFlexDateValuer(t *testing.T) {
+	uid, tok, bookID := registerRealUser(t)
+	cat := firstExpenseCat(t, uid, bookID)
+	acc1, _ := twoAccounts(t, uid, bookID)
+
+	// 用前端同款格式创建一笔（含时分）
+	postTx(t, tok, map[string]interface{}{
+		"book_id": bookID, "type": "expense", "amount": 35.5,
+		"category_id": cat, "account_id": acc1,
+		"tx_date": "2026-09-03 14:30:00", "description": "午饭",
+	})
+
+	w := do(authReq("GET",
+		"/api/transactions?book_id="+itoa(bookID)+"&start_date=2026-09-01&end_date=2026-09-30",
+		tok, nil))
+	if w.Code != 200 {
+		t.Fatalf("list status %d body=%s", w.Code, w.Body.String())
+	}
+	m := decode(t, w)
+	data := m["data"].(map[string]interface{})
+	wrap := data["list"].(map[string]interface{})
+	grouped := wrap["grouped"].([]interface{})
+	summary := wrap["summary"].(map[string]interface{})
+	if len(grouped) == 0 {
+		t.Fatalf("列表应为非空，但 grouped 为空（日期筛选查询失败）")
+	}
+	te, _ := summary["total_expense"].(float64)
+	if te != 35.5 {
+		t.Fatalf("summary.total_expense 应为 35.5，实际 %v", te)
+	}
+}

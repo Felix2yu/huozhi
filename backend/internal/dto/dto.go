@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"database/sql/driver"
 	"encoding/json"
 	"strings"
 	"time"
@@ -37,6 +38,7 @@ func (d *FlexDate) parseString(s string) error {
 		time.RFC3339,
 		time.RFC3339Nano,
 		"2006-01-02T15:04:05",
+		"2006-01-02 15:04:05",
 		"2006/01/02",
 		"2006/01/02 15:04:05",
 	}
@@ -72,6 +74,17 @@ func (d FlexDate) MarshalJSON() ([]byte, error) {
 // String 方便日志和调试
 // T 取出底层 time.Time
 func (d FlexDate) T() time.Time { return d.Time }
+
+// Value 实现 driver.Valuer，使 FlexDate 能直接作为查询参数使用
+// （例如 db.Where("tx_date >= ?", req.StartDate)）。否则 SQL 驱动无法把
+// 这个 Embed time.Time 的结构体转换为参数，导致带日期筛选的查询静默失败、
+// 返回空结果（账单流水页为空、收入支出结余为 0）。
+func (d FlexDate) Value() (driver.Value, error) {
+	if d.Time.IsZero() {
+		return nil, nil
+	}
+	return d.Time, nil
+}
 
 func (d FlexDate) String() string {
 	if d.Time.IsZero() {
