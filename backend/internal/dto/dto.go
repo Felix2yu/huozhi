@@ -248,6 +248,7 @@ type CreateTransactionRequest struct {
 	RecurringID      uint      `json:"recurring_id"`
 	InstallmentID    uint      `json:"installment_id"`
 	Remark           string    `json:"remark" binding:"omitempty,max=1000"`
+	ReimburseStatus  string    `json:"reimburse_status" binding:"omitempty,oneof=none pending done"`
 }
 
 type UpdateTransactionRequest = CreateTransactionRequest
@@ -263,6 +264,7 @@ type QueryTransactionRequest struct {
 	Keyword    string    `form:"keyword"`
 	MinAmount  float64   `form:"min_amount"`
 	MaxAmount  float64   `form:"max_amount"`
+	ReimburseStatus string `form:"reimburse_status"`
 	Page       int       `form:"page,default=1"`
 	PageSize   int       `form:"page_size,default=20"`
 }

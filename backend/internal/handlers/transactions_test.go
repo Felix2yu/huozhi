@@ -98,6 +98,44 @@ func TestGetTransaction(t *testing.T) {
 	}
 }
 
+func TestListTransactionsReimburseFilter(t *testing.T) {
+	uid, tok, bookID := registerRealUser(t)
+	cat := firstExpenseCat(t, uid, bookID)
+	acc1, _ := twoAccounts(t, uid, bookID)
+	idDone := postTx(t, tok, map[string]interface{}{"book_id": bookID, "type": "expense", "amount": 10, "category_id": cat, "account_id": acc1, "tx_date": "2026-01-15"})
+	idNone := postTx(t, tok, map[string]interface{}{"book_id": bookID, "type": "expense", "amount": 20, "category_id": cat, "account_id": acc1, "tx_date": "2026-01-16"})
+	// 直接更新库字段，模拟导入设置的报销状态（创建/更新接口暂未暴露该字段）
+	database.DB.Model(&models.Transaction{}).Where("id = ?", idDone).Update("reimburse_status", "done")
+	database.DB.Model(&models.Transaction{}).Where("id = ?", idNone).Update("reimburse_status", "none")
+
+	countFlat := func(status string) int {
+		p := "/api/transactions?book_id=" + itoa(bookID) + "&reimburse_status=" + status
+		w := do(authReq("GET", p, tok, nil))
+		if w.Code != 200 {
+			t.Fatalf("GET %s -> %d %s", p, w.Code, w.Body.String())
+		}
+		m := decode(t, w)
+		list, ok := m["data"].(map[string]interface{})["list"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("list missing in response; body=%s", w.Body.String())
+		}
+		fl, ok := list["flat_list"].([]interface{})
+		if !ok {
+			t.Fatalf("flat_list missing in response; body=%s", w.Body.String())
+		}
+		return len(fl)
+	}
+	if n := countFlat("done"); n != 1 {
+		t.Errorf("reimburse_status=done -> %d, want 1", n)
+	}
+	if n := countFlat("none"); n != 1 {
+		t.Errorf("reimburse_status=none -> %d, want 1", n)
+	}
+	if n := countFlat("pending"); n != 0 {
+		t.Errorf("reimburse_status=pending -> %d, want 0", n)
+	}
+}
+
 func TestListTransactions(t *testing.T) {
 	uid, tok, bookID := registerRealUser(t)
 	cat := firstExpenseCat(t, uid, bookID)
@@ -134,6 +172,23 @@ func TestUpdateTransaction(t *testing.T) {
 	}))
 	if w.Code != 200 {
 		t.Fatalf("update %d %s", w.Code, w.Body.String())
+	}
+	// 报销状态可更新并持久化
+	w = do(authReq("PUT", "/api/transactions/"+itoa(id), tok, map[string]interface{}{
+		"book_id": bookID, "type": "expense", "amount": 50, "category_id": cat,
+		"account_id": acc2, "tx_date": "2026-01-16", "reimburse_status": "done",
+	}))
+	if w.Code != 200 {
+		t.Fatalf("update reimburse %d %s", w.Code, w.Body.String())
+	}
+	w = do(authReq("GET", "/api/transactions/"+itoa(id), tok, nil))
+	m := decode(t, w)
+	data, ok := m["data"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("data missing in response; body=%s", w.Body.String())
+	}
+	if data["reimburse_status"] != "done" {
+		t.Errorf("reimburse_status = %v, want done", data["reimburse_status"])
 	}
 	// bad body
 	w = do(authReq("PUT", "/api/transactions/"+itoa(id), tok, map[string]interface{}{"type": "expense"}))

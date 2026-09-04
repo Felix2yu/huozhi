@@ -77,6 +77,7 @@ func CreateTransaction(c *gin.Context) {
 		RecurringID:      req.RecurringID,
 		InstallmentID:    req.InstallmentID,
 		Remark:           req.Remark,
+		ReimburseStatus:  req.ReimburseStatus,
 	}
 	if !newTx.IncludeInBalance {
 		newTx.IncludeInBalance = true
@@ -275,6 +276,9 @@ func ListTransactions(c *gin.Context) {
 		q = q.Joins("JOIN transaction_tags ON transactions.id = transaction_tags.transaction_id").
 			Where("transaction_tags.tag_id = ?", req.TagID)
 	}
+	if req.ReimburseStatus != "" {
+		q = q.Where("reimburse_status = ?", req.ReimburseStatus)
+	}
 
 	var total int64
 	q.Model(&models.Transaction{}).Count(&total)
@@ -403,6 +407,7 @@ func UpdateTransaction(c *gin.Context) {
 		"include_in_balance": req.IncludeInBalance,
 		"include_in_budget":  req.IncludeInBudget,
 		"remark":             req.Remark,
+		"reimburse_status":   req.ReimburseStatus,
 	}
 	db.Model(&old).Updates(updates)
 

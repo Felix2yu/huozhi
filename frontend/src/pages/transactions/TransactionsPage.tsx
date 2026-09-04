@@ -31,6 +31,7 @@ export default function TransactionsPage() {
     category_id: 0,
     account_id: 0,
     tag_id: 0,
+    reimburse_status: '' as '' | 'none' | 'pending' | 'done',
     keyword: '',
     start_date: formatDate(range.start),
     end_date: formatDate(range.end),
@@ -48,6 +49,7 @@ export default function TransactionsPage() {
       if (!params.account_id) delete params.account_id;
       if (!params.tag_id) delete params.tag_id;
       if (!params.keyword) delete params.keyword;
+      if (!params.reimburse_status) delete params.reimburse_status;
       if (params.type === 'all') delete params.type;
       const res = await txApi.list(params);
       setData(res);
@@ -94,12 +96,22 @@ export default function TransactionsPage() {
   };
 
   const catOf = (id: number) => allCats.find(c => c.id === id);
+  // 解析分类全路径：有二级分类时返回「一级 / 二级」，否则返回一级名
+  const catPath = (id: number) => {
+    const c = catOf(id);
+    if (!c) return '';
+    if (c.parent_id) {
+      const p = catOf(c.parent_id);
+      if (p) return `${p.name} / ${c.name}`;
+    }
+    return c.name;
+  };
   const accOf = (id: number) => accounts.find(a => a.id === a.id);
 
   const resetFilters = () => {
     const r = getMonthRange();
     setFilters({
-      type: 'all', category_id: 0, account_id: 0, tag_id: 0, keyword: '',
+      type: 'all', category_id: 0, account_id: 0, tag_id: 0, reimburse_status: '', keyword: '',
       start_date: formatDate(r.start), end_date: formatDate(r.end),
     });
   };
@@ -266,7 +278,7 @@ export default function TransactionsPage() {
                                   t.type === 'income' ? 'chip-income' :
                                   t.type === 'expense' ? 'chip-expense' : 'chip-transfer'
                                 )}
-                              >{cat?.name || '-'}</span>
+                              >{catPath(t.category_id) || '-'}</span>
                             )}
                             {t.merchant && (
                               <span className="text-xs text-slate-400">{t.merchant}</span>
@@ -282,6 +294,12 @@ export default function TransactionsPage() {
                             {t.tags?.map(tg => (
                               <TagChip key={tg.id} label={tg.name} color={tg.color} />
                             ))}
+                            {t.reimburse_status === 'done' && (
+                              <span className="rounded px-1.5 py-0.5 text-[11px] font-medium bg-emerald-50 text-emerald-600">已报销</span>
+                            )}
+                            {t.reimburse_status === 'pending' && (
+                              <span className="rounded px-1.5 py-0.5 text-[11px] font-medium bg-amber-50 text-amber-600">报销中</span>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -356,6 +374,19 @@ export default function TransactionsPage() {
             >
               <option value={0}>全部账户</option>
               {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">报销状态</label>
+            <select
+              className="input"
+              value={filters.reimburse_status}
+              onChange={e => setFilters(f => ({ ...f, reimburse_status: e.target.value as any }))}
+            >
+              <option value="">全部</option>
+              <option value="none">未报销</option>
+              <option value="pending">报销中</option>
+              <option value="done">已报销</option>
             </select>
           </div>
           <div>

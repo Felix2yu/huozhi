@@ -30,6 +30,7 @@ const DEFAULT_FORM = {
   remark: '',
   include_in_balance: true,
   include_in_budget: true,
+  reimburse_status: 'none' as 'none' | 'pending' | 'done',
 };
 
 export default function TransactionAddPage() {
@@ -142,6 +143,7 @@ export default function TransactionAddPage() {
           remark: t.remark || '',
           include_in_balance: t.include_in_balance,
           include_in_budget: t.include_in_budget,
+          reimburse_status: t.reimburse_status || 'none',
         });
       })
       .finally(() => setLoading(false));
@@ -193,6 +195,7 @@ export default function TransactionAddPage() {
       remark: form.remark,
       include_in_balance: form.include_in_balance,
       include_in_budget: form.include_in_budget,
+      reimburse_status: form.reimburse_status,
     };
 
     setSubmitting(true);
@@ -562,6 +565,18 @@ export default function TransactionAddPage() {
             />
           </label>
         )}
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm text-slate-700">报销状态</span>
+          <select
+            className="input"
+            value={form.reimburse_status}
+            onChange={e => setField('reimburse_status', e.target.value as 'none' | 'pending' | 'done')}
+          >
+            <option value="none">未报销</option>
+            <option value="pending">报销中</option>
+            <option value="done">已报销</option>
+          </select>
+        </div>
       </section>
 
       {/* 底部固定操作栏 */}
