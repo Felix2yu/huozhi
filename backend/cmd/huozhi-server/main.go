@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"huozhi/internal/config"
 	"huozhi/internal/database"
+	"huozhi/internal/handlers"
 	"huozhi/internal/models"
 	"huozhi/internal/router"
+	"huozhi/internal/storage"
 	"huozhi/internal/ws"
 	"log"
 	"os"
@@ -41,6 +43,15 @@ func main() {
 	config.AppConfig = cfg
 	if _, err := os.Stat(cfg.Upload.Path); os.IsNotExist(err) {
 		os.MkdirAll(cfg.Upload.Path, 0755)
+	}
+
+	// 初始化存储层（本地 / S3）
+	if err := storage.Init(); err != nil {
+		log.Printf("存储层初始化失败: %v（将回退到本地存储）", err)
+	} else if storage.UsingS3() {
+		log.Printf("存储后端: S3 (bucket=%s)", cfg.S3.Bucket)
+	} else {
+		log.Printf("存储后端: 本地 (%s)", cfg.Upload.Path)
 	}
 
 	// 连接数据库
@@ -92,6 +103,9 @@ func main() {
 
 	// 资产快照（每日凌晨）
 	go dailySnapshot()
+
+	// 孤儿附件清理（上传后未关联交易的图片等，宽限期后自动删除）
+	go orphanCleanupRunner()
 
 	// WebSocket Hub
 	go ws.DefaultHub.Run()
@@ -249,6 +263,39 @@ func updateRecurBalances(db *gorm.DB, tx *models.Transaction) {
 			db.Model(&models.Account{}).Where("id = ?", tx.ToAccountID).
 				Update("balance", gorm.Expr("balance + ?", tx.Amount))
 		}
+	}
+}
+
+// orphanCleanupRunner 定期清理「已上传但未被任何交易/头像引用」的孤儿附件。
+// 周期与宽限期由 upload.cleanup_interval_minutes / upload.orphan_grace_minutes 配置（分钟）。
+func orphanCleanupRunner() {
+	log.Println("[Cron] 孤儿附件清理调度器已启动")
+	interval := 360
+	if config.AppConfig != nil && config.AppConfig.Upload.CleanupIntervalMinutes > 0 {
+		interval = config.AppConfig.Upload.CleanupIntervalMinutes
+	}
+	tick := time.NewTicker(time.Duration(interval) * time.Minute)
+	defer tick.Stop()
+
+	// 启动后延迟 30s 再跑一次，确保存储/数据库就绪
+	time.Sleep(30 * time.Second)
+	runOrphanCleanupOnce()
+	for range tick.C {
+		runOrphanCleanupOnce()
+	}
+}
+
+func runOrphanCleanupOnce() {
+	if database.DB == nil {
+		return
+	}
+	n, err := handlers.RunOrphanCleanup()
+	if err != nil {
+		log.Printf("[Cron] 孤儿附件清理失败: %v", err)
+		return
+	}
+	if n > 0 {
+		log.Printf("[Cron] 孤儿附件清理完成，删除 %d 个未引用文件", n)
 	}
 }
 

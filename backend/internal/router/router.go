@@ -31,6 +31,8 @@ func New(mode string) *gin.Engine {
 		api.GET("/health", handlers.HealthCheck)
 		api.POST("/auth/register", handlers.Register)
 		api.POST("/auth/login", handlers.Login)
+		// 附件（账单图片等）读取：公开可读，key 为不可猜测的随机串
+		api.GET("/uploads/*filepath", handlers.ServeUpload)
 
 		// 需要鉴权
 		auth := api.Group("")
@@ -44,6 +46,11 @@ func New(mode string) *gin.Engine {
 			auth.PUT("/auth/me", handlers.UpdateMe)
 			auth.POST("/auth/password", handlers.ChangePassword)
 			auth.POST("/auth/logout", handlers.Logout)
+
+			// 附件上传（账单图片等）：存储到本地或 S3
+			auth.POST("/upload", handlers.UploadImage)
+			// 手动触发孤儿附件清理（日常由后台定时任务自动执行）
+			auth.POST("/uploads/cleanup", handlers.CleanupOrphanUploads)
 
 			// AI 智能分类 & 智能记账
 			auth.GET("/ai/status", handlers.AIStatus)

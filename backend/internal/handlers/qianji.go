@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"huozhi/internal/database"
 	"huozhi/internal/models"
+	"huozhi/internal/storage"
 	"io"
+	"net/http"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -22,15 +25,23 @@ import (
 
 // parseQianJi 解析钱迹 xlsx 账单
 func parseQianJi(r io.Reader, uid, bookID uint) ([]models.Transaction, error) {
-	rows, err := readXLSX(r)
+	data, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
-	return parseQianJiRows(rows, uid, bookID)
+	rows, err := readXLSXBytes(data)
+	if err != nil {
+		return nil, err
+	}
+	// 钱迹「账单图片」是内嵌在 xlsx 里的图片文件（并非 URL 外链），
+	// 从工作表绘图锚点中提取并按行号转存到本系统存储。best-effort：失败不影响文本解析。
+	rowImgs, _ := extractQianJiEmbeddedImages(data, uid)
+	return parseQianJiRows(rows, rowImgs, uid, bookID)
 }
 
 // parseQianJiRows 核心解析逻辑（按表头名映射，便于单测）
-func parseQianJiRows(rows [][]string, uid, bookID uint) ([]models.Transaction, error) {
+// rowImgs 为「工作表行号(0 基) -> 内嵌图片公开路径」，由 parseQianJi 提取后传入。
+func parseQianJiRows(rows [][]string, rowImgs map[int][]string, uid, bookID uint) ([]models.Transaction, error) {
 	if len(rows) < 2 {
 		return nil, fmt.Errorf("空文件或缺少表头")
 	}
@@ -73,7 +84,8 @@ func parseQianJiRows(rows [][]string, uid, bookID uint) ([]models.Transaction, e
 	}
 
 	var out []models.Transaction
-	for _, row := range rows[1:] {
+	for ri := 1; ri < len(rows); ri++ {
+		row := rows[ri]
 		if len(row) == 0 {
 			continue
 		}
@@ -184,9 +196,10 @@ func parseQianJiRows(rows [][]string, uid, bookID uint) ([]models.Transaction, e
 			}
 		}
 
-		// 账单图片：钱迹导出为图片 URL 列表（分号/换行/竖线分隔），直接存入 Images
-		if imgs := get(row, "账单图片"); imgs != "" {
-			tx.Images = splitImages(imgs)
+		// 账单图片：钱迹导出为内嵌于 xlsx 的图片文件（非 URL 外链），
+		// 已在 parseQianJi 中按工作表行号提取并转存，此处直接挂载（rowImgs 键即工作表行号）。
+		if len(rowImgs[ri]) > 0 {
+			tx.Images = rowImgs[ri]
 		}
 
 		// 关联账单：记录原始交易外部 ID，导入入库后再解析为 RefundOfID
@@ -332,19 +345,6 @@ func splitTags(s string) []string {
 	return out
 }
 
-// splitImages 按钱迹「账单图片」列的分隔符拆分图片 URL/路径（分号/换行/竖线）
-func splitImages(s string) []string {
-	parts := regexp.MustCompile(`[;\n|]+`).Split(s, -1)
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			out = append(out, p)
-		}
-	}
-	return out
-}
-
 // isReimbursed 判断钱迹「已报销」列是否表示已报销。
 // 明确否定词（否/无/未/不/没/no/false/none 等）视为未报销，其余非空值视为已报销。
 func isReimbursed(s string) bool {
@@ -359,6 +359,220 @@ func isReimbursed(s string) bool {
 		}
 	}
 	return true
+}
+
+// ========== 钱迹「账单图片」内嵌图片提取 ==========
+// 钱迹导出的 xlsx 中，账单图片以「内嵌图片文件」形式存在（位于 xl/media/，
+// 通过工作表绘图锚点 twoCellAnchor/oneCellAnchor 的 from.row 关联到具体行），并非 URL 外链。
+// 因此导入时从 xlsx 压缩包里提取这些图片，按行号映射后转存到本系统存储（本地 / S3）。
+
+// maxImportImageBytes 导入时单张内嵌图片体积上限（10MB）
+const maxImportImageBytes = 10 * 1024 * 1024
+
+// extractQianJiEmbeddedImages 从钱迹 xlsx 字节中提取内嵌的账单图片，
+// 返回「工作表行号(0 基，与 readSheet 返回的 rows 索引一致) -> 图片公开路径列表」。
+// 图片直接转存到本系统存储，实现「图片随账单一并导入」。
+// best-effort：任何解析/存储失败都跳过该图片，不影响账单文本解析。
+func extractQianJiEmbeddedImages(data []byte, uid uint) (map[int][]string, error) {
+	out := map[int][]string{}
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return out, err
+	}
+	sheet := chooseSheetFile(zr)
+	if sheet == nil {
+		return out, nil
+	}
+	// 1) 工作表 -> 绘图文件
+	drawingPath, ok := sheetDrawingTarget(zr, sheet.Name)
+	if !ok {
+		return out, nil // 该表无内嵌图片
+	}
+	// 2) 绘图锚点 -> (行号, blip rId)
+	anchors, err := drawingAnchors(zr, drawingPath)
+	if err != nil {
+		return out, err
+	}
+	if len(anchors) == 0 {
+		return out, nil
+	}
+	// 3) 绘图关系 -> rId -> 媒体文件相对目标
+	mediaTargets, err := drawingMediaTargets(zr, drawingPath)
+	if err != nil {
+		return out, err
+	}
+	// 4) 逐个提取媒体字节并转存
+	for _, a := range anchors {
+		target, ok := mediaTargets[a.blip]
+		if !ok {
+			continue
+		}
+		mediaPath := resolveRel(drawingPath, target)
+		f := zipFile(zr, mediaPath)
+		if f == nil {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			continue
+		}
+		imgData, err := io.ReadAll(io.LimitReader(rc, maxImportImageBytes+1))
+		rc.Close()
+		if err != nil {
+			continue
+		}
+		if len(imgData) > maxImportImageBytes {
+			continue
+		}
+		if !isImageContent(imgData) {
+			continue
+		}
+		url, err := storage.SaveBytes(imgData, f.Name, uid)
+		if err != nil {
+			continue
+		}
+		out[a.row] = append(out[a.row], url)
+	}
+	return out, nil
+}
+
+// anchor 记录绘图锚点关联的工作表行号与所引用图片的 rId。
+type anchor struct {
+	row  int
+	blip string
+}
+
+// sheetDrawingTarget 读取工作表的关系文件，找到其引用的绘图部件路径。
+func sheetDrawingTarget(zr *zip.Reader, sheetPath string) (string, bool) {
+	rels, err := readRelEntries(zr, sheetPath)
+	if err != nil {
+		return "", false
+	}
+	for _, r := range rels {
+		if strings.Contains(r.Type, "drawing") {
+			return resolveRel(sheetPath, r.Target), true
+		}
+	}
+	return "", false
+}
+
+// drawingMediaTargets 读取绘图部件的关系文件，返回 blip rId -> 媒体文件相对目标。
+func drawingMediaTargets(zr *zip.Reader, drawingPath string) (map[string]string, error) {
+	rels, err := readRelEntries(zr, drawingPath)
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[string]string, len(rels))
+	for _, r := range rels {
+		m[r.Id] = r.Target
+	}
+	return m, nil
+}
+
+// drawingAnchors 解析绘图 XML，提取每个图片锚点的工作表行号（from.row）与被引用图片的 rId。
+func drawingAnchors(zr *zip.Reader, drawingPath string) ([]anchor, error) {
+	var out []anchor
+	f := zipFile(zr, drawingPath)
+	if f == nil {
+		return out, fmt.Errorf("绘图文件不存在: %s", drawingPath)
+	}
+	rc, err := f.Open()
+	if err != nil {
+		return out, err
+	}
+	defer rc.Close()
+
+	dec := xml.NewDecoder(rc)
+	var cur anchor
+	inFrom, inRow := false, false
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			break
+		}
+		switch e := tok.(type) {
+		case xml.StartElement:
+			switch e.Name.Local {
+			case "twoCellAnchor", "oneCellAnchor", "absoluteAnchor":
+				cur = anchor{}
+				inFrom, inRow = false, false
+			case "from":
+				inFrom = true
+			case "row":
+				if inFrom {
+					inRow = true
+				}
+			case "blip":
+				for _, a := range e.Attr {
+					if a.Name.Local == "embed" {
+						cur.blip = a.Value
+					}
+				}
+			}
+		case xml.CharData:
+			if inRow {
+				cur.row, _ = strconv.Atoi(strings.TrimSpace(string(e)))
+			}
+		case xml.EndElement:
+			switch e.Name.Local {
+			case "row":
+				inRow = false
+			case "from":
+				inFrom = false
+			case "twoCellAnchor", "oneCellAnchor", "absoluteAnchor":
+				if cur.blip != "" {
+					out = append(out, cur)
+				}
+			}
+		}
+	}
+	return out, nil
+}
+
+// relEntry 为 .rels 关系文件中的一条 Relationship。
+type relEntry struct {
+	Id     string `xml:"Id,attr"`
+	Target string `xml:"Target,attr"`
+	Type   string `xml:"Type,attr"`
+}
+
+// readRelEntries 读取某个部件（工作表/绘图）的关系文件 _rels/<base>.rels。
+func readRelEntries(zr *zip.Reader, ownerPath string) ([]relEntry, error) {
+	relsPath := relsPathFor(ownerPath)
+	f := zipFile(zr, relsPath)
+	if f == nil {
+		return nil, fmt.Errorf("关系文件不存在: %s", relsPath)
+	}
+	rc, err := f.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	var rf struct {
+		Relationships []relEntry `xml:"Relationship"`
+	}
+	if err := xml.NewDecoder(rc).Decode(&rf); err != nil {
+		return nil, err
+	}
+	return rf.Relationships, nil
+}
+
+// relsPathFor 计算某部件对应的关系文件路径：<dir>/_rels/<base>.rels。
+func relsPathFor(ownerPath string) string {
+	dir := path.Dir(ownerPath)
+	base := path.Base(ownerPath)
+	return path.Join(dir, "_rels", base+".rels")
+}
+
+// resolveRel 将相对目标（可能含 ../）解析为 zip 内绝对路径。
+func resolveRel(base, target string) string {
+	return path.Clean(path.Join(path.Dir(base), target))
+}
+
+// isImageContent 依据字节内容判断是否为图片。
+func isImageContent(data []byte) bool {
+	ct := http.DetectContentType(data)
+	return strings.HasPrefix(ct, "image/")
 }
 
 func parseFloat(s string) float64 {
@@ -383,6 +597,10 @@ func readXLSX(r io.Reader) ([][]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	return readXLSXBytes(data)
+}
+
+func readXLSXBytes(data []byte) ([][]string, error) {
 	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return nil, err
@@ -395,16 +613,7 @@ func readXLSX(r io.Reader) ([][]string, error) {
 		rc.Close()
 	}
 	// 定位工作表（优先 sheet1.xml，否则取第一个 worksheets/sheetN.xml）
-	sheetFile := zipFile(zr, "xl/worksheets/sheet1.xml")
-	if sheetFile == nil {
-		re := regexp.MustCompile(`xl/worksheets/sheet\d+\.xml$`)
-		for _, zf := range zr.File {
-			if re.MatchString(zf.Name) {
-				sheetFile = zf
-				break
-			}
-		}
-	}
+	sheetFile := chooseSheetFile(zr)
 	if sheetFile == nil {
 		return nil, fmt.Errorf("未找到工作表")
 	}
@@ -414,6 +623,20 @@ func readXLSX(r io.Reader) ([][]string, error) {
 	}
 	defer rc.Close()
 	return readSheet(rc, shared)
+}
+
+// chooseSheetFile 选择用于解析数据的工作表文件（与内嵌图片提取使用同一张表）。
+func chooseSheetFile(zr *zip.Reader) *zip.File {
+	if f := zipFile(zr, "xl/worksheets/sheet1.xml"); f != nil {
+		return f
+	}
+	re := regexp.MustCompile(`xl/worksheets/sheet\d+\.xml$`)
+	for _, zf := range zr.File {
+		if re.MatchString(zf.Name) {
+			return zf
+		}
+	}
+	return nil
 }
 
 func readSharedStrings(r io.Reader) []string {

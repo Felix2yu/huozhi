@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"gopkg.in/yaml.v3"
 )
@@ -12,6 +13,20 @@ type Config struct {
 	Database DatabaseConfig `yaml:"database"`
 	JWT      JWTConfig      `yaml:"jwt"`
 	Upload   UploadConfig   `yaml:"upload"`
+	S3       S3Config       `yaml:"s3"`
+}
+
+// S3Config 对象存储配置（S3 兼容：AWS S3 / MinIO / 阿里云 OSS 等）。
+// 当 Enabled=true 时，账单图片等附件上传至 S3；否则存储到本地 Upload.Path。
+type S3Config struct {
+	Enabled   bool   `yaml:"enabled"`
+	Endpoint  string `yaml:"endpoint"`  // 自定义端点，如 http://localhost:9000 或 https://oss-cn-hangzhou.aliyuncs.com（AWS S3 留空）
+	Region    string `yaml:"region"`    // 如 us-east-1 / cn-hangzhou（MinIO 可填 auto）
+	Bucket    string `yaml:"bucket"`    // 存储桶名（需预先创建）
+	Prefix    string `yaml:"prefix"`    // 对象键前缀，如 huozhi（可选）
+	AccessKey string `yaml:"access_key"`
+	SecretKey string `yaml:"secret_key"`
+	UseSSL    bool   `yaml:"use_ssl"`
 }
 
 type ServerConfig struct {
@@ -39,9 +54,11 @@ type JWTConfig struct {
 }
 
 type UploadConfig struct {
-	Path      string `yaml:"path"`
-	MaxSizeMB int    `yaml:"max_size_mb"`
-	Allowed   string `yaml:"allowed"`
+	Path                   string `yaml:"path"`
+	MaxSizeMB              int    `yaml:"max_size_mb"`
+	Allowed                string `yaml:"allowed"`
+	OrphanGraceMinutes     int    `yaml:"orphan_grace_minutes"`      // 孤儿文件宽限期（分钟），默认 60：上传后未关联交易的文件到期后自动清理
+	CleanupIntervalMinutes int    `yaml:"cleanup_interval_minutes"`  // 孤儿自动清理周期（分钟），默认 360（6 小时），0=关闭自动清理
 }
 
 var AppConfig *Config
@@ -75,6 +92,44 @@ func Load(configPath string) (*Config, error) {
 		cfg.Server.Port = v
 	}
 
+	// S3 配置环境变量覆盖（便于容器/生产部署，无需修改配置文件）
+	if v := os.Getenv("HZ_S3_ENABLED"); v == "true" || v == "1" {
+		cfg.S3.Enabled = true
+	}
+	if v := os.Getenv("HZ_S3_ENDPOINT"); v != "" {
+		cfg.S3.Endpoint = v
+	}
+	if v := os.Getenv("HZ_S3_REGION"); v != "" {
+		cfg.S3.Region = v
+	}
+	if v := os.Getenv("HZ_S3_BUCKET"); v != "" {
+		cfg.S3.Bucket = v
+	}
+	if v := os.Getenv("HZ_S3_PREFIX"); v != "" {
+		cfg.S3.Prefix = v
+	}
+	if v := os.Getenv("HZ_S3_ACCESS_KEY"); v != "" {
+		cfg.S3.AccessKey = v
+	}
+	if v := os.Getenv("HZ_S3_SECRET_KEY"); v != "" {
+		cfg.S3.SecretKey = v
+	}
+	if v := os.Getenv("HZ_S3_USE_SSL"); v == "true" || v == "1" {
+		cfg.S3.UseSSL = true
+	}
+
+	// 上传/孤儿清理配置环境变量覆盖
+	if v := os.Getenv("HZ_UPLOAD_ORPHAN_GRACE_MINUTES"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.Upload.OrphanGraceMinutes = n
+		}
+	}
+	if v := os.Getenv("HZ_UPLOAD_CLEANUP_INTERVAL_MINUTES"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.Upload.CleanupIntervalMinutes = n
+		}
+	}
+
 	AppConfig = cfg
 	return cfg, nil
 }
@@ -98,9 +153,21 @@ func Default() *Config {
 			Issuer:      "huozhi",
 		},
 		Upload: UploadConfig{
-			Path:      "./uploads",
-			MaxSizeMB: 10,
-			Allowed:   "jpg,jpeg,png,gif,webp,pdf,csv,xlsx",
+			Path:                   "./uploads",
+			MaxSizeMB:              10,
+			Allowed:                "jpg,jpeg,png,gif,webp,pdf,csv,xlsx",
+			OrphanGraceMinutes:     60,
+			CleanupIntervalMinutes: 360,
+		},
+		S3: S3Config{
+			Enabled:   false,
+			Endpoint:  "",
+			Region:    "us-east-1",
+			Bucket:    "",
+			Prefix:    "huozhi",
+			AccessKey: "",
+			SecretKey: "",
+			UseSSL:    true,
 		},
 	}
 }

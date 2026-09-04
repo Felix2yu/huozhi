@@ -19,8 +19,8 @@ func qjSetup(t *testing.T) (uid, bookID uint) {
 	n := atomic.AddUint64(&qjSeq, 1)
 	u := models.User{
 		Username:     fmt.Sprintf("qj_%d", n),
-		Email:        fmt.Sprintf("qj_%d@example.com", n),
-		Phone:        fmt.Sprintf("qj_%d_phone", n),
+		Email:        strPtrOrNil(fmt.Sprintf("qj_%d@example.com", n)),
+		Phone:        strPtrOrNil(fmt.Sprintf("qj_%d_phone", n)),
 		PasswordHash: "x",
 		Nickname:     "QJ",
 		Currency:     "CNY",
@@ -70,7 +70,7 @@ func TestParseQianJiRows(t *testing.T) {
 	database.DB.Create(&models.Category{UserID: uid, BookID: daily, Name: "医疗", Kind: models.KindExpense, Icon: "x"})
 	database.DB.Create(&models.Category{UserID: uid, BookID: daily, Name: "交通", Kind: models.KindExpense, Icon: "x"})
 	rows := qianjiSampleRows()
-	txs, err := parseQianJiRows(rows, uid, bookID)
+	txs, err := parseQianJiRows(rows, nil,uid, bookID)
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestParseQianJiRowsSubCategory(t *testing.T) {
 		{"ID", "时间", "账本", "分类", "二级分类", "类型", "金额", "币种", "账户1", "账户2", "备注", "已报销", "手续费", "优惠券", "记账者", "账单标记", "标签", "账单图片", "关联账单"},
 		{"sc1", "2026-09-03 12:00:00", "日常账本", "餐饮", "火锅", "支出", "120", "CNY", "现金", "", "聚餐", "", "", "", "子翼", "", "", "", ""},
 	}
-	txs, err := parseQianJiRows(rows, uid, bookID)
+	txs, err := parseQianJiRows(rows, nil,uid, bookID)
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestParseQianJiRowsSubCategory(t *testing.T) {
 	}
 
 	// 再次导入同名二级分类，应复用而非新建
-	txs2, _ := parseQianJiRows(rows, uid, bookID)
+	txs2, _ := parseQianJiRows(rows, nil,uid, bookID)
 	var sub2 models.Category
 	database.DB.First(&sub2, txs2[0].CategoryID)
 	if sub2.ID != sub.ID {
@@ -208,7 +208,7 @@ func TestParseQianJiRowsBookAndReimburse(t *testing.T) {
 		{"b2", "2026-09-04 12:00:00", "旅行账本", "餐饮", "", "支出", "80", "CNY", "现金", "", "晚餐", "否", "", "", "子翼", "", "", "", ""},
 		{"b3", "2026-09-05 12:00:00", "家庭账本", "餐饮", "", "支出", "50", "CNY", "现金", "", "买菜", "", "", "", "子翼", "", "", "", ""},
 	}
-	txs, err := parseQianJiRows(rows, uid, 0)
+	txs, err := parseQianJiRows(rows, nil,uid, 0)
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
@@ -261,7 +261,7 @@ func TestParseQianJiRowsTransferByAccounts(t *testing.T) {
 		{"ID", "时间", "账本", "分类", "二级分类", "类型", "金额", "币种", "账户1", "账户2", "备注", "已报销", "手续费", "优惠券", "记账者", "账单标记", "标签", "账单图片", "关联账单"},
 		{"qjx", "2026-09-03 10:00:00", "日常账本", "", "", "", "500", "CNY", "招商银行储蓄卡", "平安银行信用卡", "信用卡还款", "", "", "", "子翼", "", "", "", ""},
 	}
-	txs, err := parseQianJiRows(rows, uid, bookID)
+	txs, err := parseQianJiRows(rows, nil,uid, bookID)
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
@@ -326,12 +326,12 @@ func TestParseQianJiRowsPreviouslyMissingFields(t *testing.T) {
 
 	rows := [][]string{
 		{"ID", "时间", "账本", "分类", "二级分类", "类型", "金额", "币种", "账户1", "账户2", "备注", "已报销", "手续费", "优惠券", "记账者", "账单标记", "标签", "账单图片", "关联账单"},
-		// 支出：携带记账者、账单标记、账单图片
-		{"ext-001", "2026-09-03 12:00:00", "日常账本", "餐饮", "", "支出", "120", "CNY", "现金", "", "午餐", "", "", "", "子翼", "2026-08账单", "", "https://img.example/1.jpg;https://img.example/2.jpg", ""},
+		// 支出：携带记账者、账单标记（账单图片列在真实钱迹导出中为空——图片内嵌于 xlsx，不占单元格文本）
+		{"ext-001", "2026-09-03 12:00:00", "日常账本", "餐饮", "", "支出", "120", "CNY", "现金", "", "午餐", "", "", "", "子翼", "2026-08账单", "", "", ""},
 		// 退款：关联回 ext-001（钱迹里「关联账单」通常指向原始支出），已报销列给金额
 		{"ext-002", "2026-09-04 12:00:00", "日常账本", "医疗", "", "退款", "50", "CNY", "现金", "", "退药", "88.5", "", "", "子翼", "", "", "", "ext-001"},
 	}
-	txs, err := parseQianJiRows(rows, uid, 0)
+	txs, err := parseQianJiRows(rows, nil,uid, 0)
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
@@ -350,9 +350,8 @@ func TestParseQianJiRowsPreviouslyMissingFields(t *testing.T) {
 	if exp.BillMarker != "2026-08账单" {
 		t.Errorf("BillMarker = %q, want 2026-08账单", exp.BillMarker)
 	}
-	wantImgs := []string{"https://img.example/1.jpg", "https://img.example/2.jpg"}
-	if len(exp.Images) != 2 || exp.Images[0] != wantImgs[0] || exp.Images[1] != wantImgs[1] {
-		t.Errorf("Images = %v, want %v", exp.Images, wantImgs)
+	if len(exp.Images) != 0 {
+		t.Errorf("Images = %v, want 空（账单图片列文本不再解析，图片走内嵌提取）", exp.Images)
 	}
 
 	// 2) 退款行：已报销列是数字 -> 报销状态 done + 报销金额；关联账单 -> RefundOfExternalID（原始引用留存）
