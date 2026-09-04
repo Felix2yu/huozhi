@@ -20,8 +20,8 @@ type BaseModel struct {
 type User struct {
 	BaseModel
 	Username     string    `gorm:"size:50;uniqueIndex;not null" json:"username"`
-	Email        string    `gorm:"size:100;uniqueIndex" json:"email"`
-	Phone        string    `gorm:"size:20;uniqueIndex" json:"phone"`
+	Email        *string   `gorm:"size:100;uniqueIndex" json:"email"` // 指针类型：空值写 NULL，避免 SQLite 唯一索引把 '' 当值冲突
+	Phone        *string   `gorm:"size:20;uniqueIndex" json:"phone"`
 	PasswordHash string    `gorm:"size:255;not null" json:"-"`
 	Nickname     string    `gorm:"size:50" json:"nickname"`
 	Avatar       string    `gorm:"size:255" json:"avatar"`

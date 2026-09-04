@@ -60,6 +60,14 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+// strPtr 空字符串转 nil（存 NULL），非空返回指针
+func strPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
 // newUser creates a user directly in the DB and returns its id + JWT.
 func newUser(t *testing.T) (uint, string) {
 	t.Helper()
@@ -67,8 +75,8 @@ func newUser(t *testing.T) (uint, string) {
 	suffix := strconv.FormatUint(n, 10)
 	user := models.User{
 		Username:     "user" + suffix,
-		Email:        "user" + suffix + "@example.com",
-		Phone:        "phone-" + suffix,
+		Email:        strPtr("user" + suffix + "@example.com"),
+		Phone:        strPtr("phone-" + suffix),
 		PasswordHash: "x",
 		Nickname:     "Test" + suffix,
 		Currency:     "CNY",

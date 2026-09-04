@@ -37,6 +37,8 @@ func main() {
 		cfg = config.Default()
 		_ = os.MkdirAll("./uploads", 0755)
 	}
+	// 无论配置来自文件还是默认值，都必须挂到全局（jwt.GenerateToken、存储层等读取 config.AppConfig）
+	config.AppConfig = cfg
 	if _, err := os.Stat(cfg.Upload.Path); os.IsNotExist(err) {
 		os.MkdirAll(cfg.Upload.Path, 0755)
 	}

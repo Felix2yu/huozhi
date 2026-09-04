@@ -45,8 +45,6 @@ func Register(c *gin.Context) {
 
 	user := models.User{
 		Username:     req.Username,
-		Email:        req.Email,
-		Phone:        req.Phone,
 		PasswordHash: passHash,
 		Nickname:     req.Nickname,
 		Locale:       "zh-CN",
@@ -55,6 +53,13 @@ func Register(c *gin.Context) {
 		MonthStart:   1,
 		LastLoginAt:  time.Now(),
 		Status:       1,
+	}
+	// 空 email/phone 存 NULL：SQLite 唯一索引对 '' 视为重复，NULL 则不冲突
+	if req.Email != "" {
+		user.Email = &req.Email
+	}
+	if req.Phone != "" {
+		user.Phone = &req.Phone
 	}
 
 	if user.Nickname == "" {
@@ -243,6 +248,14 @@ func GetMe(c *gin.Context) {
 	OK(c, user)
 }
 
+// strPtrOrNil 空字符串转 nil（存 NULL），非空返回指针
+func strPtrOrNil(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
 // UpdateMe 更新用户信息
 func UpdateMe(c *gin.Context) {
 	uid := middleware.GetUID(c)
@@ -253,12 +266,12 @@ func UpdateMe(c *gin.Context) {
 	}
 
 	if err := database.DB.Model(&models.User{}).Where("id = ?", uid).Updates(map[string]interface{}{
-		"nickname":    req.Nickname,
-		"avatar":      req.Avatar,
-		"email":       req.Email,
-		"phone":       req.Phone,
-		"locale":      req.Locale,
-		"timezone":    req.Timezone,
+		"nickname": req.Nickname,
+		"avatar":   req.Avatar,
+		"email":    strPtrOrNil(req.Email),
+		"phone":    strPtrOrNil(req.Phone),
+		"locale":   req.Locale,
+		"timezone": req.Timezone,
 		"month_start": req.MonthStart,
 		"currency":    req.Currency,
 	}).Error; err != nil {
