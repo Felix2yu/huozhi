@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAppStore } from '@/stores/app';
 import { accountApi } from '@/api';
@@ -66,7 +67,7 @@ function CardFace({
           {/* 顶部：银行名 + 卡种标签 */}
           <div className="flex items-start justify-between">
             <div>
-              <div className="card3d-small">{isCredit ? 'Credit Card' : 'Debit Card'}</div>
+              <div className="card3d-small">{isCredit ? '信用卡' : '储蓄卡'}</div>
               <div className="text-sm font-semibold tracking-wide mt-0.5">
                 {acc.bank_name || acc.name}
               </div>
@@ -80,11 +81,11 @@ function CardFace({
           {/* 底部：持卡人 / 有效期 */}
           <div className="flex items-end justify-between gap-3">
             <div className="min-w-0">
-              <div className="card3d-small">Cardholder</div>
+              <div className="card3d-small">持卡人</div>
               <div className="card3d-name truncate">{acc.name}</div>
             </div>
             <div className="text-right shrink-0">
-              <div className="card3d-small">Expires</div>
+              <div className="card3d-small">有效期</div>
               <div className="card3d-name tabular-nums">
                 {acc.expire_month && acc.expire_year
                   ? `${String(acc.expire_month).padStart(2, '0')}/${String(acc.expire_year).padStart(2, '0')}`
@@ -99,14 +100,14 @@ function CardFace({
           <div className="card3d-magstripe" />
           <div className="card3d-sigstrip">
             <div className="flex-1 text-[10px] tracking-widest text-slate-500">
-              AUTHORIZED SIGNATURE
+              授权签名
             </div>
             <div className="card3d-cvv-box">
-              {loadingFull ? '···' : (fullInfo?.cvv ? fullInfo.cvv.replace(/./g, '·') : acc.type === 'credit' ? 'CVV' : '—')}
+              {loadingFull ? '···' : (fullInfo?.cvv ? fullInfo.cvv.replace(/./g, '·') : acc.type === 'credit' ? '安全码' : '—')}
             </div>
           </div>
           <div className="px-[22px] pb-[18px] mt-[14px] text-[11px] text-slate-400 leading-relaxed">
-            点击卡片查看完整卡号和 CVV（<span className="text-amber-300">敏感信息 · 请注意保密</span>）
+            点击卡片查看完整卡号和安全码（<span className="text-amber-300">敏感信息 · 请注意保密</span>）
           </div>
         </div>
       </div>
@@ -118,6 +119,7 @@ function CardFace({
 export default function CardsPage() {
   const bookId = useAppStore(s => s.currentBookId);
   const allAccounts = useAppStore(s => s.accounts);
+  const navigate = useNavigate();
 
   const cards = useMemo(
     () => allAccounts.filter(a => a.type === 'bank' || a.type === 'credit'),
@@ -144,7 +146,7 @@ export default function CardsPage() {
         setFullInfoMap(prev => ({ ...prev, [acc.id]: data || null }));
       } catch {
         setFullInfoMap(prev => ({ ...prev, [acc.id]: null }));
-        toast.warning('该卡未保存完整卡号或 CVV');
+        toast.warning('该卡未保存完整卡号或安全码');
       } finally {
         setLoadingMap(prev => ({ ...prev, [acc.id]: false }));
       }
@@ -195,15 +197,9 @@ export default function CardsPage() {
             储蓄卡 {debits.length} 张 · 信用卡 {credits.length} 张 · 点击卡面翻转查看背面
           </p>
         </div>
-        <a
-          href="#/accounts"
-          className="btn-primary"
-          onClick={(e) => {
-            // 跳转到账户页并自动打开新增弹窗？此处先简单跳转
-          }}
-        >
+        <button className="btn-primary" onClick={() => navigate('/accounts')}>
           <Plus size={16} /> 新增账户
-        </a>
+        </button>
       </header>
 
       {/* 汇总条 */}
@@ -281,15 +277,16 @@ export default function CardsPage() {
                   loadingFull={!!loadingMap[c.id]}
                 />
                 {/* 卡下额度信息 */}
-                <div className="px-1 text-xs text-slate-500 flex items-center justify-between">
-                  <span>额度 {formatMoney(c.credit_limit || 0)}</span>
-                  <span className={cn(
-                    'tabular-nums',
-                    c.credit_limit && (Math.max(0, c.balance || 0) / c.credit_limit) > 0.8
-                      ? 'text-red-500 font-medium' : '',
-                  )}>
-                    已用 {formatMoney(Math.max(0, c.balance || 0))}
+                <div className="px-1 flex items-center justify-between gap-2">
+                  <span className="text-xs text-slate-500 tabular-nums">
+                    额度 {formatMoney(c.credit_limit || 0)} · 已用 {formatMoney(Math.max(0, c.balance || 0))}
                   </span>
+                  <button
+                    onClick={() => navigate(`/accounts?account=${c.id}`)}
+                    className="text-xs text-brand-600 hover:underline shrink-0"
+                  >
+                    账户详情 →
+                  </button>
                 </div>
               </div>
             ))}
@@ -318,11 +315,16 @@ export default function CardsPage() {
                   fullInfo={fullInfoMap[d.id] ?? null}
                   loadingFull={!!loadingMap[d.id]}
                 />
-                <div className="px-1 text-xs text-slate-500 flex items-center justify-between">
-                  <span>{d.bank_name || '储蓄卡'}</span>
-                  <span className="tabular-nums text-slate-700 font-medium">
-                    余额 {formatMoney(d.balance || 0)}
+                <div className="px-1 flex items-center justify-between gap-2">
+                  <span className="text-xs text-slate-500 tabular-nums">
+                    {d.bank_name || '储蓄卡'} · 余额 {formatMoney(d.balance || 0)}
                   </span>
+                  <button
+                    onClick={() => navigate(`/accounts?account=${d.id}`)}
+                    className="text-xs text-brand-600 hover:underline shrink-0"
+                  >
+                    账户详情 →
+                  </button>
                 </div>
               </div>
             ))}
@@ -347,7 +349,7 @@ export default function CardsPage() {
         <div>
           <div className="font-semibold mb-0.5">安全提示</div>
           <p className="leading-relaxed">
-            完整卡号和 CVV 仅在你的设备上按需解密显示，后端仅存 AES-256-GCM 密文且默认不返回。
+            完整卡号和安全码仅在你的设备上按需解密显示，后端仅存 AES-256-GCM 密文且默认不返回。
             查看完毕后请及时关闭本页或点击卡面翻回正面，避免他人窥视。
           </p>
         </div>

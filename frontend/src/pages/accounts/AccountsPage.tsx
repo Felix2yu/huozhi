@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAppStore } from '@/stores/app';
 import { accountApi, statsApi } from '@/api';
@@ -48,6 +49,7 @@ export default function AccountsPage() {
   const bookId = useAppStore(s => s.currentBookId);
   const storeAccounts = useAppStore(s => s.accounts);
   const loadDicts = useAppStore(s => s.loadDictionaries);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [summary, setSummary] = useState<AccountSummary | null>(null);
   const [list, setList] = useState<Account[]>([]);
@@ -152,6 +154,20 @@ export default function AccountsPage() {
     });
     setEditOpen(true);
   };
+
+  // 从「我的银行卡」点击某张卡跳转过来时，自动打开对应账户的编辑弹窗
+  useEffect(() => {
+    const accId = searchParams.get('account');
+    if (!accId) return;
+    const id = Number(accId);
+    if (!Number.isFinite(id)) return;
+    const target = list.find(a => a.id === id);
+    if (target) {
+      openEdit(target);
+      searchParams.delete('account');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [list, searchParams, setSearchParams, openEdit]);
 
   const submitEdit = async () => {
     if (!editForm.name.trim()) { toast.error('请输入账户名称'); return; }
