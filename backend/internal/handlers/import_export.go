@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // ========== 导入导出 ==========
@@ -128,27 +129,52 @@ func ImportTransactions(c *gin.Context) {
 	// 入库
 	created, skipped := 0, 0
 	db := database.DB.Begin()
+	var createdTxs []models.Transaction
 	for _, rec := range records {
 		rec.UserID = uid
-		rec.BookID = req.BookID
+		// 保留解析器设置的归属账本（如钱迹导入按「账本」列逐行归属）；
+		// 仅当记录自身未指定账本时回退到导入目标账本。
+		if rec.BookID == 0 {
+			rec.BookID = req.BookID
+		}
 		if rec.AccountID == 0 || rec.CategoryID == 0 {
 			skipped++
 			continue
 		}
-		// 去重检测：同一账本、同一天、相同金额、相同类型、相同描述的记录视为重复
-		txDay := time.Date(rec.TxDate.Year(), rec.TxDate.Month(), rec.TxDate.Day(), 0, 0, 0, 0, rec.TxDate.Location())
-		txNextDay := txDay.AddDate(0, 0, 1)
+		// 去重检测：
+		// - 若解析器已给出外部来源 ID（如钱迹原始交易 ID），按 (user_id, book_id, external_id)
+		//   精确去重，保证重复导入同一文件是幂等的；
+		// - 否则回退到模糊去重：同一账本、同一天、相同金额、相同类型、相同描述的记录视为重复。
 		var exists int64
-		db.Model(&models.Transaction{}).Where(
-			"user_id = ? AND book_id = ? AND type = ? AND amount = ? AND tx_date >= ? AND tx_date < ? AND description = ?",
-			uid, req.BookID, rec.Type, rec.Amount, txDay, txNextDay, rec.Description,
-		).Count(&exists)
+		if rec.ExternalID != "" {
+			db.Model(&models.Transaction{}).Where(
+				"user_id = ? AND book_id = ? AND external_id = ?",
+				uid, rec.BookID, rec.ExternalID,
+			).Count(&exists)
+		} else {
+			txDay := time.Date(rec.TxDate.Year(), rec.TxDate.Month(), rec.TxDate.Day(), 0, 0, 0, 0, rec.TxDate.Location())
+			txNextDay := txDay.AddDate(0, 0, 1)
+			db.Model(&models.Transaction{}).Where(
+				"user_id = ? AND book_id = ? AND type = ? AND amount = ? AND tx_date >= ? AND tx_date < ? AND description = ?",
+				uid, rec.BookID, rec.Type, rec.Amount, txDay, txNextDay, rec.Description,
+			).Count(&exists)
+		}
 		if exists > 0 {
 			skipped++
 			continue
 		}
+		tags := rec.Tags
+		// 清空，改由下方手动维护 transaction_tags 关联与 count：
+		// GORM 的 Create 不会自动累加 Tag.count，且自动关联行为不可靠，与手动记账 CreateTransaction 保持一致。
+		rec.Tags = nil
 		if err := db.Create(&rec).Error; err == nil {
 			created++
+			createdTxs = append(createdTxs, rec)
+			// 标签关联 + 使用次数累加（与手动记账 CreateTransaction 一致）
+			for _, tg := range tags {
+				db.Create(&models.TransactionTag{TransactionID: rec.ID, TagID: tg.ID})
+				db.Model(&models.Tag{}).Where("id = ?", tg.ID).UpdateColumn("count", gorm.Expr("count + 1"))
+			}
 			// 更新余额
 			var from, to models.Account
 			db.First(&from, rec.AccountID)
@@ -160,6 +186,10 @@ func ImportTransactions(c *gin.Context) {
 			skipped++
 		}
 	}
+
+	// 解析钱迹「关联账单」：将本批次已创建交易的 RefundOfExternalID 解析为 RefundOfID 外键
+	resolveRefundLinks(db, uid, createdTxs)
+
 	db.Commit()
 
 	OK(c, gin.H{
@@ -681,6 +711,39 @@ func GetBill(c *gin.Context) {
 			"net_asset":   round2(totalAsset - totalDebt),
 		},
 	})
+}
+
+// resolveRefundLinks 将钱迹「关联账单」(RefundOfExternalID) 解析为 RefundOfID 外键。
+// 优先在本批次已创建交易的内存映射中查找，其次回退到库内已存在交易（支持跨导入/历史数据关联）。
+func resolveRefundLinks(db *gorm.DB, uid uint, createdTxs []models.Transaction) {
+	if len(createdTxs) == 0 {
+		return
+	}
+	// 内存映射：本批次外部 ID -> 内部自增 ID
+	mem := make(map[string]uint, len(createdTxs))
+	for _, ct := range createdTxs {
+		if ct.ExternalID != "" {
+			mem[ct.ExternalID] = ct.ID
+		}
+	}
+	resolve := func(ext string) uint {
+		if id, ok := mem[ext]; ok {
+			return id
+		}
+		var t models.Transaction
+		if db.Where("user_id = ? AND external_id = ?", uid, ext).First(&t).Error == nil {
+			return t.ID
+		}
+		return 0
+	}
+	for _, ct := range createdTxs {
+		if ct.RefundOfExternalID == "" {
+			continue
+		}
+		if rid := resolve(ct.RefundOfExternalID); rid != 0 && rid != ct.ID {
+			db.Model(&models.Transaction{}).Where("id = ?", ct.ID).Update("refund_of_id", rid)
+		}
+	}
 }
 
 func mapKeys(m map[uint]map[string]float64) []uint {

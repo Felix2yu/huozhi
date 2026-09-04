@@ -179,6 +179,15 @@ type Transaction struct {
 	RefundOfID    uint            `gorm:"default:0;index" json:"refund_of_id"`
 	ReimburseStatus string        `gorm:"size:20;default:none" json:"reimburse_status"` // none, pending, done
 	ReimburseAmount float64       `gorm:"default:0" json:"reimburse_amount"`
+	// 记账者（协作账本中记录是谁记的账）
+	RecordedBy    string          `gorm:"size:100" json:"recorded_by"`
+	// 账单标记（信用卡账单归属标记，如某笔消费归属的账单月份）
+	BillMarker    string          `gorm:"size:100" json:"bill_marker"`
+	// 外部来源 ID（钱迹原始交易 ID）：不替换内部自增主键 id，仅作业务外部引用，
+	// 用于导入幂等去重与「关联账单」外键解析。跨导出/跨用户不保证全局唯一，故仅按 (user_id, book_id, external_id) 查询。
+	ExternalID    string          `gorm:"size:100;index" json:"external_id"`
+	// 关联账单：钱迹「关联账单」列记录的原交易外部 ID；入库后解析为 RefundOfID（内部字段，不对外暴露）
+	RefundOfExternalID string     `gorm:"size:100" json:"-"`
 	// 记账日期（重要：可以与创建时间不同）
 	TxDate        time.Time       `gorm:"not null;index" json:"tx_date"`
 	Description   string          `gorm:"size:500" json:"description"`

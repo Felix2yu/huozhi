@@ -46,9 +46,31 @@ func parseQianJiRows(rows [][]string, uid, bookID uint) ([]models.Transaction, e
 		return strings.TrimSpace(row[i])
 	}
 
-	expenseCat := findCategoryOrCreate(uid, bookID, "其他支出", models.KindExpense, "📦")
-	incomeCat := findCategoryOrCreate(uid, bookID, "其他收入", models.KindIncome, "💰")
-	transferCat := findCategoryOrCreate(uid, bookID, "转账", models.KindExpense, "🔁")
+	// 账本名 -> bookID 缓存：每行的「账本」列决定归属账本，缺省回退到导入目标账本
+	bookCache := map[string]uint{}
+	resolveBook := func(name string) uint {
+		if name == "" {
+			return bookID
+		}
+		if id, ok := bookCache[name]; ok {
+			return id
+		}
+		id := findBookByNameOrCreate(uid, name).ID
+		bookCache[name] = id
+		return id
+	}
+	// 账本 -> 兜底分类(其他支出/其他收入/转账) 缓存
+	fallbackCache := map[uint][3]models.Category{}
+	getFallbacks := func(bid uint) (exp, inc, tr models.Category) {
+		if c, ok := fallbackCache[bid]; ok {
+			return c[0], c[1], c[2]
+		}
+		e := findCategoryOrCreate(uid, bid, "其他支出", models.KindExpense, "📦")
+		i := findCategoryOrCreate(uid, bid, "其他收入", models.KindIncome, "💰")
+		t := findCategoryOrCreate(uid, bid, "转账", models.KindExpense, "🔁")
+		fallbackCache[bid] = [3]models.Category{e, i, t}
+		return e, i, t
+	}
 
 	var out []models.Transaction
 	for _, row := range rows[1:] {
@@ -65,31 +87,45 @@ func parseQianJiRows(rows [][]string, uid, bookID uint) ([]models.Transaction, e
 			continue
 		}
 
+		// 归属账本：优先取「账本」列，否则回退到导入目标账本
+		rowBookID := resolveBook(get(row, "账本"))
+		expenseCat, incomeCat, transferCat := getFallbacks(rowBookID)
+
 		// 日期：钱迹为 "2006-01-02 15:04:05"，兼容多种格式
 		d := parseQianJiDate(get(row, "时间"))
 
 		tx := models.Transaction{
+			BookID:      rowBookID,
 			Amount:      amt,
 			Currency:    firstNonEmpty(get(row, "币种"), "CNY"),
 			TxDate:      d,
 			Description: get(row, "备注"),
 			Remark:      get(row, "备注"),
+			// 钱迹原始交易 ID：用于导入幂等去重与「关联账单」解析
+			ExternalID: get(row, "ID"),
+			// 记账者（协作账本中记录是谁记的账）
+			RecordedBy: get(row, "记账者"),
+			// 账单标记（信用卡账单归属标记）
+			BillMarker: get(row, "账单标记"),
 		}
 
 		// 账户（先解析，便于按「账户1+账户2 同时存在」兜底识别转账）
 		a1 := get(row, "账户1")
 		a2 := get(row, "账户2")
 
+		subName := get(row, "二级分类")
 		switch typeStr {
 		case "收入":
 			tx.Type = models.TxIncome
-			tx.CategoryID = matchCategory(uid, bookID, get(row, "分类"), models.KindIncome, incomeCat)
+			parentID := matchCategory(uid, rowBookID, get(row, "分类"), models.KindIncome, incomeCat)
+			tx.CategoryID = resolveSubCategory(uid, parentID, subName)
 		case "退款":
 			tx.Type = models.TxRefund
-			tx.CategoryID = matchCategoryAny(uid, bookID, get(row, "分类"), incomeCat)
+			parentID := matchCategoryAny(uid, bookID, get(row, "分类"), incomeCat)
+			tx.CategoryID = resolveSubCategory(uid, parentID, subName)
 		case "转账":
 			tx.Type = models.TxTransfer
-			tx.CategoryID = transferCat.ID
+			tx.CategoryID = resolveSubCategory(uid, transferCat.ID, subName)
 			if fee := parseFloat(get(row, "手续费")); fee > 0 {
 				tx.TransferFee = fee
 			}
@@ -98,13 +134,14 @@ func parseQianJiRows(rows [][]string, uid, bookID uint) ([]models.Transaction, e
 			}
 		case "支出":
 			tx.Type = models.TxExpense
-			tx.CategoryID = matchCategory(uid, bookID, get(row, "分类"), models.KindExpense, expenseCat)
+			parentID := matchCategory(uid, rowBookID, get(row, "分类"), models.KindExpense, expenseCat)
+			tx.CategoryID = resolveSubCategory(uid, parentID, subName)
 		default:
 			// 其他 / 未知类型：钱迹中「账户1、账户2 同时存在」即视为转账（含信用卡还款等）；
 			// 否则保守视为支出。
 			if a1 != "" && a2 != "" {
 				tx.Type = models.TxTransfer
-				tx.CategoryID = transferCat.ID
+				tx.CategoryID = resolveSubCategory(uid, transferCat.ID, subName)
 				if fee := parseFloat(get(row, "手续费")); fee > 0 {
 					tx.TransferFee = fee
 				}
@@ -113,7 +150,8 @@ func parseQianJiRows(rows [][]string, uid, bookID uint) ([]models.Transaction, e
 				}
 			} else {
 				tx.Type = models.TxExpense
-				tx.CategoryID = matchCategory(uid, bookID, get(row, "分类"), models.KindExpense, expenseCat)
+				parentID := matchCategory(uid, rowBookID, get(row, "分类"), models.KindExpense, expenseCat)
+				tx.CategoryID = resolveSubCategory(uid, parentID, subName)
 			}
 		}
 
@@ -125,17 +163,35 @@ func parseQianJiRows(rows [][]string, uid, bookID uint) ([]models.Transaction, e
 			tx.ToAccountID = findAccountByNameOrCreate(uid, bookID, a2).ID
 		}
 
-		// 报销状态
+		// 报销状态：钱迹「已报销」列一般为「是/否」、空、日期或报销金额。
+		// 若是非空数字则视为报销金额（同时置 done）；否则按否定词判定；其余非空视为已报销。
 		if rb := get(row, "已报销"); rb != "" {
-			tx.ReimburseStatus = "done"
+			if num := parseFloat(rb); num > 0 {
+				tx.ReimburseStatus = "done"
+				tx.ReimburseAmount = num
+			} else if isReimbursed(rb) {
+				tx.ReimburseStatus = "done"
+			} else {
+				tx.ReimburseStatus = "none"
+			}
 		}
 
 		// 标签
 		if tags := get(row, "标签"); tags != "" {
 			for _, name := range splitTags(tags) {
-				t := findTagOrCreate(uid, bookID, name)
+				t := findTagOrCreate(uid, rowBookID, name)
 				tx.Tags = append(tx.Tags, &t)
 			}
+		}
+
+		// 账单图片：钱迹导出为图片 URL 列表（分号/换行/竖线分隔），直接存入 Images
+		if imgs := get(row, "账单图片"); imgs != "" {
+			tx.Images = splitImages(imgs)
+		}
+
+		// 关联账单：记录原始交易外部 ID，导入入库后再解析为 RefundOfID
+		if rel := get(row, "关联账单"); rel != "" {
+			tx.RefundOfExternalID = rel
 		}
 
 		tx.IncludeInBalance = true
@@ -172,6 +228,37 @@ func matchCategoryAny(uid, bookID uint, name string, fallback models.Category) u
 		return c.ID
 	}
 	return fallback.ID
+}
+
+// resolveSubCategory 在一级分类 parentID 下查找/创建名为 subName 的二级分类，
+// 返回该二级分类的 ID；若 subName 为空则返回 parentID 本身（仅挂一级分类）。
+// 二级分类继承父级的 book_id / kind / 图标 / 颜色，与 app 既有的「叶子分类」约定一致。
+func resolveSubCategory(uid, parentID uint, subName string) uint {
+	subName = strings.TrimSpace(subName)
+	if subName == "" {
+		return parentID
+	}
+	var parent models.Category
+	if err := database.DB.First(&parent, parentID).Error; err != nil {
+		return parentID
+	}
+	kind := parent.Kind
+	var sub models.Category
+	if err := database.DB.Where("user_id = ? AND parent_id = ? AND name = ? AND kind = ?",
+		uid, parentID, subName, kind).First(&sub).Error; err == nil {
+		return sub.ID
+	}
+	sub = models.Category{
+		UserID:   uid,
+		BookID:   parent.BookID,
+		ParentID: parentID,
+		Name:     subName,
+		Kind:     kind,
+		Icon:     parent.Icon,
+		Color:    parent.Color,
+	}
+	database.DB.Create(&sub)
+	return sub.ID
 }
 
 // findAccountByNameOrCreate 按名称匹配账户，不存在则按名称猜测类型后创建
@@ -243,6 +330,35 @@ func splitTags(s string) []string {
 		}
 	}
 	return out
+}
+
+// splitImages 按钱迹「账单图片」列的分隔符拆分图片 URL/路径（分号/换行/竖线）
+func splitImages(s string) []string {
+	parts := regexp.MustCompile(`[;\n|]+`).Split(s, -1)
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// isReimbursed 判断钱迹「已报销」列是否表示已报销。
+// 明确否定词（否/无/未/不/没/no/false/none 等）视为未报销，其余非空值视为已报销。
+func isReimbursed(s string) bool {
+	s = strings.TrimSpace(strings.ToLower(s))
+	if s == "" {
+		return false
+	}
+	negatives := []string{"否", "无", "未", "不", "没", "no", "false", "none", "n/a", "null"}
+	for _, n := range negatives {
+		if strings.Contains(s, n) {
+			return false
+		}
+	}
+	return true
 }
 
 func parseFloat(s string) float64 {

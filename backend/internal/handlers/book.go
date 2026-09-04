@@ -202,3 +202,15 @@ func firstNotEmpty(s, def string) string {
 	}
 	return s
 }
+
+// findBookByNameOrCreate 按名称匹配当前用户的账本，不存在则创建一个（用于导入时按「账本」列归属交易）。
+// 仅做最小字段写入，不触发系统分类初始化/事件广播，避免导入副作用。
+func findBookByNameOrCreate(uid uint, name string) models.Book {
+	var b models.Book
+	if err := database.DB.Where("user_id = ? AND name = ?", uid, name).First(&b).Error; err == nil {
+		return b
+	}
+	b = models.Book{UserID: uid, Name: name, Currency: "CNY"}
+	database.DB.Create(&b)
+	return b
+}

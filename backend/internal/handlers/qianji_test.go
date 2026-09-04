@@ -39,6 +39,20 @@ func qjSetup(t *testing.T) (uid, bookID uint) {
 	return u.ID, b.ID
 }
 
+// qjBook 获取或创建指定名称的账本（配合钱迹样本里「账本=日常账本」使用）
+func qjBook(t *testing.T, uid uint, name string) uint {
+	t.Helper()
+	var b models.Book
+	if database.DB.Where("user_id = ? AND name = ?", uid, name).First(&b).Error == nil {
+		return b.ID
+	}
+	b = models.Book{UserID: uid, Name: name, Currency: "CNY"}
+	if err := database.DB.Create(&b).Error; err != nil {
+		t.Fatal(err)
+	}
+	return b.ID
+}
+
 // 钱迹样本（与真实导出列一致）
 func qianjiSampleRows() [][]string {
 	return [][]string{
@@ -51,6 +65,10 @@ func qianjiSampleRows() [][]string {
 
 func TestParseQianJiRows(t *testing.T) {
 	uid, bookID := qjSetup(t)
+	// 样本行「账本=日常账本」，分类需建在与该账本一致的账本下才能被按名匹配
+	daily := qjBook(t, uid, "日常账本")
+	database.DB.Create(&models.Category{UserID: uid, BookID: daily, Name: "医疗", Kind: models.KindExpense, Icon: "x"})
+	database.DB.Create(&models.Category{UserID: uid, BookID: daily, Name: "交通", Kind: models.KindExpense, Icon: "x"})
 	rows := qianjiSampleRows()
 	txs, err := parseQianJiRows(rows, uid, bookID)
 	if err != nil {
@@ -77,7 +95,7 @@ func TestParseQianJiRows(t *testing.T) {
 	if tx0.AccountID == 0 {
 		t.Errorf("row0 account not resolved")
 	}
-	// 分类应匹配到已预置的「医疗」
+	// 分类应匹配到已预置的「医疗」（分类建在与样本「账本=日常账本」一致的账本下）
 	var c0 models.Category
 	database.DB.First(&c0, tx0.CategoryID)
 	if c0.Name != "医疗" {
@@ -90,7 +108,7 @@ func TestParseQianJiRows(t *testing.T) {
 		t.Errorf("row0 account = %s/%s, want 花呗/liability", a0.Name, a0.Type)
 	}
 
-	// 2) 退款
+	// 2) 退款（含二级分类「火车」）
 	tx1 := txs[1]
 	if tx1.Type != models.TxRefund {
 		t.Errorf("row1 type = %s, want refund", tx1.Type)
@@ -100,8 +118,11 @@ func TestParseQianJiRows(t *testing.T) {
 	}
 	var c1 models.Category
 	database.DB.First(&c1, tx1.CategoryID)
-	if c1.Name != "交通" {
-		t.Errorf("row1 category = %s, want 交通 (matchCategoryAny)", c1.Name)
+	if c1.Name != "火车" {
+		t.Errorf("row1 category = %s, want 火车 (二级分类下挂到交通下)", c1.Name)
+	}
+	if c1.ParentID == 0 {
+		t.Errorf("row1 二级分类未挂到一级分类「交通」下")
 	}
 
 	// 3) 转账
@@ -134,8 +155,92 @@ func TestParseQianJiRows(t *testing.T) {
 	}
 }
 
-func TestParseQianJi_EndToEndXLSX(t *testing.T) {
+// 钱迹导出含「二级分类」列时，应在一級分类下创建子分类并把交易挂到该二级分类
+func TestParseQianJiRowsSubCategory(t *testing.T) {
 	uid, bookID := qjSetup(t)
+	daily := qjBook(t, uid, "日常账本")
+	database.DB.Create(&models.Category{UserID: uid, BookID: daily, Name: "餐饮", Kind: models.KindExpense, Icon: "🍜"})
+
+	rows := [][]string{
+		{"ID", "时间", "账本", "分类", "二级分类", "类型", "金额", "币种", "账户1", "账户2", "备注", "已报销", "手续费", "优惠券", "记账者", "账单标记", "标签", "账单图片", "关联账单"},
+		{"sc1", "2026-09-03 12:00:00", "日常账本", "餐饮", "火锅", "支出", "120", "CNY", "现金", "", "聚餐", "", "", "", "子翼", "", "", "", ""},
+	}
+	txs, err := parseQianJiRows(rows, uid, bookID)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	if len(txs) != 1 {
+		t.Fatalf("want 1 tx, got %d", len(txs))
+	}
+
+	var sub models.Category
+	database.DB.First(&sub, txs[0].CategoryID)
+	if sub.Name != "火锅" {
+		t.Fatalf("sub category name = %q, want 火锅", sub.Name)
+	}
+	if sub.ParentID == 0 {
+		t.Fatalf("sub category has no parent_id (二级分类未挂到一级分类下)")
+	}
+	if sub.Kind != models.KindExpense {
+		t.Fatalf("sub category kind = %s, want expense", sub.Kind)
+	}
+	var parent models.Category
+	database.DB.First(&parent, sub.ParentID)
+	if parent.Name != "餐饮" {
+		t.Fatalf("parent name = %q, want 餐饮", parent.Name)
+	}
+
+	// 再次导入同名二级分类，应复用而非新建
+	txs2, _ := parseQianJiRows(rows, uid, bookID)
+	var sub2 models.Category
+	database.DB.First(&sub2, txs2[0].CategoryID)
+	if sub2.ID != sub.ID {
+		t.Fatalf("expected reuse of existing sub category, got new id %d vs %d", sub2.ID, sub.ID)
+	}
+}
+
+// 钱迹导出含「账本」「已报销」列时，应按账本列归属不同账本，并正确解析报销状态
+func TestParseQianJiRowsBookAndReimburse(t *testing.T) {
+	uid, _ := qjSetup(t)
+	rows := [][]string{
+		{"ID", "时间", "账本", "分类", "二级分类", "类型", "金额", "币种", "账户1", "账户2", "备注", "已报销", "手续费", "优惠券", "记账者", "账单标记", "标签", "账单图片", "关联账单"},
+		{"b1", "2026-09-03 12:00:00", "旅行账本", "餐饮", "", "支出", "120", "CNY", "现金", "", "午餐", "是", "", "", "子翼", "", "", "", ""},
+		{"b2", "2026-09-04 12:00:00", "旅行账本", "餐饮", "", "支出", "80", "CNY", "现金", "", "晚餐", "否", "", "", "子翼", "", "", "", ""},
+		{"b3", "2026-09-05 12:00:00", "家庭账本", "餐饮", "", "支出", "50", "CNY", "现金", "", "买菜", "", "", "", "子翼", "", "", "", ""},
+	}
+	txs, err := parseQianJiRows(rows, uid, 0)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	if len(txs) != 3 {
+		t.Fatalf("want 3 txs, got %d", len(txs))
+	}
+
+	bookOf := func(tx models.Transaction) string {
+		var b models.Book
+		database.DB.First(&b, tx.BookID)
+		return b.Name
+	}
+	if bookOf(txs[0]) != "旅行账本" || bookOf(txs[1]) != "旅行账本" {
+		t.Errorf("row0/row1 book = %s/%s, want 旅行账本", bookOf(txs[0]), bookOf(txs[1]))
+	}
+	if bookOf(txs[2]) != "家庭账本" {
+		t.Errorf("row2 book = %s, want 家庭账本", bookOf(txs[2]))
+	}
+
+	// 报销状态：是->done，否->none，空->未设置
+	if txs[0].ReimburseStatus != "done" {
+		t.Errorf("row0 reimburse = %q, want done", txs[0].ReimburseStatus)
+	}
+	if txs[1].ReimburseStatus != "none" {
+		t.Errorf("row1 reimburse = %q, want none", txs[1].ReimburseStatus)
+	}
+	if txs[2].ReimburseStatus != "" {
+		t.Errorf("row2 reimburse = %q, want empty", txs[2].ReimburseStatus)
+	}
+}
+
+func TestParseQianJi_EndToEndXLSX(t *testing.T) {	uid, bookID := qjSetup(t)
 	data := buildXLSX(t, qianjiSampleRows())
 	txs, err := parseQianJi(bytes.NewReader(data), uid, bookID)
 	if err != nil {
@@ -209,6 +314,60 @@ func TestCreditRepaymentBalanceDirection(t *testing.T) {
 	}
 	if prepaid2.Balance != 8 {
 		t.Errorf("prepaid balance = %v, want 8", prepaid2.Balance)
+	}
+}
+
+// 钱迹导出中此前完全未映射的字段（除 ID 外）：记账者、账单标记、账单图片、关联账单、已报销金额
+func TestParseQianJiRowsPreviouslyMissingFields(t *testing.T) {
+	uid, _ := qjSetup(t)
+	daily := qjBook(t, uid, "日常账本")
+	database.DB.Create(&models.Category{UserID: uid, BookID: daily, Name: "餐饮", Kind: models.KindExpense, Icon: "🍜"})
+	database.DB.Create(&models.Category{UserID: uid, BookID: daily, Name: "医疗", Kind: models.KindExpense, Icon: "x"})
+
+	rows := [][]string{
+		{"ID", "时间", "账本", "分类", "二级分类", "类型", "金额", "币种", "账户1", "账户2", "备注", "已报销", "手续费", "优惠券", "记账者", "账单标记", "标签", "账单图片", "关联账单"},
+		// 支出：携带记账者、账单标记、账单图片
+		{"ext-001", "2026-09-03 12:00:00", "日常账本", "餐饮", "", "支出", "120", "CNY", "现金", "", "午餐", "", "", "", "子翼", "2026-08账单", "", "https://img.example/1.jpg;https://img.example/2.jpg", ""},
+		// 退款：关联回 ext-001（钱迹里「关联账单」通常指向原始支出），已报销列给金额
+		{"ext-002", "2026-09-04 12:00:00", "日常账本", "医疗", "", "退款", "50", "CNY", "现金", "", "退药", "88.5", "", "", "子翼", "", "", "", "ext-001"},
+	}
+	txs, err := parseQianJiRows(rows, uid, 0)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	if len(txs) != 2 {
+		t.Fatalf("want 2 txs, got %d", len(txs))
+	}
+
+	// 1) 支出行：此前完全缺失的字段应被正确读取
+	exp := txs[0]
+	if exp.ExternalID != "ext-001" {
+		t.Errorf("ExternalID = %q, want ext-001", exp.ExternalID)
+	}
+	if exp.RecordedBy != "子翼" {
+		t.Errorf("RecordedBy = %q, want 子翼", exp.RecordedBy)
+	}
+	if exp.BillMarker != "2026-08账单" {
+		t.Errorf("BillMarker = %q, want 2026-08账单", exp.BillMarker)
+	}
+	wantImgs := []string{"https://img.example/1.jpg", "https://img.example/2.jpg"}
+	if len(exp.Images) != 2 || exp.Images[0] != wantImgs[0] || exp.Images[1] != wantImgs[1] {
+		t.Errorf("Images = %v, want %v", exp.Images, wantImgs)
+	}
+
+	// 2) 退款行：已报销列是数字 -> 报销状态 done + 报销金额；关联账单 -> RefundOfExternalID（原始引用留存）
+	ref := txs[1]
+	if ref.ExternalID != "ext-002" {
+		t.Errorf("refund ExternalID = %q, want ext-002", ref.ExternalID)
+	}
+	if ref.ReimburseStatus != "done" {
+		t.Errorf("refund ReimburseStatus = %q, want done", ref.ReimburseStatus)
+	}
+	if ref.ReimburseAmount != 88.5 {
+		t.Errorf("refund ReimburseAmount = %v, want 88.5", ref.ReimburseAmount)
+	}
+	if ref.RefundOfExternalID != "ext-001" {
+		t.Errorf("RefundOfExternalID = %q, want ext-001", ref.RefundOfExternalID)
 	}
 }
 
