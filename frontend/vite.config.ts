@@ -16,6 +16,18 @@ export default defineConfig({
       // 生成 SW 时的 Workbox 运行时缓存规则
       workbox: {
         runtimeCaching: [
+          // 上传的账单图片等附件：CacheFirst（一次请求永久受益）
+          {
+            urlPattern: /^\/api\/uploads\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'hz-uploads-cache',
+              expiration: {
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 天
+              },
+            },
+          },
           // API GET 请求：NetworkFirst（在线拿最新，断网回退缓存快照）
           {
             urlPattern: /^\/api\//,
@@ -28,18 +40,6 @@ export default defineConfig({
                 maxAgeSeconds: 60 * 60 * 24 * 7, // 7 天
               },
               cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          // 上传的图片/头像：CacheFirst（一次请求永久受益）
-          {
-            urlPattern: /^\/uploads\//,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'hz-uploads-cache',
-              expiration: {
-                maxEntries: 200,
-                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 天
-              },
             },
           },
         ],

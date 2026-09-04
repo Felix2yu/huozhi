@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAppStore } from '@/stores/app';
-import { txApi, aiApi } from '@/api';
+import { txApi, aiApi, uploadApi } from '@/api';
 import type { Transaction, TransactionType, Tag as TagType } from '@/types';
 import { formatMoney, formatDate, cn } from '@/utils';
 import {
@@ -46,6 +46,11 @@ export default function TransactionAddPage() {
   const [form, setForm] = useState({ ...DEFAULT_FORM });
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // 图片上传
+  const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const [tagDrawerOpen, setTagDrawerOpen] = useState(false);
   const [catDrawerOpen, setCatDrawerOpen] = useState(false);
@@ -167,6 +172,26 @@ export default function TransactionAddPage() {
       if (set.has(id)) set.delete(id); else set.add(id);
       return { ...f, tag_ids: [...set] };
     });
+  };
+
+  // 上传选中的图片到服务器（本地或 S3），返回路径后追加到 form.images
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    if (form.images.length >= 9) { toast.error('最多上传 9 张'); return; }
+    setUploading(true);
+    try {
+      const urls: string[] = [];
+      for (const f of Array.from(files)) {
+        const res = await uploadApi.image(f);
+        urls.push(res.url);
+      }
+      setForm(prev => ({ ...prev, images: [...prev.images, ...urls].slice(0, 9) }));
+    } catch (e: any) {
+      toast.error('上传失败：' + (e?.message || '请稍后重试'));
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
   };
 
   const submit = async (saveAndContinue = false) => {
@@ -505,18 +530,23 @@ export default function TransactionAddPage() {
         </div>
       </section>
 
-      {/* 图片上传占位 */}
+      {/* 凭证照片（账单图片） */}
       <section className="card card-body">
         <label className="label flex items-center gap-1">
           <Image size={14} className="text-slate-400" /> 凭证照片
+          <span className="text-xs text-slate-400 font-normal">（最多 9 张）</span>
         </label>
         <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
           {form.images.map((img, i) => (
             <div key={i} className="relative aspect-square rounded-lg overflow-hidden bg-slate-100">
-              <div className="w-full h-full grid place-items-center text-slate-400">
-                <ImagePlus size={20} />
-              </div>
+              <img
+                src={img}
+                alt=""
+                className="w-full h-full object-cover cursor-pointer"
+                onClick={() => setPreview(img)}
+              />
               <button
+                type="button"
                 className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white grid place-items-center"
                 onClick={() => setForm(f => ({ ...f, images: f.images.filter((_, idx) => idx !== i) }))}
               >
@@ -526,21 +556,28 @@ export default function TransactionAddPage() {
           ))}
           {form.images.length < 9 && (
             <button
-              className="aspect-square rounded-lg border-2 border-dashed border-slate-200 grid place-items-center text-slate-400 hover:border-brand-400 hover:text-brand-500 transition"
-              onClick={() => {
-                // 占位：实际项目中调图片上传API
-                const placeholder = `/uploads/placeholder_${Date.now()}.jpg`;
-                setForm(f => ({ ...f, images: [...f.images, placeholder] }));
-                toast.info('图片上传功能占位');
-              }}
+              type="button"
+              disabled={uploading}
+              className="aspect-square rounded-lg border-2 border-dashed border-slate-200 grid place-items-center text-slate-400 hover:border-brand-400 hover:text-brand-500 transition disabled:opacity-50"
+              onClick={() => fileRef.current?.click()}
             >
               <div className="flex flex-col items-center gap-1">
-                <Upload size={20} />
-                <span className="text-[10px]">添加</span>
+                {uploading
+                  ? <span className="inline-block w-5 h-5 border-2 border-slate-300 border-t-brand-500 rounded-full animate-spin" />
+                  : <Upload size={20} />}
+                <span className="text-[10px]">{uploading ? '上传中' : '添加'}</span>
               </div>
             </button>
           )}
         </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={e => handleFiles(e.target.files)}
+        />
       </section>
 
       {/* 额外选项 */}
@@ -727,6 +764,16 @@ export default function TransactionAddPage() {
           </div>
         </div>
       </Drawer>
+
+      {/* 图片预览 */}
+      {preview && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 grid place-items-center p-4"
+          onClick={() => setPreview(null)}
+        >
+          <img src={preview} alt="" className="max-w-full max-h-full rounded-lg" />
+        </div>
+      )}
     </div>
   );
 }

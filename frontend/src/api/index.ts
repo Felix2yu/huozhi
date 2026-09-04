@@ -214,6 +214,20 @@ export const ioApi = {
   },
 };
 
+// 附件上传（账单图片等）：存储到服务器本地或 S3，返回可访问路径
+export const uploadApi = {
+  image: (file: File) =>
+    http.post<any, { url: string }>('/upload', toFormData(file), {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+};
+
+function toFormData(file: File): FormData {
+  const fd = new FormData();
+  fd.append('file', file);
+  return fd;
+}
+
 // AI 智能分类 / 智能记账
 export const aiApi = {
   status: () => http.get<any, { enabled: boolean; model?: string; configured: boolean }>('/ai/status'),

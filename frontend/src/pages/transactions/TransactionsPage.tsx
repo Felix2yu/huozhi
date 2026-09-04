@@ -8,8 +8,9 @@ import { formatMoney, formatDate, getMonthRange, cn } from '@/utils';
 import {
   Search, Filter, Plus, Trash2, Edit3, X, ChevronDown, Check,
   ArrowUpRight, ArrowDownRight, ArrowLeftRight, Calendar, Receipt,
+  Image as ImageIcon, MapPin, Store, StickyNote,
 } from 'lucide-react';
-import { AmountBadge, ConfirmDialog, Drawer, Empty, TagChip } from '@/components/common';
+import { AmountBadge, ConfirmDialog, Drawer, Empty, Modal, TagChip } from '@/components/common';
 
 export default function TransactionsPage() {
   const navigate = useNavigate();
@@ -23,6 +24,8 @@ export default function TransactionsPage() {
   const [data, setData] = useState<TransactionListData | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [delTarget, setDelTarget] = useState<{ type: 'single' | 'batch'; id?: number } | null>(null);
+  const [detailTx, setDetailTx] = useState<Transaction | null>(null);
+  const [previewImg, setPreviewImg] = useState<string | null>(null);
 
   // 筛选条件
   const range = getMonthRange();
@@ -251,14 +254,16 @@ export default function TransactionsPage() {
                       <li
                         key={t.id}
                         className={cn(
-                          'flex items-center gap-3 p-3 hover:bg-slate-50 transition',
+                          'flex items-center gap-3 p-3 hover:bg-slate-50 transition cursor-pointer',
                           checked && 'bg-brand-50/50'
                         )}
+                        onClick={() => setDetailTx(t)}
                       >
                         <input
                           type="checkbox"
                           className="w-4 h-4 rounded accent-brand-600"
                           checked={checked}
+                          onClick={e => e.stopPropagation()}
                           onChange={() => toggleSelect(t.id)}
                         />
                         <div
@@ -283,6 +288,14 @@ export default function TransactionsPage() {
                             {t.merchant && (
                               <span className="text-xs text-slate-400">{t.merchant}</span>
                             )}
+                            {!!t.images?.length && (
+                              <span className="inline-flex items-center gap-0.5 text-[11px] text-slate-400">
+                                <ImageIcon size={12} /> {t.images.length}
+                              </span>
+                            )}
+                            {t.remark && (
+                              <StickyNote size={12} className="text-amber-400 shrink-0" />
+                            )}
                           </div>
                           <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap">
                             <span>{formatDate(t.tx_date, 'HH:mm')}</span>
@@ -302,7 +315,7 @@ export default function TransactionsPage() {
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
                           <AmountBadge type={t.type} amount={t.amount} />
                           <button
                             className="btn-ghost btn-sm hide-sm"
@@ -328,6 +341,136 @@ export default function TransactionsPage() {
           </div>
         )}
       </section>
+
+      {/* 账单详情弹窗 */}
+      <Modal open={!!detailTx} onClose={() => setDetailTx(null)} title="账单明细" className="max-w-xl">
+        {detailTx && (() => {
+          const t = detailTx;
+          const cat = catOf(t.category_id);
+          const acc = accounts.find(a => a.id === t.account_id);
+          const toAcc = t.to_account_id ? accounts.find(a => a.id === t.to_account_id) : null;
+          return (
+            <div className="space-y-5">
+              {/* 金额 + 分类 */}
+              <div className="text-center py-2">
+                <div className="w-14 h-14 rounded-2xl grid place-items-center text-3xl mx-auto mb-3"
+                  style={{ background: (cat?.color || '#64748b') + '15' }}>
+                  {t.type === 'transfer' ? '🔄' : (cat?.icon || '📦')}
+                </div>
+                <AmountBadge type={t.type} amount={t.amount} />
+                <div className="text-sm text-slate-500 mt-1">
+                  {t.type === 'transfer' ? '转账' : (catPath(t.category_id) || '未分类')}
+                </div>
+              </div>
+
+              {/* 字段 */}
+              <div className="rounded-xl border border-slate-100 divide-y divide-slate-50 text-sm">
+                <div className="flex justify-between px-4 py-2.5">
+                  <span className="text-slate-400">时间</span>
+                  <span className="text-slate-700">{formatDate(t.tx_date, 'YYYY-MM-DD HH:mm')}</span>
+                </div>
+                <div className="flex justify-between px-4 py-2.5">
+                  <span className="text-slate-400">{t.type === 'transfer' ? '转出 → 转入' : '账户'}</span>
+                  <span className="text-slate-700">
+                    {t.type === 'transfer' ? `${acc?.name || '-'} → ${toAcc?.name || '-'}` : (acc?.name || '-')}
+                  </span>
+                </div>
+                {t.description && (
+                  <div className="flex justify-between px-4 py-2.5">
+                    <span className="text-slate-400">描述</span>
+                    <span className="text-slate-700 text-right">{t.description}</span>
+                  </div>
+                )}
+                {t.merchant && (
+                  <div className="flex justify-between px-4 py-2.5">
+                    <span className="text-slate-400 flex items-center gap-1"><Store size={13} /> 商户</span>
+                    <span className="text-slate-700">{t.merchant}</span>
+                  </div>
+                )}
+                {t.location && (
+                  <div className="flex justify-between px-4 py-2.5">
+                    <span className="text-slate-400 flex items-center gap-1"><MapPin size={13} /> 位置</span>
+                    <span className="text-slate-700 text-right">{t.location}</span>
+                  </div>
+                )}
+                {t.tags && t.tags.length > 0 && (
+                  <div className="flex justify-between items-center px-4 py-2.5">
+                    <span className="text-slate-400">标签</span>
+                    <span className="flex gap-1 flex-wrap justify-end">
+                      {t.tags.map(tg => <TagChip key={tg.id} label={tg.name} color={tg.color} />)}
+                    </span>
+                  </div>
+                )}
+                {t.reimburse_status !== 'none' && (
+                  <div className="flex justify-between px-4 py-2.5">
+                    <span className="text-slate-400">报销</span>
+                    <span className={t.reimburse_status === 'done' ? 'text-emerald-600' : 'text-amber-600'}>
+                      {t.reimburse_status === 'done' ? '已报销' : '报销中'}
+                    </span>
+                  </div>
+                )}
+                {t.remark && (
+                  <div className="px-4 py-2.5">
+                    <div className="text-slate-400 mb-1 flex items-center gap-1"><StickyNote size={13} /> 备注</div>
+                    <div className="text-slate-700 whitespace-pre-wrap break-words">{t.remark}</div>
+                  </div>
+                )}
+              </div>
+
+              {/* 图片 */}
+              <div>
+                <div className="text-xs text-slate-400 mb-2 flex items-center gap-1">
+                  <ImageIcon size={13} /> 凭证照片 {t.images?.length ? `(${t.images.length})` : ''}
+                </div>
+                {t.images?.length ? (
+                  <div className="grid grid-cols-4 md:grid-cols-5 gap-2">
+                    {t.images.map((img, i) => (
+                      <img
+                        key={i}
+                        src={img}
+                        alt={`凭证 ${i + 1}`}
+                        className="aspect-square w-full object-cover rounded-lg border border-slate-100 cursor-zoom-in hover:opacity-90 transition"
+                        onClick={() => setPreviewImg(img)}
+                        loading="lazy"
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-slate-300 py-4 text-center rounded-xl border border-dashed border-slate-100">
+                    无图片
+                  </div>
+                )}
+              </div>
+
+              {/* 操作 */}
+              <div className="flex gap-2 pt-2 border-t border-slate-100">
+                <button
+                  className="btn-primary flex-1"
+                  onClick={() => navigate(`/transactions/add?id=${t.id}`)}
+                >
+                  <Edit3 size={15} /> 编辑
+                </button>
+                <button
+                  className="btn-danger flex-1"
+                  onClick={() => { setDetailTx(null); setDelTarget({ type: 'single', id: t.id }); }}
+                >
+                  <Trash2 size={15} /> 删除
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
+
+      {/* 图片放大预览 */}
+      {previewImg && (
+        <div className="fixed inset-0 z-[60] bg-black/80 grid place-items-center p-4" onClick={() => setPreviewImg(null)}>
+          <img src={previewImg} alt="预览" className="max-w-full max-h-full object-contain rounded-lg" />
+          <button className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/20 text-white grid place-items-center hover:bg-white/30 transition">
+            <X size={18} />
+          </button>
+        </div>
+      )}
 
       {/* 筛选抽屉 */}
       <Drawer open={filterOpen} onClose={() => setFilterOpen(false)} title="高级筛选">
