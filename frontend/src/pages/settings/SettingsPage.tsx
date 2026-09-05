@@ -7,7 +7,7 @@ import type { User as UserT } from '@/types';
 import { cn, formatDate } from '@/utils';
 import {
   Settings as SettingsIcon, User as UserIcon, Lock, Book, Globe, Upload, Download,
-  FileText, LogOut, Check, X, ChevronRight, AlertCircle, Info,
+  FileText, LogOut, Check, X, ChevronRight, AlertCircle, Info, CheckCircle2,
   Bell, Palette, Shield, HelpCircle, Heart, Smartphone,
 } from 'lucide-react';
 import { Modal, ConfirmDialog } from '@/components/common';
@@ -64,6 +64,10 @@ export default function SettingsPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importBookId, setImportBookId] = useState<number>(currentBookId);
   const [importing, setImporting] = useState(false);
+  // 导入结果内联展示在文件选择框下方（替代右上角 toast）
+  const [importResult, setImportResult] = useState<{
+    ok: boolean; created?: number; skipped?: number; total?: number; message?: string;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 登出
@@ -134,16 +138,16 @@ export default function SettingsPage() {
     if (!importBookId) { toast.error('请先选择账本'); return; }
     if (!importFile) { toast.error('请先选择文件'); return; }
     setImporting(true);
+    setImportResult(null);
     try {
       const r = await ioApi.import(importSource, importBookId, importFile);
-      toast.success(
-        `导入完成：成功 ${r.created} 条，跳过 ${r.skipped} 条，共 ${r.total} 条`,
-        { duration: Infinity, closeButton: true }
-      );
+      setImportResult({ ok: true, created: r.created, skipped: r.skipped, total: r.total });
       setImportFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       useAppStore.getState().bumpListVersion();
       useAppStore.getState().loadDictionaries(importBookId);
+    } catch (e: any) {
+      setImportResult({ ok: false, message: e?.isOffline ? '当前离线，请求已加入待同步队列' : e?.message || '导入失败' });
     } finally {
       setImporting(false);
     }
@@ -165,7 +169,7 @@ export default function SettingsPage() {
     const f = e.target.files?.[0];
     if (!f) return;
     setImportFile(f);
-    toast.success(`已选择文件：${f.name}`);
+    setImportResult(null);
   };
 
   return (
@@ -568,6 +572,44 @@ export default function SettingsPage() {
                       </>}
                     </button>
                   </div>
+                </div>
+              )}
+
+              {/* 导入结果（内联展示在文件框下方） */}
+              {importResult && (
+                <div
+                  className={cn(
+                    'mt-4 p-3 rounded-lg border text-sm flex items-start gap-2',
+                    importResult.ok
+                      ? 'bg-emerald-50 border-emerald-100 text-emerald-800'
+                      : 'bg-red-50 border-red-100 text-red-700'
+                  )}
+                >
+                  {importResult.ok
+                    ? <CheckCircle2 size={16} className="shrink-0 mt-0.5 text-emerald-600" />
+                    : <AlertCircle size={16} className="shrink-0 mt-0.5 text-red-500" />}
+                  <div className="min-w-0">
+                    {importResult.ok ? (
+                      <>
+                        导入完成：成功 <b>{importResult.created}</b> 条，跳过{' '}
+                        <b>{importResult.skipped}</b> 条，共 <b>{importResult.total}</b> 条
+                        {importResult.skipped ? (
+                          <div className="text-xs text-emerald-600/80 mt-0.5">
+                            跳过的为重复记录（同账本同外部 ID / 同日同额同描述）
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <>导入失败：{importResult.message}</>
+                    )}
+                  </div>
+                  <button
+                    className="ml-auto shrink-0 text-slate-400 hover:text-slate-600"
+                    onClick={() => setImportResult(null)}
+                    aria-label="关闭"
+                  >
+                    <X size={14} />
+                  </button>
                 </div>
               )}
 

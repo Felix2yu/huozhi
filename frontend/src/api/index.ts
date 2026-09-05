@@ -207,9 +207,10 @@ export const ioApi = {
   import: async (source: string, book_id: number, file: File) => {
     const fd = new FormData();
     fd.append('file', file);
+    // 带图片的 xlsx 导入耗时较长，全局 30s 超时不够，与反代超时对齐到 5 分钟
     return http.post<any, { created: number; skipped: number; total: number }>(
       `/io/import?source=${source}&book_id=${book_id}`, fd,
-      { headers: { 'Content-Type': 'multipart/form-data' } },
+      { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 300_000 },
     );
   },
 };
@@ -219,6 +220,7 @@ export const uploadApi = {
   image: (file: File) =>
     http.post<any, { url: string }>('/upload', toFormData(file), {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120_000,
     }),
 };
 
@@ -228,13 +230,13 @@ function toFormData(file: File): FormData {
   return fd;
 }
 
-// AI 智能分类 / 智能记账
+// AI 智能分类 / 智能记账（LLM 调用可能明显慢于普通接口）
 export const aiApi = {
   status: () => http.get<any, { enabled: boolean; model?: string; configured: boolean }>('/ai/status'),
   classify: (data: { description: string; amount?: number; type?: string; book_id?: number }) =>
-    http.post<any, { category_id: number; category: string; type: string; confidence: number; explanation?: string }>('/ai/classify', data),
-  smartRecord: (data: { text: string; book_id?: number }) =>
-    http.post<any, { description: string; amount: number; type: string; category_id: number; account_id?: number; tx_date: string; tags?: string[]; raw?: string }>('/ai/smart-record', data),
+    http.post<any, { category_id: number; category: string; type: string; confidence: number; explanation?: string }>('/ai/classify', data, { timeout: 120_000 }),
+  smartRecord: (data: { text: string; amount?: number; type?: string; book_id?: number }) =>
+    http.post<any, { description: string; amount: number; type: string; category_id: number; account_id?: number; tx_date: string; tags?: string[]; raw?: string }>('/ai/smart-record', data, { timeout: 120_000 }),
 };
 
 // 信用卡还款倒计时
