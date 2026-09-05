@@ -4,13 +4,15 @@ import (
 	"huozhi/internal/handlers"
 	"huozhi/internal/middleware"
 	"huozhi/internal/ws"
+	"log"
+	"os"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
-func New(mode string) *gin.Engine {
+func New(mode string, staticDir string) *gin.Engine {
 	if mode == "release" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -176,6 +178,15 @@ func New(mode string) *gin.Engine {
 				io.GET("/template", handlers.DownloadImportTemplate)
 				io.GET("/bill", handlers.GetBill)
 			}
+		}
+	}
+
+	// 前端静态托管（配置了 static_dir 时启用；未配置则仅提供 API，开发时由 vite dev server 承担）
+	if staticDir != "" {
+		if info, err := os.Stat(staticDir); err == nil && info.IsDir() {
+			mountFrontend(r, staticDir)
+		} else {
+			log.Printf("[router] static_dir 不存在，跳过前端托管: %s", staticDir)
 		}
 	}
 

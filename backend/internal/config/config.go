@@ -34,6 +34,9 @@ type ServerConfig struct {
 	Mode         string `yaml:"mode"` // debug, release
 	ReadTimeout  int    `yaml:"read_timeout"`
 	WriteTimeout int    `yaml:"write_timeout"`
+	// StaticDir 前端构建产物目录（SPA）。设置后由后端直接托管静态文件与路由回退，
+	// 无需前置 nginx；留空则仅提供 API（本地开发走 vite dev server）。
+	StaticDir string `yaml:"static_dir"`
 }
 
 type DatabaseConfig struct {
@@ -91,6 +94,9 @@ func Load(configPath string) (*Config, error) {
 	if v := os.Getenv("HZ_PORT"); v != "" {
 		cfg.Server.Port = v
 	}
+	if v := os.Getenv("HZ_STATIC_DIR"); v != "" {
+		cfg.Server.StaticDir = v
+	}
 
 	// S3 配置环境变量覆盖（便于容器/生产部署，无需修改配置文件）
 	if v := os.Getenv("HZ_S3_ENABLED"); v == "true" || v == "1" {
@@ -119,6 +125,9 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	// 上传/孤儿清理配置环境变量覆盖
+	if v := os.Getenv("HZ_UPLOAD_PATH"); v != "" {
+		cfg.Upload.Path = v
+	}
 	if v := os.Getenv("HZ_UPLOAD_ORPHAN_GRACE_MINUTES"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			cfg.Upload.OrphanGraceMinutes = n
@@ -153,7 +162,7 @@ func Default() *Config {
 			Issuer:      "huozhi",
 		},
 		Upload: UploadConfig{
-			Path:                   "./uploads",
+			Path:                   "./data/uploads",
 			MaxSizeMB:              10,
 			Allowed:                "jpg,jpeg,png,gif,webp,pdf,csv,xlsx",
 			OrphanGraceMinutes:     60,

@@ -37,7 +37,7 @@
 | 图表 | Recharts 2 |
 | UI 组件 | 自研轻量 + lucide-react 图标 + Sonner Toast |
 | PWA | vite-plugin-pwa（可安装离线访问） |
-| 部署 | Docker 多阶段 + Nginx 静态 + 反向代理 |
+| 部署 | Docker 多阶段，单进程 Go 托管前后端（可前置反向代理） |
 | 周期调度器 | Go 内置 Tick（每日资产快照 / 周期记账） |
 
 ---
@@ -51,7 +51,7 @@
 docker compose up -d --build
 
 # 打开
-open http://localhost:80
+open http://localhost:8080
 
 # 查看日志
 docker compose logs -f huozhi
@@ -60,30 +60,16 @@ docker compose logs -f huozhi
 docker compose down
 ```
 
-### 方式二：生产环境 · PostgreSQL
+### 方式二：本地开发（前后端分开跑）
 
 ```bash
-cd docker
-# 先拷贝并修改密钥
-cp .env.example .env
-vim .env   # 务必修改 HZ_JWT_SECRET / HZ_PG_PASS
-
-docker compose -f docker-compose.prod.yaml up -d --build
-```
-
-### 方式三：本地开发（前后端分开跑）
-
-```bash
-# 1) 数据库（可选，也可不启动，直接用SQLite）
-docker compose -f docker/docker-compose.dev.yaml up -d
-
-# 2) 后端
+# 1) 后端
 cd backend
 cp config.example.yaml config.yaml   # 默认SQLite
 go mod tidy
 go run ./cmd/huozhi-server          # 监听 0.0.0.0:8080
 
-# 3) 前端
+# 2) 前端
 cd ../frontend
 npm install
 npm run dev                         # 监听 http://localhost:5173（已代理 /api → :8080）
@@ -121,12 +107,8 @@ huozhi/
 │   │   ├── utils/                  # formatMoney/formatDate/pct/cn
 │   │   └── types/                  # 全部类型定义
 │   └── vite.config.ts + tailwind.config.js
-├── docker/
-│   ├── nginx/                      # Nginx 配置（静态资源/Gzip/PWA）
-│   ├── docker-compose.prod.yaml    # 生产版：Nginx+Go + PostgreSQL
-│   └── docker-compose.dev.yaml    # 开发版：本地跑数据库
 ├── scripts/entrypoint.sh           # Docker 入口脚本（自动生成JWT密钥）
-├── Dockerfile                      # 多阶段镜像：Go build → Vite build → alpine+nginx
+├── Dockerfile                      # 多阶段镜像：Go build → Vite build → 单进程 Go 托管前后端
 └── docker-compose.yaml             # 零依赖一键启动（SQLite）
 ```
 
@@ -159,7 +141,7 @@ GET  /api/io/template                  # 下载模板
 
 - 密码使用 bcrypt（`golang.org/x/crypto`）
 - JWT 默认 7 天过期，`HZ_JWT_SECRET` Docker 首次启动会持久化生成随机值
-- 生产部署建议：在 Nginx 前置挂 Traefik / Cloudflare 开启 HTTPS
+- 生产部署建议：外层反向代理（Nginx/Traefik 等）反代到容器 8080，并在其上开启 HTTPS、`client_max_body_size` 按需调大（导入 xlsx 含图片）、WebSocket（/api/ws）需透传 Upgrade 头
 
 ## 下一步 RoadMap
 

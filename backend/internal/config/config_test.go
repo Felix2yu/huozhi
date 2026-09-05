@@ -92,6 +92,7 @@ func TestLoadEnvOverrides(t *testing.T) {
 	t.Setenv("HZ_DB_DSN", "foo")
 	t.Setenv("HZ_JWT_SECRET", "envsecret")
 	t.Setenv("HZ_PORT", "7777")
+	t.Setenv("HZ_UPLOAD_PATH", "/app/data/uploads")
 
 	p := writeCfg(t)
 	cfg, err := Load(p)
@@ -106,6 +107,9 @@ func TestLoadEnvOverrides(t *testing.T) {
 	}
 	if cfg.JWT.Secret != "envsecret" {
 		t.Fatal("jwt override failed")
+	}
+	if cfg.Upload.Path != "/app/data/uploads" {
+		t.Fatal("upload path override failed")
 	}
 	if cfg.Server.Port != "7777" {
 		t.Fatal("port override failed")

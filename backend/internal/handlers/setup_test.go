@@ -53,7 +53,7 @@ func TestMain(m *testing.M) {
 	)
 
 	go ws.DefaultHub.Run()
-	eng = router.New("test")
+	eng = router.New("test", "")
 
 	code := m.Run()
 	os.Remove(dbPath)

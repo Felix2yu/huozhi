@@ -37,7 +37,7 @@ func main() {
 	if err != nil {
 		log.Printf("加载配置文件失败 (%v), 使用默认配置", err)
 		cfg = config.Default()
-		_ = os.MkdirAll("./uploads", 0755)
+		_ = os.MkdirAll(cfg.Upload.Path, 0755)
 	}
 	// 无论配置来自文件还是默认值，都必须挂到全局（jwt.GenerateToken、存储层等读取 config.AppConfig）
 	config.AppConfig = cfg
@@ -87,7 +87,10 @@ func main() {
 	log.Println("数据库迁移完成")
 
 	// 启动HTTP服务
-	r := router.New(cfg.Server.Mode)
+	r := router.New(cfg.Server.Mode, cfg.Server.StaticDir)
+	if cfg.Server.StaticDir != "" {
+		log.Printf("前端静态托管目录: %s", cfg.Server.StaticDir)
+	}
 
 	srvAddr := ":" + cfg.Server.Port
 	log.Printf("Huozhi 服务启动于 http://0.0.0.0%s (%s mode)", srvAddr, cfg.Server.Mode)

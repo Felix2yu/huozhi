@@ -32,43 +32,47 @@ RUN npm run build
 
 
 # ===== Stage 3: Runtime =====
+# 容器内统一布局：应用文件全部收敛在 /app 下
+#   /app/huozhi-server   服务二进制
+#   /app/config.yaml     配置文件（镜像内置，可用环境变量覆盖各项）
+#   /app/static/         前端构建产物（镜像内置，随镜像升级替换）
+#   /app/data/           唯一数据卷：SQLite 数据库、上传附件、JWT 密钥
 FROM alpine:3.24 AS runtime
 LABEL org.opencontainers.image.authors="huozhi"
-LABEL description="Huozhi Personal Finance App (Go + React + Nginx)"
+LABEL description="Huozhi Personal Finance App (Go + React 单进程)"
 
 ENV TZ=Asia/Shanghai \
-    GIN_MODE=release
+    GIN_MODE=release \
+    HZ_UPLOAD_PATH=/app/data/uploads \
+    HZ_STATIC_DIR=/app/static
 
-# 依赖
-RUN apk add --no-cache ca-certificates tzdata curl nginx nginx-mod-http-headers-more \
+# 依赖（单进程 Go 服务，前端静态文件由后端直接托管，无需 nginx）
+RUN apk add --no-cache ca-certificates tzdata curl \
     && cp /usr/share/zoneinfo/${TZ} /etc/localtime \
     && echo ${TZ} > /etc/timezone \
-    && mkdir -p /var/lib/huozhi/data /var/lib/huozhi/uploads /var/www/html \
-    && chown -R nginx:nginx /var/lib/huozhi /var/www/html /var/lib/nginx /var/log/nginx /run/nginx
+    && mkdir -p /app/data
+
+WORKDIR /app
 
 # 拷贝 Server 二进制
-COPY --from=go-builder /out/huozhi-server /usr/local/bin/huozhi-server
-RUN chmod +x /usr/local/bin/huozhi-server
+COPY --from=go-builder /out/huozhi-server /app/huozhi-server
+RUN chmod +x /app/huozhi-server
 
 # 拷贝前端产物
-COPY --from=fe-builder /src/frontend/dist /var/www/html
-
-# Nginx 配置
-COPY docker/nginx/nginx.conf /etc/nginx/nginx.conf
-COPY docker/nginx/conf.d/default.conf /etc/nginx/http.d/default.conf
+COPY --from=fe-builder /src/frontend/dist /app/static
 
 # 后端配置（默认 sqlite，可通过环境变量切 postgres）
-COPY backend/config.example.yaml /etc/huozhi/config.yaml
+COPY backend/config.example.yaml /app/config.yaml
 
 # 启动脚本
-COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+COPY scripts/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -fsS http://127.0.0.1:8080/api/health || exit 1
 
-EXPOSE 80 443
-VOLUME ["/var/lib/huozhi"]
+EXPOSE 8080
+VOLUME ["/app/data"]
 
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+ENTRYPOINT ["/app/entrypoint.sh"]

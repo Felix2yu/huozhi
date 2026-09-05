@@ -9,13 +9,16 @@ services:
     environment:
       TZ: "Asia/Shanghai"
       HZ_DB_DRIVER: "sqlite"
-      HZ_DB_DSN: "/var/lib/huozhi/data/huozhi.db"
+      HZ_DB_DSN: "/app/data/huozhi.db"
+      # 上传的账单图片等附件持久化到数据卷（覆盖 config 中的相对路径）
+      HZ_UPLOAD_PATH: "/app/data/uploads"
       # 如不设置，首次启动将自动生成持久化的随机密钥
       # HZ_JWT_SECRET: "please-change-this-strong-string"
     ports:
-      - "80:80"
+      - "8080:8080"
     volumes:
-      - huozhi_data:/var/lib/huozhi
+      # 唯一数据卷：数据库、上传附件、JWT 密钥均在 /app/data 下
+      - huozhi_data:/app/data
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/health"]
       interval: 30s
