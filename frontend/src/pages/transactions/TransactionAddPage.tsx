@@ -6,12 +6,12 @@ import { txApi, aiApi, uploadApi } from '@/api';
 import type { Transaction, TransactionType, Tag as TagType } from '@/types';
 import { formatMoney, formatDate, cn } from '@/utils';
 import {
-  ArrowRightLeft, Minus, Plus, Calendar as CalendarIcon,
+  ArrowLeft, ArrowRightLeft, Minus, Plus, Calendar as CalendarIcon,
   Tag, ImagePlus, Save, Repeat1, ChevronDown, Upload, X, Image,
   Sparkles, Wand2,
 } from 'lucide-react';
 import { Drawer, TagChip } from '@/components/common';
-import { PageHeader, HeroCard, SegmentedTabs } from '@/components/common/page';
+import { HeroCard, SegmentedTabs } from '@/components/common/page';
 
 type TabType = 'expense' | 'income' | 'transfer';
 
@@ -65,6 +65,12 @@ export default function TransactionAddPage() {
   const [aiInput, setAiInput] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiClassifying, setAiClassifying] = useState(false);
+  // 仅在服务端设置中启用 AI 后才展示 AI 入口
+  const [aiEnabled, setAiEnabled] = useState(false);
+
+  useEffect(() => {
+    aiApi.status().then(s => setAiEnabled(!!s?.enabled)).catch(() => setAiEnabled(false));
+  }, []);
 
   // AI 智能记账：自然语言 → 自动填充表单
   const runAiSmartRecord = async () => {
@@ -253,18 +259,30 @@ export default function TransactionAddPage() {
 
   return (
     <div className="space-y-5 pb-28">
-      <PageHeader back title={editId ? '编辑账单' : '记一笔'} />
-
-      {/* 类型切换 Tab */}
-      <SegmentedTabs
-        value={tab}
-        onChange={v => switchTab(v as TabType)}
-        options={[
-          { value: 'expense', label: '支出', icon: Minus },
-          { value: 'income', label: '收入', icon: Plus },
-          { value: 'transfer', label: '转账', icon: ArrowRightLeft },
-        ]}
-      />
+      {/* 返回 + 类型切换（同一行，节省纵向空间） */}
+      <div className="flex items-center gap-2 md:gap-3">
+        <button
+          className="btn-ghost btn-sm shrink-0 -ml-2"
+          onClick={() => navigate(-1)}
+          title="返回"
+        >
+          <ArrowLeft size={18} />
+        </button>
+        <h1 className="hidden md:block text-xl font-bold text-slate-800 dark:text-slate-100 leading-tight shrink-0">
+          {editId ? '编辑账单' : '记一笔'}
+        </h1>
+        <div className="flex-1 min-w-0">
+          <SegmentedTabs
+            value={tab}
+            onChange={v => switchTab(v as TabType)}
+            options={[
+              { value: 'expense', label: '支出', icon: Minus },
+              { value: 'income', label: '收入', icon: Plus },
+              { value: 'transfer', label: '转账', icon: ArrowRightLeft },
+            ]}
+          />
+        </div>
+      </div>
 
       {/* 金额 Hero */}
       <HeroCard>
@@ -300,32 +318,34 @@ export default function TransactionAddPage() {
         </div>
       </HeroCard>
 
-      {/* AI 智能记账 */}
-      <section className="card card-body !bg-gradient-to-br from-violet-50 via-white to-indigo-50 border-violet-200">
-        <div className="flex items-center gap-2 mb-2">
-          <Sparkles size={16} className="text-violet-600" />
-          <span className="text-sm font-medium text-violet-700">AI 智能记账</span>
-          <span className="text-xs text-slate-400">说一句话就能自动填好</span>
-        </div>
-        <div className="flex gap-2">
-          <input
-            className="input !bg-white/80 flex-1"
-            placeholder="例如：午饭35 / 昨天打车花了20 / 这个月工资8000"
-            value={aiInput}
-            onChange={e => setAiInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') runAiSmartRecord(); }}
-          />
-          <button
-            className="btn bg-violet-600 hover:bg-violet-700 text-white whitespace-nowrap"
-            disabled={aiLoading}
-            onClick={runAiSmartRecord}
-          >
-            {aiLoading ? (
-              <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-            ) : <><Wand2 size={14} className="mr-1 inline" />试试</>}
-          </button>
-        </div>
-      </section>
+      {/* AI 智能记账（仅在服务端启用 AI 后显示） */}
+      {aiEnabled && (
+        <section className="card card-body !bg-gradient-to-br from-violet-50 via-white to-indigo-50 border-violet-200">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles size={16} className="text-violet-600" />
+            <span className="text-sm font-medium text-violet-700">AI 智能记账</span>
+            <span className="text-xs text-slate-400">说一句话就能自动填好</span>
+          </div>
+          <div className="flex gap-2">
+            <input
+              className="input !bg-white/80 flex-1"
+              placeholder="例如：午饭35 / 昨天打车花了20 / 这个月工资8000"
+              value={aiInput}
+              onChange={e => setAiInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') runAiSmartRecord(); }}
+            />
+            <button
+              className="btn bg-violet-600 hover:bg-violet-700 text-white whitespace-nowrap"
+              disabled={aiLoading}
+              onClick={runAiSmartRecord}
+            >
+              {aiLoading ? (
+                <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              ) : <><Wand2 size={14} className="mr-1 inline" />试试</>}
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* 分类选择 Grid */}
       {tab !== 'transfer' && (
@@ -448,7 +468,7 @@ export default function TransactionAddPage() {
         <div>
           <div className="flex items-center justify-between">
             <label className="label mb-0">{tab === 'transfer' ? '备注' : '描述'}</label>
-            {tab !== 'transfer' && (
+            {tab !== 'transfer' && aiEnabled && (
               <button
                 type="button"
                 className="text-xs text-violet-600 hover:text-violet-700 flex items-center gap-1 disabled:opacity-50"
