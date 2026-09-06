@@ -504,24 +504,29 @@ func GetBill(c *gin.Context) {
 	first := time.Date(parsed.Year(), parsed.Month(), 1, 0, 0, 0, 0, loc)
 	last := first.AddDate(0, 1, -1)
 
-	q := database.DB.Where("user_id = ?", uid)
-	if bookIDStr != "" && bookIDStr != "0" {
-		var bid uint
-		fmt.Sscanf(bookIDStr, "%d", &bid)
-		if bid > 0 {
-			q = q.Where("book_id = ?", bid)
+	// 与 GetStatistics 相同：GORM 复用同一查询对象会累积 Where 条件，
+	// 每次汇总都从干净的 base 查询开始。
+	base := func() *gorm.DB {
+		q := database.DB.Where("user_id = ?", uid)
+		if bookIDStr != "" && bookIDStr != "0" {
+			var bid uint
+			fmt.Sscanf(bookIDStr, "%d", &bid)
+			if bid > 0 {
+				q = q.Where("book_id = ?", bid)
+			}
 		}
+		return q
 	}
 
 	// === 收支汇总 ===
 	var income, expense models.Money
 	var incomeCnt, expenseCnt int64
 	var incSum, expSum float64
-	q.Model(&models.Transaction{}).
+	base().Model(&models.Transaction{}).
 		Where("tx_date >= ? AND tx_date < ? AND type IN ? AND include_in_balance = ?",
 			first, last.AddDate(0, 0, 1), []string{string(models.TxIncome), string(models.TxRefund)}, true).
 		Select("COALESCE(SUM(amount), 0), COUNT(*)").Row().Scan(&incSum, &incomeCnt)
-	q.Model(&models.Transaction{}).
+	base().Model(&models.Transaction{}).
 		Where("tx_date >= ? AND tx_date < ? AND type = ? AND include_in_balance = ?",
 			first, last.AddDate(0, 0, 1), string(models.TxExpense), true).
 		Select("COALESCE(SUM(amount), 0), COUNT(*)").Row().Scan(&expSum, &expenseCnt)
@@ -535,7 +540,7 @@ func GetBill(c *gin.Context) {
 		SumAmount  float64
 		Count      int64
 	}
-	q.Model(&models.Transaction{}).
+	base().Model(&models.Transaction{}).
 		Where("tx_date >= ? AND tx_date < ? AND type IN ?",
 			first, last.AddDate(0, 0, 1), []string{string(models.TxExpense), string(models.TxIncome), string(models.TxRefund)}).
 		Select("category_id, type, SUM(amount) sum_amount, COUNT(*) count").
@@ -610,11 +615,11 @@ func GetBill(c *gin.Context) {
 	var days []trendPoint
 	for d := first; !d.After(last); d = d.AddDate(0, 0, 1) {
 		var inc, exp float64
-		q.Model(&models.Transaction{}).
+		base().Model(&models.Transaction{}).
 			Where("tx_date >= ? AND tx_date < ? AND type IN ? AND include_in_balance = ?",
 				d, d.AddDate(0, 0, 1), []string{string(models.TxIncome), string(models.TxRefund)}, true).
 			Select("COALESCE(SUM(amount), 0)").Row().Scan(&inc)
-		q.Model(&models.Transaction{}).
+		base().Model(&models.Transaction{}).
 			Where("tx_date >= ? AND tx_date < ? AND type = ? AND include_in_balance = ?",
 				d, d.AddDate(0, 0, 1), string(models.TxExpense), true).
 			Select("COALESCE(SUM(amount), 0)").Row().Scan(&exp)

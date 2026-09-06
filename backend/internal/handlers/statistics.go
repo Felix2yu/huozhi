@@ -23,20 +23,24 @@ func GetStatistics(c *gin.Context) {
 		return
 	}
 
-	q := database.DB.Model(&models.Transaction{}).Where("user_id = ?", uid)
-	if req.BookID > 0 {
-		q = q.Where("book_id = ?", req.BookID)
+	// 基础查询构造器：每次返回全新查询。GORM 链式 Where 会在同一语句上累积条件，
+	// 复用同一个 *gorm.DB 追加不同 type 条件会导致后续查询自相矛盾而查空。
+	base := func() *gorm.DB {
+		q := database.DB.Model(&models.Transaction{}).Where("user_id = ?", uid)
+		if req.BookID > 0 {
+			q = q.Where("book_id = ?", req.BookID)
+		}
+		return q.Where("tx_date >= ? AND tx_date < ? AND include_in_balance = ?",
+			req.StartDate, req.EndDate.AddDate(0, 0, 1), true)
 	}
-	q = q.Where("tx_date >= ? AND tx_date < ?", req.StartDate, req.EndDate.AddDate(0, 0, 1))
-	q = q.Where("include_in_balance = ?", true)
 
 	// 基础汇总
 	var totalIncome, totalExpense models.Money
 	var incomeCount, expenseCount int64
 	var incSum, expSum float64
-	q.Where("type IN ?", []string{string(models.TxIncome), string(models.TxRefund)}).
+	base().Where("type IN ?", []string{string(models.TxIncome), string(models.TxRefund)}).
 		Select("COALESCE(SUM(amount), 0), COUNT(*)").Row().Scan(&incSum, &incomeCount)
-	q.Where("type = ?", string(models.TxExpense)).
+	base().Where("type = ?", string(models.TxExpense)).
 		Select("COALESCE(SUM(amount), 0), COUNT(*)").Row().Scan(&expSum, &expenseCount)
 	totalIncome = models.FromCents(incSum)
 	totalExpense = models.FromCents(expSum)
@@ -77,7 +81,7 @@ func GetStatistics(c *gin.Context) {
 			SumAmount  float64
 			Count      int64
 		}
-		q.Select("category_id, type, SUM(amount) sum_amount, COUNT(*) count").
+		base().Select("category_id, type, SUM(amount) sum_amount, COUNT(*) count").
 			Where("type IN ?", []string{string(models.TxExpense), string(models.TxIncome), string(models.TxRefund)}).
 			Group("category_id, type").Scan(&catRows)
 
@@ -168,7 +172,7 @@ func GetStatistics(c *gin.Context) {
 			Type      string
 			SumAmount float64
 		}
-		q.Select("account_id, type, SUM(amount) sum_amount").
+		base().Select("account_id, type, SUM(amount) sum_amount").
 			Where("type IN ?", []string{string(models.TxExpense), string(models.TxIncome), string(models.TxRefund)}).
 			Group("account_id, type").Scan(&accRows)
 		out := map[uint]gin.H{}
@@ -203,7 +207,7 @@ func GetStatistics(c *gin.Context) {
 	default:
 		dateGroup = "strftime('%Y-%m-%d', tx_date)"
 	}
-	q.Select(fmt.Sprintf("%s day, type, SUM(amount) sum_amount", dateGroup)).
+	base().Select(fmt.Sprintf("%s day, type, SUM(amount) sum_amount", dateGroup)).
 		Where("type IN ?", []string{string(models.TxExpense), string(models.TxIncome), string(models.TxRefund)}).
 		Group("day, type").Order("day ASC").Scan(&trendRows)
 
@@ -244,7 +248,7 @@ func GetStatistics(c *gin.Context) {
 		CategoryID  uint
 		Merchant    string
 	}
-	q.Where("type = ?", string(models.TxExpense)).Order("amount DESC").Limit(10).
+	base().Where("type = ?", string(models.TxExpense)).Order("amount DESC").Limit(10).
 		Select("id, amount, description, tx_date, category_id, merchant").Scan(&topExp)
 	result["top_expense"] = topExp
 

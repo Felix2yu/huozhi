@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -31,6 +32,12 @@ func TestGetStatistics(t *testing.T) {
 		if w.Code != 200 {
 			t.Fatalf("GET %s -> %d %s", path, w.Code, w.Body.String())
 		}
+		// GORM 复用查询对象会累积 Where 条件，曾导致支出被前面收入查询的
+		// type 条件污染而统计为 0（图表全空）。
+		body := w.Body.String()
+		if strings.Contains(body, `"total_expense":0`) && dim != "week" {
+			t.Errorf("dimension=%s total_expense 统计为 0: %s", dim, body)
+		}
 	}
 	// kind filter
 	w := do(authReq("GET", "/api/statistics?book_id="+itoa(bookID)+"&start_date=2026-01-01&end_date=2026-01-31&kind=expense", tok, nil))
@@ -58,5 +65,21 @@ func TestGetAssetTimeline(t *testing.T) {
 		if w.Code != 200 {
 			t.Fatalf("timeline %q -> %d %s", q, w.Code, w.Body.String())
 		}
+	}
+}
+
+// GetBill 月度账单同样受 GORM 查询复用累积条件影响，支出曾统计为 0。
+func TestGetBillExpenseNotZero(t *testing.T) {
+	uid, tok, bookID := registerRealUser(t)
+	cat := firstExpenseCat(t, uid, bookID)
+	acc1, _ := twoAccounts(t, uid, bookID)
+	postTx(t, tok, map[string]interface{}{"book_id": bookID, "type": "expense", "amount": 35.5, "category_id": cat, "account_id": acc1, "tx_date": "2026-01-15", "description": "午餐"})
+
+	w := do(authReq("GET", "/api/io/bill?month=2026-01&book_id="+itoa(bookID), tok, nil))
+	if w.Code != 200 {
+		t.Fatalf("GET /api/bill -> %d %s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), `"total_expense":0`) {
+		t.Errorf("GetBill total_expense 统计为 0: %s", w.Body.String())
 	}
 }
