@@ -7,7 +7,7 @@ import type { Transaction, TransactionType, Tag as TagType } from '@/types';
 import { formatMoney, formatDate, cn } from '@/utils';
 import {
   ArrowLeft, ArrowRightLeft, Minus, Plus, Calendar as CalendarIcon, Clock,
-  Tag, ImagePlus, Save, Repeat1, ChevronDown, ChevronRight, Upload, X, Image,
+  Tag, ImagePlus, Save, Repeat1, ChevronDown, ChevronLeft, ChevronRight, Upload, X, Image,
   Sparkles, Wand2,
 } from 'lucide-react';
 import { Drawer, TagChip } from '@/components/common';
@@ -65,17 +65,24 @@ export default function TransactionAddPage() {
   // 时间选择弹层（自定义时/分选择，避免原生控件的 12 小时制显示）
   const [timePopOpen, setTimePopOpen] = useState(false);
   const timePopRef = useRef<HTMLDivElement>(null);
+  // 日期选择弹层（自定义中文日历，避免原生控件英文月份显示）
+  const [datePopOpen, setDatePopOpen] = useState(false);
+  const [viewYM, setViewYM] = useState(() => {
+    const n = new Date();
+    return { y: n.getFullYear(), m: n.getMonth() };
+  });
+  const datePopRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!timePopOpen) return;
+    if (!timePopOpen && !datePopOpen) return;
     const onDown = (e: MouseEvent) => {
-      if (timePopRef.current && !timePopRef.current.contains(e.target as Node)) {
-        setTimePopOpen(false);
-      }
+      const t = e.target as Node;
+      if (timePopOpen && timePopRef.current && !timePopRef.current.contains(t)) setTimePopOpen(false);
+      if (datePopOpen && datePopRef.current && !datePopRef.current.contains(t)) setDatePopOpen(false);
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
-  }, [timePopOpen]);
+  }, [timePopOpen, datePopOpen]);
 
   // AI 相关状态
   const [aiInput, setAiInput] = useState('');
@@ -493,18 +500,78 @@ export default function TransactionAddPage() {
           <label className="label flex items-center gap-1">
             <CalendarIcon size={14} className="text-slate-400" /> 日期
           </label>
-          <div className="relative">
-            <div className="input flex items-center justify-between cursor-pointer select-none">
+          <div className="relative" ref={datePopRef}>
+            <div
+              className="input flex items-center justify-between cursor-pointer select-none"
+              onClick={() => {
+                const [y, m] = form.tx_date.split('-').map(Number);
+                setViewYM({ y, m: m - 1 });
+                setDatePopOpen(o => !o);
+                setTimePopOpen(false);
+              }}
+            >
               <span className="tabular-nums">{form.tx_date}</span>
               <CalendarIcon size={15} className="text-slate-400 shrink-0" />
             </div>
-            <input
-              type="date"
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              value={form.tx_date}
-              onClick={e => (e.currentTarget as any).showPicker?.()}
-              onChange={e => setField('tx_date', e.target.value)}
-            />
+            {datePopOpen && (() => {
+              const lead = (new Date(viewYM.y, viewYM.m, 1).getDay() + 6) % 7; // 周一为第一列
+              const days = new Date(viewYM.y, viewYM.m + 1, 0).getDate();
+              const todayStr = formatDate(new Date(), 'YYYY-MM-DD');
+              const navMonth = (d: number) => setViewYM(v => {
+                const m = v.m + d;
+                return { y: v.y + Math.floor(m / 12), m: ((m % 12) + 12) % 12 };
+              });
+              const pad = (n: number) => String(n).padStart(2, '0');
+              return (
+                <div className="absolute z-30 left-0 top-full mt-1 card shadow-xl p-3 w-72 max-w-[calc(100vw-4rem)]">
+                  <div className="flex items-center justify-between mb-2">
+                    <button type="button" className="btn-ghost btn-sm px-2" onClick={() => navMonth(-1)} title="上个月">
+                      <ChevronLeft size={16} />
+                    </button>
+                    <span className="text-sm font-semibold text-slate-800 dark:text-slate-100 tabular-nums">
+                      {viewYM.y} 年 {viewYM.m + 1} 月
+                    </span>
+                    <button type="button" className="btn-ghost btn-sm px-2" onClick={() => navMonth(1)} title="下个月">
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-7 text-center text-[11px] text-slate-400 mb-1">
+                    {['一', '二', '三', '四', '五', '六', '日'].map(w => <span key={w}>{w}</span>)}
+                  </div>
+                  <div className="grid grid-cols-7 gap-y-1">
+                    {Array.from({ length: lead }).map((_, i) => <span key={`b${i}`} />)}
+                    {Array.from({ length: days }, (_, i) => i + 1).map(d => {
+                      const ds = `${viewYM.y}-${pad(viewYM.m + 1)}-${pad(d)}`;
+                      const isSel = ds === form.tx_date;
+                      const isToday = ds === todayStr;
+                      return (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => { setField('tx_date', ds); setDatePopOpen(false); }}
+                          className={cn(
+                            'h-8 w-8 mx-auto rounded-full text-sm tabular-nums transition',
+                            isSel ? 'bg-brand-600 text-white font-semibold'
+                              : isToday ? 'text-brand-600 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800'
+                              : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800',
+                          )}
+                        >{d}</button>
+                      );
+                    })}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm w-full mt-2"
+                    onClick={() => {
+                      const n = new Date();
+                      setField('tx_date', formatDate(n, 'YYYY-MM-DD'));
+                      setViewYM({ y: n.getFullYear(), m: n.getMonth() });
+                      setDatePopOpen(false);
+                    }}
+                  >今天</button>
+                </div>
+              );
+            })()}
           </div>
         </div>
         <div>
