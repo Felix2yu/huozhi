@@ -45,9 +45,24 @@
   --expense-fg: #047857;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root[data-color-scheme="expense-green"] {
+    --income-soft: rgba(239, 68, 68, 0.14);
+    --income-fg: #f87171;
+    --expense-soft: rgba(16, 185, 129, 0.14);
+    --expense-fg: #34d399;
+  }
+}
+
 /* 暗色模式：跟随系统配色 */
 @media (prefers-color-scheme: dark) {
   :root {
+    /* 柔和收支底色改为暗色半透明，文字用亮色，保证浅色UI在暗色下对比度 */
+    --income-soft: rgba(16, 185, 129, 0.14);
+    --income-fg: #34d399;
+    --expense-soft: rgba(239, 68, 68, 0.14);
+    --expense-fg: #f87171;
+
     --surface: #0f172a;
     --surface-2: #111827;
     --border: #1f2937;
@@ -193,6 +208,20 @@
   .print\:shadow-none { box-shadow: none !important; }
   .print\:rounded-none { border-radius: 0 !important; }
   .bill-paper { box-shadow: none !important; border-radius: 0 !important; }
+  /* 暗色模式的中性色/彩色重映射不得渗入打印稿（优先级高于末尾暗色块的 !important） */
+  .bill-paper { background-color: #fff !important; }
+  .bill-paper .bg-white { background-color: #fff !important; }
+  .bill-paper .bg-slate-50, .bill-paper .bg-slate-50\/50 { background-color: #f8fafc !important; }
+  .bill-paper .bg-slate-100 { background-color: #f1f5f9 !important; }
+  .bill-paper .text-slate-800 { color: #1e293b !important; }
+  .bill-paper .text-slate-700 { color: #334155 !important; }
+  .bill-paper .text-slate-600 { color: #475569 !important; }
+  .bill-paper .text-slate-500 { color: #64748b !important; }
+  .bill-paper .text-slate-400 { color: #94a3b8 !important; }
+  .bill-paper .text-brand-600 { color: #059669 !important; }
+  .bill-paper .text-red-600, .bill-paper .text-expense { color: #dc2626 !important; }
+  .bill-paper .text-income { color: #059669 !important; }
+  .bill-paper .border-slate-100, .bill-paper .border-slate-200 { border-color: #e2e8f0 !important; }
   @page { margin: 15mm; }
 }
 
@@ -381,8 +410,58 @@
   .bg-slate-50 { background-color: #020617 !important; }
   .bg-slate-100 { background-color: #1e293b !important; }
   .bg-slate-200 { background-color: #334155 !important; }
+  .hover\:bg-slate-50:hover { background-color: #1e293b !important; }
+  .hover\:bg-slate-100:hover { background-color: #1e293b !important; }
+  .hover\:bg-slate-200:hover { background-color: #334155 !important; }
+
+  /* 彩色浅底（*-50/100）→ 暗色半透明色块，与 :root 柔和收支变量同策略 */
+  .bg-brand-50, .bg-brand-50\/50 { background-color: rgba(16, 185, 129, 0.12) !important; }
+  .bg-brand-100 { background-color: rgba(16, 185, 129, 0.2) !important; }
+  .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.12) !important; }
+  .bg-red-50 { background-color: rgba(239, 68, 68, 0.12) !important; }
+  .bg-red-100 { background-color: rgba(239, 68, 68, 0.2) !important; }
+  .bg-amber-50, .bg-amber-50\/70 { background-color: rgba(245, 158, 11, 0.12) !important; }
+  .bg-amber-100 { background-color: rgba(245, 158, 11, 0.18) !important; }
+  .bg-orange-100 { background-color: rgba(249, 115, 22, 0.18) !important; }
+  .bg-blue-50 { background-color: rgba(59, 130, 246, 0.12) !important; }
+  .bg-blue-100 { background-color: rgba(59, 130, 246, 0.18) !important; }
+  .bg-purple-50 { background-color: rgba(168, 85, 247, 0.12) !important; }
+  .bg-purple-100 { background-color: rgba(168, 85, 247, 0.18) !important; }
+  .bg-indigo-50 { background-color: rgba(99, 102, 241, 0.12) !important; }
+
+  /* 彩色边框/描边随底色一起压暗，避免暗色卡上出现浅色亮框 */
+  .border-brand-300 { border-color: rgba(16, 185, 129, 0.4) !important; }
+  .border-emerald-100 { border-color: rgba(16, 185, 129, 0.25) !important; }
+  .border-red-100 { border-color: rgba(239, 68, 68, 0.25) !important; }
+  .border-red-200 { border-color: rgba(239, 68, 68, 0.3) !important; }
+  .border-amber-200 { border-color: rgba(245, 158, 11, 0.3) !important; }
+  .border-violet-200 { border-color: rgba(139, 92, 246, 0.3) !important; }
+  .border-violet-300 { border-color: rgba(139, 92, 246, 0.4) !important; }
+  .ring-red-200 { --tw-ring-color: rgba(239, 68, 68, 0.3) !important; }
+  .ring-emerald-200 { --tw-ring-color: rgba(16, 185, 129, 0.3) !important; }
+
+  /* 彩色深文字（*-600/700）在暗底上改用亮色阶，否则与深底对比不足 */
+  .text-brand-600 { color: #34d399 !important; }
+  .text-brand-700 { color: #6ee7b7 !important; }
+  .text-emerald-600 { color: #34d399 !important; }
+  .text-emerald-700 { color: #6ee7b7 !important; }
+  .text-emerald-800 { color: #a7f3d0 !important; }
+  .text-red-600 { color: #f87171 !important; }
+  .text-red-700 { color: #fca5a5 !important; }
+  .text-amber-600 { color: #fbbf24 !important; }
+  .text-amber-700 { color: #fcd34d !important; }
+  .text-amber-900 { color: #fde68a !important; }
+  .text-orange-600 { color: #fb923c !important; }
+  .text-blue-600 { color: #60a5fa !important; }
+  .text-blue-700 { color: #93c5fd !important; }
+  .text-indigo-600 { color: #818cf8 !important; }
+  .text-purple-600 { color: #c084fc !important; }
+  .text-purple-700 { color: #d8b4fe !important; }
+  .text-violet-600 { color: #a78bfa !important; }
+  .text-violet-700 { color: #c4b5fd !important; }
 
   .text-slate-800 { color: #e2e8f0 !important; }
+  .text-slate-900 { color: #f8fafc !important; }
   .text-slate-700 { color: #cbd5e1 !important; }
   .text-slate-600 { color: #94a3b8 !important; }
   .text-slate-500 { color: #94a3b8 !important; }
