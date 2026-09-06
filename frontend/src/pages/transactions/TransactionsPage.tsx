@@ -170,7 +170,7 @@ export default function TransactionsPage() {
             </div>
             <button className="btn-secondary" onClick={() => setFilterOpen(true)}>
               <Filter size={16} /> 筛选
-              {(filters.type !== 'all' || filters.category_id || filters.account_id || filters.tag_id) && (
+              {Boolean(filters.type !== 'all' || filters.category_id || filters.account_id || filters.tag_id) && (
                 <span className="ml-1 w-2 h-2 rounded-full bg-red-500 inline-block" />
               )}
             </button>

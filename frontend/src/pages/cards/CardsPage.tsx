@@ -7,6 +7,7 @@ import type { Account } from '@/types';
 import { formatMoney, cn } from '@/utils';
 import { Plus, CreditCard, Landmark, AlertCircle, Clock, Layers } from 'lucide-react';
 import { Empty } from '@/components/common';
+import { BankMark } from '@/components/BankMark';
 
 // ============ 卡面组件 ============
 interface CardFaceData {
@@ -34,12 +35,13 @@ function groupCardNo(full: string): string {
 }
 
 function CardFace({
-  acc, flipped, onFlip,
+  acc, flipped, onFlip, onDetail,
   fullInfo, loadingFull,
 }: {
   acc: CardFaceData;
   flipped: boolean;
   onFlip: () => void;
+  onDetail: () => void;
   fullInfo: { full_card_no?: string; cvv?: string } | null;
   loadingFull: boolean;
 }) {
@@ -53,7 +55,7 @@ function CardFace({
     : (acc.card_no4 ? `**** **** **** ${acc.card_no4}` : '');
 
   return (
-    <div className="card3d-wrap">
+    <div className="card3d-wrap w-full max-w-[320px] mx-auto">
       <div
         className={cn('card3d', flipped && 'flipped')}
         onClick={onFlip}
@@ -64,22 +66,40 @@ function CardFace({
         {/* 正面 */}
         <div className={cn('card3d-face front', bgClass)}>
           <div className="card3d-shine" />
-          {/* 顶部：银行名 + 卡种标签 */}
+          {/* 顶部：银行品牌 + 卡种标签 */}
           <div className="flex items-start justify-between">
-            <div>
-              <div className="card3d-small">{isCredit ? '信用卡' : '储蓄卡'}</div>
-              <div className="text-sm font-semibold tracking-wide mt-0.5">
-                {acc.bank_name || acc.name}
+            <div className="flex items-center gap-2 min-w-0">
+              <BankMark text={acc.bank_name || acc.name} size={36} />
+              <div className="min-w-0">
+                <div className="card3d-small">{isCredit ? '信用卡' : '储蓄卡'}</div>
+                <div className="text-sm font-semibold tracking-wide mt-0.5 truncate">
+                  {acc.bank_name || acc.name}
+                </div>
               </div>
             </div>
             <div className="card3d-chip" />
           </div>
 
-          {/* 中部：卡号 */}
+          {/* 中部：余额 / 额度 */}
+          <div>
+            <div className="card3d-small">{isCredit ? '已用额度' : '余额'}</div>
+            <div className="text-xl font-bold tabular-nums leading-tight">
+              {isCredit
+                ? formatMoney(Math.max(0, acc.balance || 0))
+                : formatMoney(acc.balance || 0)}
+            </div>
+            {isCredit && (
+              <div className="text-[11px] text-white/70 mt-0.5">
+                总额度 {formatMoney(acc.credit_limit || 0)}
+              </div>
+            )}
+          </div>
+
+          {/* 卡号 */}
           <div className="card3d-number">{displayFull}</div>
 
-          {/* 底部：持卡人 / 有效期 */}
-          <div className="flex items-end justify-between gap-3">
+          {/* 底部：持卡人 / 有效期 / 详情 */}
+          <div className="flex items-end justify-between gap-2">
             <div className="min-w-0">
               <div className="card3d-small">持卡人</div>
               <div className="card3d-name truncate">{acc.name}</div>
@@ -92,21 +112,25 @@ function CardFace({
                   : '—'}
               </div>
             </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDetail(); }}
+              className="shrink-0 text-[11px] text-white/80 bg-white/15 hover:bg-white/30 active:bg-white/40 rounded-full px-2.5 py-1 transition"
+              title="查看账户详情"
+            >
+              详情 →
+            </button>
           </div>
         </div>
 
         {/* 背面 */}
         <div className="card3d-face back">
           <div className="card3d-magstripe" />
-          <div className="card3d-sigstrip">
-            <div className="flex-1 text-[10px] tracking-widest text-slate-500">
-              授权签名
-            </div>
+          <div className="flex items-center justify-end px-[22px] mt-3">
             <div className="card3d-cvv-box">
               {loadingFull ? '···' : (fullInfo?.cvv ? fullInfo.cvv.replace(/./g, '·') : acc.type === 'credit' ? '安全码' : '—')}
             </div>
           </div>
-          <div className="px-[22px] pb-[18px] mt-[14px] text-[11px] text-slate-400 leading-relaxed">
+          <div className="px-[22px] pb-[18px] mt-auto text-[11px] text-slate-400 leading-relaxed">
             点击卡片查看完整卡号和安全码（<span className="text-amber-300">敏感信息 · 请注意保密</span>）
           </div>
         </div>
@@ -261,7 +285,7 @@ export default function CardsPage() {
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
             <Layers size={14} /> 信用卡 · 额度管理
           </h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {credits.map(c => (
               <div key={c.id} className="space-y-3">
                 <CardFace
@@ -273,21 +297,10 @@ export default function CardsPage() {
                   }}
                   flipped={!!flipped[c.id]}
                   onFlip={() => flip(c)}
+                  onDetail={() => navigate(`/accounts?account=${c.id}`)}
                   fullInfo={fullInfoMap[c.id] ?? null}
                   loadingFull={!!loadingMap[c.id]}
                 />
-                {/* 卡下额度信息 */}
-                <div className="px-1 flex items-center justify-between gap-2">
-                  <span className="text-xs text-slate-500 tabular-nums">
-                    额度 {formatMoney(c.credit_limit || 0)} · 已用 {formatMoney(Math.max(0, c.balance || 0))}
-                  </span>
-                  <button
-                    onClick={() => navigate(`/accounts?account=${c.id}`)}
-                    className="text-xs text-brand-600 hover:underline shrink-0"
-                  >
-                    账户详情 →
-                  </button>
-                </div>
               </div>
             ))}
           </div>
@@ -300,7 +313,7 @@ export default function CardsPage() {
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
             <Landmark size={14} /> 储蓄卡 · 现金池
           </h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {debits.map(d => (
               <div key={d.id} className="space-y-3">
                 <CardFace
@@ -312,20 +325,10 @@ export default function CardsPage() {
                   }}
                   flipped={!!flipped[d.id]}
                   onFlip={() => flip(d)}
+                  onDetail={() => navigate(`/accounts?account=${d.id}`)}
                   fullInfo={fullInfoMap[d.id] ?? null}
                   loadingFull={!!loadingMap[d.id]}
                 />
-                <div className="px-1 flex items-center justify-between gap-2">
-                  <span className="text-xs text-slate-500 tabular-nums">
-                    {d.bank_name || '储蓄卡'} · 余额 {formatMoney(d.balance || 0)}
-                  </span>
-                  <button
-                    onClick={() => navigate(`/accounts?account=${d.id}`)}
-                    className="text-xs text-brand-600 hover:underline shrink-0"
-                  >
-                    账户详情 →
-                  </button>
-                </div>
               </div>
             ))}
           </div>
