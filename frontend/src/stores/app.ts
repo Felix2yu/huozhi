@@ -85,6 +85,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     // currentBookId = 0 表示「全部账本」聚合视图（显式选择后保留，不自动跳回默认账本）
     const stored = localStorage.getItem('hz_book_id');
     let cur = get().currentBookId;
+    // 残留的账本 id 可能来自上一个登录账号，不属于当前用户时先作废，再回退默认账本
+    if (cur !== 0 && !list.some(b => b.id === cur)) {
+      cur = 0;
+    }
     if (!cur && stored !== '0') {
       const def = list.find(b => b.is_default) || list[0];
       if (def) {
