@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAppStore } from '@/stores/app';
 import { accountApi, statsApi } from '@/api';
@@ -55,6 +55,7 @@ export default function AccountsPage() {
   const storeAccounts = useAppStore(s => s.accounts);
   const loadDicts = useAppStore(s => s.loadDictionaries);
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const [summary, setSummary] = useState<AccountSummary | null>(null);
   const [list, setList] = useState<Account[]>([]);
@@ -344,9 +345,11 @@ export default function AccountsPage() {
             <div
               key={a.id}
               className={cn(
-                'card card-body relative group transition hover:-translate-y-0.5 hover:shadow-lg',
+                'card card-body relative group transition hover:-translate-y-0.5 hover:shadow-lg cursor-pointer',
                 a.is_archived && 'opacity-60'
               )}
+              onClick={() => navigate(`/accounts/${a.id}`)}
+              title="查看账户详情与流水"
             >
               {a.is_archived && (
                 <span className="absolute top-3 right-3 chip bg-slate-100 text-slate-500">已归档</span>
@@ -386,7 +389,7 @@ export default function AccountsPage() {
                             <button
                               type="button"
                               className="p-0.5 hover:text-brand-600 transition rounded"
-                              onClick={() => toggleRevealCardNo(a)}
+                              onClick={(e) => { e.stopPropagation(); toggleRevealCardNo(a); }}
                               title={revealedCards[a.id] ? '隐藏完整卡信息' : '查看完整卡信息'}
                             >
                               {revealedCards[a.id] ? <EyeOff size={11} /> : <Eye size={11} />}
@@ -446,7 +449,7 @@ export default function AccountsPage() {
                   )}
                 </div>
               ) : null}
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-1">
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-1" onClick={e => e.stopPropagation()}>
                 <button className="btn-ghost btn-sm flex-1" onClick={() => openEdit(a)}>
                   <Edit3 size={14} /> 编辑
                 </button>

@@ -6,7 +6,7 @@ import { txApi } from '@/api';
 import type { Transaction, TransactionListData, DayGroup, TransactionType } from '@/types';
 import { formatMoney, formatDate, getMonthRange, cn } from '@/utils';
 import {
-  Search, Filter, Plus, Trash2, Edit3, X, ChevronDown, Check,
+  Search, Filter, Plus, Trash2, Edit3, X, ChevronDown, Check, ChevronRight,
   ArrowUpRight, ArrowDownRight, ArrowLeftRight, Calendar, Receipt,
   Image as ImageIcon, MapPin, Store, StickyNote,
 } from 'lucide-react';
@@ -364,8 +364,28 @@ export default function TransactionsPage() {
                 </div>
                 <div className="flex justify-between px-4 py-2.5">
                   <span className="text-slate-400">{t.type === 'transfer' ? '转出 → 转入' : '账户'}</span>
-                  <span className="text-slate-700">
-                    {t.type === 'transfer' ? `${acc?.name || '-'} → ${toAcc?.name || '-'}` : (acc?.name || '-')}
+                  <span className="text-slate-700 text-right">
+                    {t.type === 'transfer' ? (
+                      <>
+                        <button
+                          className="text-brand-600 hover:underline"
+                          onClick={() => { setDetailTx(null); navigate(`/accounts/${t.account_id}`); }}
+                        >{acc?.name || '-'}</button>
+                        {' → '}
+                        <button
+                          className="text-brand-600 hover:underline"
+                          onClick={() => { setDetailTx(null); navigate(`/accounts/${t.to_account_id}`); }}
+                        >{toAcc?.name || '-'}</button>
+                      </>
+                    ) : (
+                      <button
+                        className="text-brand-600 hover:underline inline-flex items-center gap-1"
+                        onClick={() => { setDetailTx(null); navigate(`/accounts/${t.account_id}`); }}
+                        title="查看账户详情与流水"
+                      >
+                        {acc?.name || '-'} <ChevronRight size={13} />
+                      </button>
+                    )}
                   </span>
                 </div>
                 {t.description && (

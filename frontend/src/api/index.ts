@@ -145,6 +145,7 @@ export const tagApi = {
 // 交易
 export const txApi = {
   list: (params?: any) => http.get<any, any>('/transactions', { params }).then((res: any) => res.list ?? res) as Promise<TransactionListData>,
+  listPaged: (params?: any) => http.get<any, { list: TransactionListData; pagination: { page: number; page_size: number; total: number } }>('/transactions', { params }),
   get:  (id: number) => http.get<any, Transaction>(`/transactions/${id}`),
   create: (data: any) => http.post<any, Transaction>('/transactions', data),
   update: (id: number, data: any) => http.put<any, Transaction>(`/transactions/${id}`, data),
