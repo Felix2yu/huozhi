@@ -185,67 +185,6 @@ export default function TagsPage() {
         </div>
       </section>
 
-      {/* 标签云 */}
-      <section className="card card-body">
-        <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
-          <Hash size={18} className="text-violet-600" /> 标签云
-        </h3>
-        {loading ? (
-          <div className="py-16 text-center text-slate-400 text-sm">加载中...</div>
-        ) : filtered.length === 0 ? (
-          <Empty text="还没有标签，点击右上角创建吧" icon={<Hash size={32} />} />
-        ) : (
-          <div className="flex flex-wrap gap-3">
-            {filtered.map(t => {
-              const scale = 0.85 + (t.count / maxCount) * 0.8;
-              return (
-                <div
-                  key={t.id}
-                  className="group relative"
-                  style={{ transform: `scale(${scale})`, transformOrigin: 'left center' }}
-                >
-                  <button
-                    onClick={() => goFilteredTransactions(t)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full font-medium transition hover:-translate-y-0.5 hover:shadow-md"
-                    style={{
-                      background: (t.color || '#6366F1') + '15',
-                      color: t.color || '#6366F1',
-                      border: `1px solid ${(t.color || '#6366F1')}30`,
-                    }}
-                    title="点击查看使用该标签的账单"
-                  >
-                    <Hash size={14} />
-                    <span>{t.name}</span>
-                    <span
-                      className="text-xs px-1.5 py-0.5 rounded-full"
-                      style={{ background: (t.color || '#6366F1') + '25' }}
-                    >
-                      {t.count}
-                    </span>
-                  </button>
-                  <div className="absolute -top-1 -right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); openEdit(t); }}
-                      className="w-6 h-6 rounded-full bg-white shadow grid place-items-center text-slate-500 hover:text-brand-600 border border-slate-200"
-                      title="编辑"
-                    >
-                      <Edit3 size={11} />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setDelTarget(t); }}
-                      className="w-6 h-6 rounded-full bg-white shadow grid place-items-center text-slate-500 hover:text-red-500 border border-slate-200"
-                      title="删除"
-                    >
-                      <Trash2 size={11} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
       {/* 标签卡片列表（详细信息） */}
       <section className="card card-body">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">

@@ -9,9 +9,9 @@ import {
   Check, X, Sparkles, Rocket, Coins, Award,
 } from 'lucide-react';
 import { Modal, ConfirmDialog, Empty, Progress } from '@/components/common';
+import { CATEGORY_ICONS as PRESET_ICONS } from '@/constants/icons';
 
 const PRESET_COLORS = ['#F59E0B', '#10B981', '#6366F1', '#EC4899', '#06B6D4', '#EF4444'];
-const PRESET_ICONS = ['🏠', '🚗', '💍', '🎓', '🌍', '💻', '📱', '🎮', '🎬', '🛍️', '⚽', '🎨'];
 const PRESET_NAMES = [
   { name: '旅行基金', icon: '🌍' },
   { name: '买房首付', icon: '🏠' },

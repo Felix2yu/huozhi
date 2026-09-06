@@ -12,6 +12,8 @@ import {
 import { Modal, ConfirmDialog, Empty } from '@/components/common';
 import { useChartTheme } from '@/hooks/useChartTheme';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Area, AreaChart } from 'recharts';
+import { BankMark } from '@/components/BankMark';
+import { resolveBankBrand } from '@/constants/banks';
 
 const TYPE_FILTERS: Array<{ k: AccountType | 'all'; label: string; icon: string }> = [
   { k: 'all', label: '全部', icon: '👛' },
@@ -365,12 +367,21 @@ export default function AccountsPage() {
               )}
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div
-                    className="w-12 h-12 rounded-xl grid place-items-center text-2xl"
-                    style={{ background: (a.color || '#6366F1') + '15' }}
-                  >
-                    {TYPE_ICONS[a.type]}
-                  </div>
+                  {(() => {
+                    const isBankLike = a.type === 'bank' || a.type === 'credit' || a.type === 'liability';
+                    const bankText = a.bank_name || a.name;
+                    if (resolveBankBrand(bankText) || isBankLike) {
+                      return <BankMark text={bankText} size={48} />;
+                    }
+                    return (
+                      <div
+                        className="w-12 h-12 rounded-xl grid place-items-center text-2xl"
+                        style={{ background: (a.color || '#6366F1') + '15' }}
+                      >
+                        {TYPE_ICONS[a.type]}
+                      </div>
+                    );
+                  })()}
                   <div>
                     <div className="font-semibold text-slate-800">{a.name}</div>
                     <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-1 flex-wrap">

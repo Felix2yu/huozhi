@@ -9,18 +9,12 @@ import {
   Check, X, GripVertical, Minus, ArrowUpRight,
 } from 'lucide-react';
 import { Modal, ConfirmDialog, Empty } from '@/components/common';
+import { CATEGORY_ICONS as PRESET_ICONS, randomIcon } from '@/constants/icons';
 
 const PRESET_COLORS = [
   '#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
   '#EC4899', '#06B6D4', '#F97316', '#84CC16', '#64748b',
   '#14B8A6', '#22C55E', '#A855F7', '#0EA5E9', '#F43F5E',
-];
-
-const PRESET_ICONS = [
-  '🍔', '🍜', '☕', '🍱', '🥗', '🚗', '🚌', '✈️', '🏠', '💡',
-  '🛍️', '👕', '👟', '💊', '🏥', '📱', '💻', '🎮', '📚', '🎬',
-  '⚽', '🎵', '🎨', '💝', '💄', '🧸', '💼', '💰', '🎁', '🧧',
-  '📦', '🌍', '🧧', '💎', '🏖️', '🐶', '🐱', '🌸', '🔥', '⭐',
 ];
 
 type TabKind = 'expense' | 'income';
@@ -70,7 +64,7 @@ export default function CategoriesPage() {
     setEditForm({
       name: '', parent_id: parentId, kind,
       color: PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)],
-      icon: PRESET_ICONS[Math.floor(Math.random() * PRESET_ICONS.length)],
+      icon: randomIcon(),
       sort: 0, need_tag: false,
     });
     setEditOpen(true);
@@ -401,7 +395,7 @@ export default function CategoriesPage() {
           </div>
           <div>
             <label className="label">选择图标</label>
-            <div className="grid grid-cols-8 gap-1.5 max-h-40 overflow-y-auto p-1 border border-slate-100 rounded-lg">
+            <div className="grid grid-cols-8 gap-1.5 max-h-60 overflow-y-auto p-1 border border-slate-100 rounded-lg">
               {PRESET_ICONS.map(ic => (
                 <button
                   key={ic}
