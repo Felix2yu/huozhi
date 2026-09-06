@@ -43,7 +43,7 @@ export default function BudgetsPage() {
   const [delTarget, setDelTarget] = useState<BudgetView | null>(null);
 
   const load = async () => {
-    if (!bookId) return;
+    if (bookId === undefined) return;
     setLoading(true);
     try {
       const res = await budgetApi.list({ book_id: bookId });

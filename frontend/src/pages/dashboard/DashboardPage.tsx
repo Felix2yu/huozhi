@@ -28,7 +28,7 @@ export default function DashboardPage() {
   const range = getMonthRange();
 
   useEffect(() => {
-    if (!bookId) return;
+    if (bookId === undefined) return;
     setLoading(true);
     Promise.all([
       statsApi.assets(),

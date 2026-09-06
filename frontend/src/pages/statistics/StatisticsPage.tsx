@@ -9,6 +9,7 @@ import {
   ArrowUpRight, ArrowDownRight, Wallet, ChevronDown,
   Trophy, AlertCircle, Download,
 } from 'lucide-react';
+import { BookOpen as BookIcon } from 'lucide-react';
 import { AmountBadge, Empty } from '@/components/common';
 import { useChartTheme } from '@/hooks/useChartTheme';
 import {
@@ -90,7 +91,7 @@ export default function StatisticsPage() {
   const range = getRange(preset, customStart, customEnd);
 
   const load = async () => {
-    if (!bookId) return;
+    if (bookId === undefined) return;
     setLoading(true);
     try {
       const [s, tl] = await Promise.all([
@@ -137,6 +138,15 @@ export default function StatisticsPage() {
   }));
 
   // 账户维度数据
+  const currentBookId = useAppStore(s => s.currentBookId);
+  const byBook = data?.by_book || {};
+  const bookData = Object.values(byBook).map(bv => ({
+    name: bv.book_name || `账本#${bv.book_id}`,
+    income: bv.income,
+    expense: bv.expense,
+    net: bv.income - bv.expense,
+  }));
+
   const accountData = Object.values(byAccount).map(av => {
     const acc = accounts.find(a => a.id === av.account_id);
     return {
@@ -424,6 +434,35 @@ export default function StatisticsPage() {
           </ul>
         )}
       </section>
+
+      {/* 账本维度：全部账本聚合视图下始终显示，单账本视图需 ≥2 本有数据 */}
+      {(currentBookId === 0 ? bookData.length > 0 : bookData.length > 1) && (
+        <section className="card card-body">
+          <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+            <BookIcon size={18} className="text-emerald-500" /> 账本维度分布
+          </h3>
+          <div className="h-72">
+            <ResponsiveContainer>
+              <BarChart data={bookData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: ct.tick }} />
+                <YAxis tick={{ fontSize: 11, fill: ct.tick }} />
+                <Tooltip
+                  formatter={(v) => formatMoney(Number(v) || 0)}
+                  contentStyle={ct.tooltipStyle}
+                />
+                <Legend
+                  formatter={(n) => n === 'income' ? '收入' : n === 'expense' ? '支出' : '净收支'}
+                />
+                <Bar dataKey="income" name="income" stackId="a"
+                  fill={ct.income} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="expense" name="expense" stackId="a"
+                  fill={ct.expense} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+      )}
 
       {/* 账户维度 */}
       <section className="card card-body">

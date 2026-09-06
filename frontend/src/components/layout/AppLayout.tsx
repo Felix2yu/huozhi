@@ -21,7 +21,7 @@ const navItems = [
   { to: '/statistics',   label: '统计分析', icon: BarChart3 },
   { to: '/tags',         label: '标签中心', icon: Tags },
   { to: '/savings',      label: '存钱计划', icon: TrendingUp },
-  { to: '/shared-books', label: '共享账本', icon: UsersGroupIcon },
+  { to: '/shared-books', label: '账本管理', icon: UsersGroupIcon },
   { to: '/settings',     label: '系统设置', icon: Settings },
 ];
 
@@ -50,6 +50,7 @@ export default function AppLayout() {
     return () => mq.removeEventListener('change', onChange);
   }, [closeSidebar]);
 
+  const isAllBooks = currentBookId === 0;
   const currentBook = books.find(b => b.id === currentBookId) || books[0];
 
   const onLogout = async () => {
@@ -71,7 +72,7 @@ export default function AppLayout() {
         {/* Logo */}
         <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
           <div className="w-9 h-9 rounded-xl bg-brand-600 grid place-items-center text-white font-bold">
-            {currentBook?.icon?.slice(0, 1) || '账'}
+            {isAllBooks ? '📚' : currentBook?.icon?.slice(0, 1) || '账'}
           </div>
           <div className="flex-1 min-w-0">
             <div className="font-semibold text-slate-800 dark:text-slate-100 leading-tight">货殖</div>
@@ -92,9 +93,10 @@ export default function AppLayout() {
             value={currentBookId}
             onChange={(e) => setCurrentBook(Number(e.target.value))}
           >
+            <option value={0}>📚 全部账本</option>
             {books.filter(b => !b.is_archived).map(b => (
               <option key={b.id} value={b.id}>
-                {b.icon || '📘'} {b.name} {b.is_default ? '(默认)' : ''}
+                {b.icon || '📘'} {b.name}
               </option>
             ))}
           </select>
@@ -168,7 +170,7 @@ export default function AppLayout() {
             </button>
             <div className="flex-1 min-w-0">
               <h1 className="text-base md:text-lg font-semibold text-slate-800 dark:text-slate-100 truncate">
-                {currentBook?.icon || '📘'} {currentBook?.name || '账本'}
+                {isAllBooks ? '📚 全部账本' : `${currentBook?.icon || '📘'} ${currentBook?.name || '账本'}`}
               </h1>
             </div>
             <OfflineBadge />
@@ -194,7 +196,7 @@ function TopMiniStats() {
   const [st, setSt] = useState<{ in: number; out: number; net: number; asset: number } | null>(null);
   const bookId = useAppStore(s => s.currentBookId);
   useEffect(() => {
-    if (!bookId) return;
+    if (bookId === undefined) return;
     (async () => {
       try {
         const { start, end } = getMonthRange();

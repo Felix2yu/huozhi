@@ -60,7 +60,7 @@ export default function SavingsPage() {
   }
 
   const load = async () => {
-    if (!bookId) return;
+    if (bookId === undefined) return;
     setLoading(true);
     try {
       const [res, accRes] = await Promise.all([

@@ -39,7 +39,10 @@ export default function TransactionAddPage() {
   const [sp] = useSearchParams();
   const editId = Number(sp.get('id') || 0);
 
-  const bookId = useAppStore(s => s.currentBookId);
+  const storeBookId = useAppStore(s => s.currentBookId);
+  const allBooks = useAppStore(s => s.books);
+  // 全部账本聚合视图（0）下记账回落到默认账本，避免账单无归属
+  const bookId = storeBookId || (allBooks.find(b => b.is_default)?.id ?? allBooks[0]?.id ?? 0);
   const accounts = useAppStore(s => s.accounts);
   const tags = useAppStore(s => s.tags);
   const { expense: expCats, income: incCats } = useAppStore(s => s.categories);

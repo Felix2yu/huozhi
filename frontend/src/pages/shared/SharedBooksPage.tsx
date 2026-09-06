@@ -68,7 +68,7 @@ export default function SharedBooksPage() {
   const [removeMember, setRemoveMember] = useState<Member | null>(null);
 
   const loadMembers = async (bookId: number) => {
-    if (!bookId) return;
+    if (bookId === undefined) return;
     setLoading(true);
     try {
       const m = await bookApi.listMembers(bookId);
@@ -183,7 +183,7 @@ export default function SharedBooksPage() {
       <section className="card card-body flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="font-semibold text-slate-800 flex items-center gap-2">
-            <BookIcon size={20} className="text-brand-600" /> 我的账本
+            <BookIcon size={20} className="text-brand-600" /> 账本管理
           </h2>
           <p className="text-xs text-slate-400 mt-1">管理和共享账本，邀请家人朋友一起记账</p>
         </div>

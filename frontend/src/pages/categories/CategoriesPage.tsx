@@ -40,7 +40,7 @@ export default function CategoriesPage() {
   const [delTarget, setDelTarget] = useState<Category | null>(null);
 
   const load = async () => {
-    if (!bookId) return;
+    if (bookId === undefined) return;
     await loadDicts(bookId);
   };
 

@@ -44,7 +44,7 @@ export default function TransactionsPage() {
   const allCats = useMemo(() => [...expCats, ...incCats], [expCats, incCats]);
 
   const loadList = async () => {
-    if (!bookId) return;
+    if (bookId === undefined) return;
     setLoading(true);
     try {
       const params: Record<string, any> = { book_id: bookId, ...filters };

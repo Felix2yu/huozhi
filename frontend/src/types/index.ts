@@ -238,6 +238,7 @@ export interface StatisticsData {
   by_category_expense: StatsItem[];
   by_category_income: StatsItem[];
   by_account: Record<string, { account_id: number; income: number; expense: number }>;
+  by_book?: Record<string, { book_id: number; book_name?: string; icon?: string; income: number; expense: number }>;
   trend: TrendPoint[];
   top_expense: {
     id: number; amount: number; description?: string;

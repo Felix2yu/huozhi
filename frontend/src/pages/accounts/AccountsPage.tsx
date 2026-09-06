@@ -108,7 +108,7 @@ export default function AccountsPage() {
   }
 
   const load = async () => {
-    if (!bookId) return;
+    if (bookId === undefined) return;
     setLoading(true);
     try {
       const [accData, tl] = await Promise.all([

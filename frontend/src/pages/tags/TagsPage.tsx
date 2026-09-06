@@ -37,7 +37,7 @@ export default function TagsPage() {
   const [sortMode, setSortMode] = useState<'count' | 'name' | 'sort'>('count');
 
   const load = async () => {
-    if (!bookId) return;
+    if (bookId === undefined) return;
     setLoading(true);
     try {
       const res = await tagApi.list();

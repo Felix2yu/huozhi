@@ -82,8 +82,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async loadBooks() {
     const list = await bookApi.list();
+    // currentBookId = 0 表示「全部账本」聚合视图（显式选择后保留，不自动跳回默认账本）
+    const stored = localStorage.getItem('hz_book_id');
     let cur = get().currentBookId;
-    if (!cur) {
+    if (!cur && stored !== '0') {
       const def = list.find(b => b.is_default) || list[0];
       if (def) {
         cur = def.id;
@@ -99,7 +101,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   async loadDictionaries(bookId?: number) {
-    const bid = bookId || get().currentBookId;
+    // 0 = 全部账本聚合视图，是合法取值，不能当缺省值跳过
+    const bid = bookId !== undefined ? bookId : get().currentBookId;
     const [cats, tags, accs] = await Promise.all([
       categoryApi.list({ book_id: bid }),
       tagApi.list(),
