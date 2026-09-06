@@ -240,7 +240,7 @@ func doAISmartRecord(text string, categories []models.Category, accounts []model
 	}
 	var accList strings.Builder
 	for i, a := range accounts {
-		fmt.Fprintf(&accList, "%d. %s (余额: %.2f %s)\n", i+1, a.Name, a.Balance, a.Currency)
+		fmt.Fprintf(&accList, "%d. %s (余额: %.2f %s)\n", i+1, a.Name, a.Balance.Yuan(), a.Currency)
 	}
 
 	today := time.Now().Format("2006-01-02")

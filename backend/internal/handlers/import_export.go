@@ -64,7 +64,7 @@ func ExportTransactions(c *gin.Context) {
 			t.TxDate.Format("2006-01-02 15:04:05"),
 			string(t.Type),
 			catCache(t.CategoryID),
-			strconv.FormatFloat(t.Amount, 'f', 2, 64),
+			t.Amount.String(),
 			t.Currency,
 			accCache(t.AccountID),
 			toAccStr,
@@ -264,7 +264,7 @@ func parseTemplateCSV(f io.Reader, uid, bookID uint) ([]models.Transaction, erro
 		}
 
 		tx := models.Transaction{
-			Amount:      amt,
+			Amount:      models.FromYuan(amt),
 			Currency:    "CNY",
 			AccountID:   acc.ID,
 			TxDate:      d,
@@ -328,7 +328,7 @@ func parseWeChat(f io.Reader, uid, bookID uint) ([]models.Transaction, error) {
 			continue
 		}
 		tx := models.Transaction{
-			Amount:      amt,
+			Amount:      models.FromYuan(amt),
 			Currency:    "CNY",
 			AccountID:   acc.ID,
 			TxDate:      d,
@@ -398,7 +398,7 @@ func parseAlipay(f io.Reader, uid, bookID uint) ([]models.Transaction, error) {
 			continue
 		}
 		tx := models.Transaction{
-			Amount:      amt,
+			Amount:      models.FromYuan(amt),
 			Currency:    "CNY",
 			AccountID:   acc.ID,
 			TxDate:      d,
@@ -436,17 +436,19 @@ func findCategoryOrCreate(uid, bookID uint, name string, kind models.CategoryKin
 	return c
 }
 
+// matchCategory 按名称匹配「一级分类」（parent_id=0，限定 kind），模板 CSV / 微信 / 支付宝解析用。
+// 限定顶层避免命中二级分类导致层级错乱；不存在时回退 fallback。
 func matchCategory(uid, bookID uint, name string, kind models.CategoryKind, fallback models.Category) uint {
 	if name == "" {
 		return fallback.ID
 	}
 	var c models.Category
-	err := database.DB.Where("user_id = ? AND (book_id = 0 OR book_id = ?) AND name = ? AND kind = ?", uid, bookID, name, kind).First(&c).Error
+	err := database.DB.Where("user_id = ? AND (book_id = 0 OR book_id = ?) AND parent_id = 0 AND name = ? AND kind = ?", uid, bookID, name, kind).First(&c).Error
 	if err == nil {
 		return c.ID
 	}
 	// 模糊
-	err = database.DB.Where("user_id = ? AND (book_id = 0 OR book_id = ?) AND kind = ? AND name LIKE ?",
+	err = database.DB.Where("user_id = ? AND (book_id = 0 OR book_id = ?) AND parent_id = 0 AND kind = ? AND name LIKE ?",
 		uid, bookID, kind, "%"+name+"%").First(&c).Error
 	if err == nil {
 		return c.ID
@@ -512,16 +514,19 @@ func GetBill(c *gin.Context) {
 	}
 
 	// === 收支汇总 ===
-	var income, expense float64
+	var income, expense models.Money
 	var incomeCnt, expenseCnt int64
+	var incSum, expSum float64
 	q.Model(&models.Transaction{}).
 		Where("tx_date >= ? AND tx_date < ? AND type IN ? AND include_in_balance = ?",
 			first, last.AddDate(0, 0, 1), []string{string(models.TxIncome), string(models.TxRefund)}, true).
-		Select("COALESCE(SUM(amount), 0), COUNT(*)").Row().Scan(&income, &incomeCnt)
+		Select("COALESCE(SUM(amount), 0), COUNT(*)").Row().Scan(&incSum, &incomeCnt)
 	q.Model(&models.Transaction{}).
 		Where("tx_date >= ? AND tx_date < ? AND type = ? AND include_in_balance = ?",
 			first, last.AddDate(0, 0, 1), string(models.TxExpense), true).
-		Select("COALESCE(SUM(amount), 0), COUNT(*)").Row().Scan(&expense, &expenseCnt)
+		Select("COALESCE(SUM(amount), 0), COUNT(*)").Row().Scan(&expSum, &expenseCnt)
+	income = models.FromCents(incSum)
+	expense = models.FromCents(expSum)
 
 	// === 分类汇总 ===
 	var catRows []struct {
@@ -536,17 +541,17 @@ func GetBill(c *gin.Context) {
 		Select("category_id, type, SUM(amount) sum_amount, COUNT(*) count").
 		Group("category_id, type").Scan(&catRows)
 
-	catMap := make(map[uint]map[string]float64)
+	catMap := make(map[uint]map[string]models.Money)
 	catCntMap := make(map[uint]int64)
 	for _, r := range catRows {
 		if _, ok := catMap[r.CategoryID]; !ok {
-			catMap[r.CategoryID] = map[string]float64{"expense": 0, "income": 0}
+			catMap[r.CategoryID] = map[string]models.Money{"expense": 0, "income": 0}
 		}
 		switch r.Kind {
 		case string(models.TxExpense):
-			catMap[r.CategoryID]["expense"] += r.SumAmount
+			catMap[r.CategoryID]["expense"] += models.FromCents(r.SumAmount)
 		default:
-			catMap[r.CategoryID]["income"] += r.SumAmount
+			catMap[r.CategoryID]["income"] += models.FromCents(r.SumAmount)
 		}
 		catCntMap[r.CategoryID] += r.Count
 	}
@@ -559,14 +564,14 @@ func GetBill(c *gin.Context) {
 	}
 
 	type catOut struct {
-		ID      uint    `json:"id"`
-		Name    string  `json:"name"`
-		Icon    string  `json:"icon"`
-		Color   string  `json:"color"`
-		Amount  float64 `json:"amount"`
-		Count   int64   `json:"count"`
-		Percent float64 `json:"percent"`
-		Kind    string  `json:"kind"`
+		ID      uint         `json:"id"`
+		Name    string       `json:"name"`
+		Icon    string       `json:"icon"`
+		Color   string       `json:"color"`
+		Amount  models.Money `json:"amount"`
+		Count   int64        `json:"count"`
+		Percent float64      `json:"percent"`
+		Kind    string       `json:"kind"`
 	}
 	var expRank, incRank []catOut
 	for id, m := range catMap {
@@ -574,21 +579,21 @@ func GetBill(c *gin.Context) {
 		if m["expense"] > 0 {
 			pct := 0.0
 			if expense > 0 {
-				pct = round2(m["expense"] / expense * 100)
+				pct = round2(m["expense"].Yuan() / expense.Yuan() * 100)
 			}
 			expRank = append(expRank, catOut{
 				ID: id, Name: info.Name, Icon: info.Icon, Color: info.Color,
-				Amount: round2(m["expense"]), Count: catCntMap[id], Percent: pct, Kind: "expense",
+				Amount: m["expense"], Count: catCntMap[id], Percent: pct, Kind: "expense",
 			})
 		}
 		if m["income"] > 0 {
 			pct := 0.0
 			if income > 0 {
-				pct = round2(m["income"] / income * 100)
+				pct = round2(m["income"].Yuan() / income.Yuan() * 100)
 			}
 			incRank = append(incRank, catOut{
 				ID: id, Name: info.Name, Icon: info.Icon, Color: info.Color,
-				Amount: round2(m["income"]), Count: catCntMap[id], Percent: pct, Kind: "income",
+				Amount: m["income"], Count: catCntMap[id], Percent: pct, Kind: "income",
 			})
 		}
 	}
@@ -597,10 +602,10 @@ func GetBill(c *gin.Context) {
 
 	// === 每日趋势 ===
 	type trendPoint struct {
-		Date    string  `json:"date"`
-		Income  float64 `json:"income"`
-		Expense float64 `json:"expense"`
-		Net     float64 `json:"net"`
+		Date    string       `json:"date"`
+		Income  models.Money `json:"income"`
+		Expense models.Money `json:"expense"`
+		Net     models.Money `json:"net"`
 	}
 	var days []trendPoint
 	for d := first; !d.After(last); d = d.AddDate(0, 0, 1) {
@@ -613,11 +618,12 @@ func GetBill(c *gin.Context) {
 			Where("tx_date >= ? AND tx_date < ? AND type = ? AND include_in_balance = ?",
 				d, d.AddDate(0, 0, 1), string(models.TxExpense), true).
 			Select("COALESCE(SUM(amount), 0)").Row().Scan(&exp)
+		dayIncome, dayExpense := models.FromCents(inc), models.FromCents(exp)
 		days = append(days, trendPoint{
 			Date:    d.Format("01-02"),
-			Income:  round2(inc),
-			Expense: round2(exp),
-			Net:     round2(inc - exp),
+			Income:  dayIncome,
+			Expense: dayExpense,
+			Net:     dayIncome - dayExpense,
 		})
 	}
 
@@ -625,15 +631,15 @@ func GetBill(c *gin.Context) {
 	var budgets []models.Budget
 	database.DB.Where("user_id = ? AND start_date <= ? AND end_date >= ?", uid, last, first).Find(&budgets)
 	type budgOut struct {
-		ID          uint    `json:"id"`
-		Name        string  `json:"name"`
-		Amount      float64 `json:"amount"`
-		UsedAmount  float64 `json:"used_amount"`
-		Remaining   float64 `json:"remaining"`
-		UsageRate   float64 `json:"usage_rate"`
-		IsOverBudget bool    `json:"is_over_budget"`
-		CategoryID  uint    `json:"category_id"`
-		CategoryName string `json:"category_name"`
+		ID          uint         `json:"id"`
+		Name        string       `json:"name"`
+		Amount      models.Money `json:"amount"`
+		UsedAmount  models.Money `json:"used_amount"`
+		Remaining   models.Money `json:"remaining"`
+		UsageRate   float64      `json:"usage_rate"`
+		IsOverBudget bool        `json:"is_over_budget"`
+		CategoryID  uint         `json:"category_id"`
+		CategoryName string      `json:"category_name"`
 	}
 	var budgOuts []budgOut
 	for _, b := range budgets {
@@ -645,11 +651,11 @@ func GetBill(c *gin.Context) {
 		}
 		rate := 0.0
 		if b.Amount > 0 {
-			rate = round2(b.UsedAmount / b.Amount * 100)
+			rate = round2(b.UsedAmount.Yuan() / b.Amount.Yuan() * 100)
 		}
 		budgOuts = append(budgOuts, budgOut{
-			ID: b.ID, Amount: b.Amount, UsedAmount: round2(b.UsedAmount),
-			Remaining: round2(b.Amount - b.UsedAmount), UsageRate: rate,
+			ID: b.ID, Amount: b.Amount, UsedAmount: b.UsedAmount,
+			Remaining: b.Amount - b.UsedAmount, UsageRate: rate,
 			IsOverBudget: b.UsedAmount > b.Amount, CategoryID: b.CategoryID,
 			Name: name, CategoryName: name,
 		})
@@ -658,7 +664,7 @@ func GetBill(c *gin.Context) {
 	// === 账户资产快照 ===
 	var accounts []models.Account
 	database.DB.Where("user_id = ? AND is_archived = ?", uid, false).Find(&accounts)
-	var totalAsset, totalDebt float64
+	var totalAsset, totalDebt models.Money
 	for _, a := range accounts {
 		if !a.IncludeInTotal {
 			continue
@@ -693,22 +699,22 @@ func GetBill(c *gin.Context) {
 			"generated_at": time.Now().Format("2006-01-02 15:04:05"),
 		},
 		"summary": gin.H{
-			"total_income":      round2(income),
-			"total_expense":     round2(expense),
-			"net":               round2(income - expense),
+			"total_income":      income,
+			"total_expense":     expense,
+			"net":               income - expense,
 			"income_count":      incomeCnt,
 			"expense_count":     expenseCnt,
 			"transaction_count": incomeCnt + expenseCnt,
-			"avg_daily_expense": round2(expense / float64(last.Day())),
+			"avg_daily_expense": round2(expense.Yuan() / float64(last.Day())),
 		},
 		"category_expense": expRank,
 		"category_income":  incRank,
 		"daily_trend":      days,
 		"budgets":          budgOuts,
 		"assets": gin.H{
-			"total_asset": round2(totalAsset),
-			"total_debt":  round2(totalDebt),
-			"net_asset":   round2(totalAsset - totalDebt),
+			"total_asset": totalAsset,
+			"total_debt":  totalDebt,
+			"net_asset":   totalAsset - totalDebt,
 		},
 	})
 }
@@ -746,7 +752,7 @@ func resolveRefundLinks(db *gorm.DB, uid uint, createdTxs []models.Transaction) 
 	}
 }
 
-func mapKeys(m map[uint]map[string]float64) []uint {
+func mapKeys(m map[uint]map[string]models.Money) []uint {
 	out := make([]uint, 0, len(m))
 	for k := range m {
 		out = append(out, k)

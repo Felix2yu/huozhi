@@ -31,12 +31,15 @@ func GetStatistics(c *gin.Context) {
 	q = q.Where("include_in_balance = ?", true)
 
 	// 基础汇总
-	var totalIncome, totalExpense float64
+	var totalIncome, totalExpense models.Money
 	var incomeCount, expenseCount int64
+	var incSum, expSum float64
 	q.Where("type IN ?", []string{string(models.TxIncome), string(models.TxRefund)}).
-		Select("COALESCE(SUM(amount), 0), COUNT(*)").Row().Scan(&totalIncome, &incomeCount)
+		Select("COALESCE(SUM(amount), 0), COUNT(*)").Row().Scan(&incSum, &incomeCount)
 	q.Where("type = ?", string(models.TxExpense)).
-		Select("COALESCE(SUM(amount), 0), COUNT(*)").Row().Scan(&totalExpense, &expenseCount)
+		Select("COALESCE(SUM(amount), 0), COUNT(*)").Row().Scan(&expSum, &expenseCount)
+	totalIncome = models.FromCents(incSum)
+	totalExpense = models.FromCents(expSum)
 
 	result := gin.H{
 		"range": gin.H{
@@ -56,8 +59,8 @@ func GetStatistics(c *gin.Context) {
 	}
 	days := int(req.EndDate.T().Sub(req.StartDate.T()).Hours()/24) + 1
 	if days > 0 {
-		result["summary"].(gin.H)["avg_daily_expense"] = round2(totalExpense / float64(days))
-		result["summary"].(gin.H)["avg_daily_income"] = round2(totalIncome / float64(days))
+		result["summary"].(gin.H)["avg_daily_expense"] = round2(totalExpense.Yuan() / float64(days))
+		result["summary"].(gin.H)["avg_daily_income"] = round2(totalIncome.Yuan() / float64(days))
 	}
 
 	// ========== 按维度分类 ==========
@@ -84,16 +87,16 @@ func GetStatistics(c *gin.Context) {
 			if _, ok := catMap[k]; !ok {
 				catMap[k] = map[string]interface{}{
 					"category_id": r.CategoryID,
-					"income":      0.0,
-					"expense":     0.0,
+					"income":      models.Money(0),
+					"expense":     models.Money(0),
 					"count":       int64(0),
 				}
 			}
 			switch r.Type {
 			case string(models.TxIncome), string(models.TxRefund):
-				catMap[k]["income"] = catMap[k]["income"].(float64) + r.SumAmount
+				catMap[k]["income"] = catMap[k]["income"].(models.Money) + models.FromCents(r.SumAmount)
 			case string(models.TxExpense):
-				catMap[k]["expense"] = catMap[k]["expense"].(float64) + r.SumAmount
+				catMap[k]["expense"] = catMap[k]["expense"].(models.Money) + models.FromCents(r.SumAmount)
 			}
 			catMap[k]["count"] = catMap[k]["count"].(int64) + r.Count
 		}
@@ -112,41 +115,41 @@ func GetStatistics(c *gin.Context) {
 
 		// 构造支出排行数组（排序）
 		type catOut struct {
-			ID       uint    `json:"id"`
-			Name     string  `json:"name"`
-			Icon     string  `json:"icon"`
-			Color    string  `json:"color"`
-			Kind     string  `json:"kind"`
-			Amount   float64 `json:"amount"`
-			Count    int64   `json:"count"`
-			Percent  float64 `json:"percent"`
-			ParentID uint    `json:"parent_id"`
+			ID       uint         `json:"id"`
+			Name     string       `json:"name"`
+			Icon     string       `json:"icon"`
+			Color    string       `json:"color"`
+			Kind     string       `json:"kind"`
+			Amount   models.Money `json:"amount"`
+			Count    int64        `json:"count"`
+			Percent  float64      `json:"percent"`
+			ParentID uint         `json:"parent_id"`
 		}
 		var expenseRank, incomeRank []catOut
 
 		for id, m := range catMap {
 			info := catInfo[id]
-			expAmt := m["expense"].(float64)
-			incAmt := m["income"].(float64)
+			expAmt := m["expense"].(models.Money)
+			incAmt := m["income"].(models.Money)
 			if expAmt > 0 {
 				pct := 0.0
 				if totalExpense > 0 {
-					pct = round2(expAmt / totalExpense * 100)
+					pct = round2(expAmt.Yuan() / totalExpense.Yuan() * 100)
 				}
 				expenseRank = append(expenseRank, catOut{
 					ID: id, Name: info.Name, Icon: info.Icon, Color: info.Color,
-					Kind: string(info.Kind), Amount: round2(expAmt), Count: m["count"].(int64),
+					Kind: string(info.Kind), Amount: expAmt, Count: m["count"].(int64),
 					Percent: pct, ParentID: info.ParentID,
 				})
 			}
 			if incAmt > 0 {
 				pct := 0.0
 				if totalIncome > 0 {
-					pct = round2(incAmt / totalIncome * 100)
+					pct = round2(incAmt.Yuan() / totalIncome.Yuan() * 100)
 				}
 				incomeRank = append(incomeRank, catOut{
 					ID: id, Name: info.Name, Icon: info.Icon, Color: info.Color,
-					Kind: string(info.Kind), Amount: round2(incAmt), Count: m["count"].(int64),
+					Kind: string(info.Kind), Amount: incAmt, Count: m["count"].(int64),
 					Percent: pct, ParentID: info.ParentID,
 				})
 			}
@@ -171,13 +174,13 @@ func GetStatistics(c *gin.Context) {
 		out := map[uint]gin.H{}
 		for _, r := range accRows {
 			if _, ok := out[r.AccountID]; !ok {
-				out[r.AccountID] = gin.H{"account_id": r.AccountID, "income": 0.0, "expense": 0.0}
+				out[r.AccountID] = gin.H{"account_id": r.AccountID, "income": models.Money(0), "expense": models.Money(0)}
 			}
 			switch r.Type {
 			case string(models.TxIncome), string(models.TxRefund):
-				out[r.AccountID]["income"] = round2(out[r.AccountID]["income"].(float64) + r.SumAmount)
+				out[r.AccountID]["income"] = out[r.AccountID]["income"].(models.Money) + models.FromCents(r.SumAmount)
 			case string(models.TxExpense):
-				out[r.AccountID]["expense"] = round2(out[r.AccountID]["expense"].(float64) + r.SumAmount)
+				out[r.AccountID]["expense"] = out[r.AccountID]["expense"].(models.Money) + models.FromCents(r.SumAmount)
 			}
 		}
 		result["by_account"] = out
@@ -205,10 +208,10 @@ func GetStatistics(c *gin.Context) {
 		Group("day, type").Order("day ASC").Scan(&trendRows)
 
 	type trendPoint struct {
-		Date    string  `json:"date"`
-		Income  float64 `json:"income"`
-		Expense float64 `json:"expense"`
-		Net     float64 `json:"net"`
+		Date    string       `json:"date"`
+		Income  models.Money `json:"income"`
+		Expense models.Money `json:"expense"`
+		Net     models.Money `json:"net"`
 	}
 	trendMap := make(map[string]*trendPoint)
 	var trendOrder []string
@@ -219,15 +222,15 @@ func GetStatistics(c *gin.Context) {
 		}
 		switch r.Type {
 		case string(models.TxIncome), string(models.TxRefund):
-			trendMap[r.Day].Income = round2(trendMap[r.Day].Income + r.SumAmount)
+			trendMap[r.Day].Income += models.FromCents(r.SumAmount)
 		case string(models.TxExpense):
-			trendMap[r.Day].Expense = round2(trendMap[r.Day].Expense + r.SumAmount)
+			trendMap[r.Day].Expense += models.FromCents(r.SumAmount)
 		}
 	}
 	trendList := make([]trendPoint, 0, len(trendOrder))
 	for _, d := range trendOrder {
 		t := trendMap[d]
-		t.Net = round2(t.Income - t.Expense)
+		t.Net = t.Income - t.Expense
 		trendList = append(trendList, *t)
 	}
 	result["trend"] = trendList
@@ -235,7 +238,7 @@ func GetStatistics(c *gin.Context) {
 	// 4) Top 支出排行榜
 	var topExp []struct {
 		ID          uint
-		Amount      float64
+		Amount      models.Money
 		Description string
 		TxDate      time.Time
 		CategoryID  uint
@@ -260,8 +263,8 @@ func GetAssetOverview(c *gin.Context) {
 	var accounts []models.Account
 	database.DB.Where("user_id = ? AND is_archived = ?", uid, false).Find(&accounts)
 
-	var totalAsset, totalDebt, cashOnHand float64
-	assetByType := map[string]float64{}
+	var totalAsset, totalDebt, cashOnHand models.Money
+	assetByType := map[string]models.Money{}
 	for _, a := range accounts {
 		if !a.IncludeInTotal {
 			continue
@@ -287,25 +290,28 @@ func GetAssetOverview(c *gin.Context) {
 	now := time.Now()
 	first := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	last := first.AddDate(0, 1, 0)
-	var monthIncome, monthExpense float64
+	var monthIncome, monthExpense models.Money
+	var mi, me float64
 	database.DB.Model(&models.Transaction{}).
 		Where("user_id = ? AND tx_date >= ? AND tx_date < ? AND type IN ? AND include_in_balance = ?",
 			uid, first, last, []string{string(models.TxIncome), string(models.TxRefund)}, true).
-		Select("COALESCE(SUM(amount), 0)").Row().Scan(&monthIncome)
+		Select("COALESCE(SUM(amount), 0)").Row().Scan(&mi)
 	database.DB.Model(&models.Transaction{}).
 		Where("user_id = ? AND tx_date >= ? AND tx_date < ? AND type = ? AND include_in_balance = ?",
 			uid, first, last, string(models.TxExpense), true).
-		Select("COALESCE(SUM(amount), 0)").Row().Scan(&monthExpense)
+		Select("COALESCE(SUM(amount), 0)").Row().Scan(&me)
+	monthIncome = models.FromYuan(mi)
+	monthExpense = models.FromYuan(me)
 
 	OK(c, gin.H{
-		"total_asset":   round2(totalAsset),
-		"total_debt":    round2(totalDebt),
-		"net_asset":     round2(totalAsset - totalDebt),
-		"cash_on_hand":  round2(cashOnHand),
+		"total_asset":   totalAsset,
+		"total_debt":    totalDebt,
+		"net_asset":     totalAsset - totalDebt,
+		"cash_on_hand":  cashOnHand,
 		"by_type":       assetByType,
-		"month_income":  round2(monthIncome),
-		"month_expense": round2(monthExpense),
-		"month_net":     round2(monthIncome - monthExpense),
+		"month_income":  monthIncome,
+		"month_expense": monthExpense,
+		"month_net":     monthIncome - monthExpense,
 		"account_count": len(accounts),
 	})
 }
@@ -321,10 +327,10 @@ func GetAssetTimeline(c *gin.Context) {
 
 	now := time.Now()
 	type point struct {
-		Month      string  `json:"month"`
-		TotalAsset float64 `json:"total_asset"`
-		TotalDebt  float64 `json:"total_debt"`
-		NetAsset   float64 `json:"net_asset"`
+		Month      string       `json:"month"`
+		TotalAsset models.Money `json:"total_asset"`
+		TotalDebt  models.Money `json:"total_debt"`
+		NetAsset   models.Money `json:"net_asset"`
 	}
 	var points []point
 	for i := months - 1; i >= 0; i-- {
@@ -337,16 +343,16 @@ func GetAssetTimeline(c *gin.Context) {
 		if snap.ID > 0 {
 			points = append(points, point{
 				Month: d.Format("2006-01"),
-				TotalAsset: round2(snap.TotalAsset),
-				TotalDebt: round2(snap.TotalDebt),
-				NetAsset: round2(snap.NetAsset),
+				TotalAsset: snap.TotalAsset,
+				TotalDebt: snap.TotalDebt,
+				NetAsset: snap.NetAsset,
 			})
 			continue
 		}
 		// 否则用当前数据估算
 		var accounts []models.Account
 		database.DB.Where("user_id = ? AND is_archived = ?", uid, false).Find(&accounts)
-		var a, de float64
+		var a, de models.Money
 		for _, ac := range accounts {
 			if !ac.IncludeInTotal {
 				continue
@@ -360,9 +366,9 @@ func GetAssetTimeline(c *gin.Context) {
 		}
 		points = append(points, point{
 			Month:      d.Format("2006-01"),
-			TotalAsset: round2(a),
-			TotalDebt:  round2(de),
-			NetAsset:   round2(a - de),
+			TotalAsset: a,
+			TotalDebt:  de,
+			NetAsset:   a - de,
 		})
 	}
 
@@ -392,7 +398,7 @@ func CreateSavingPlan(c *gin.Context) {
 	s := models.SavingPlan{
 		UserID: uid, BookID: req.BookID, AccountID: req.AccountID,
 		Name: req.Name, Icon: req.Icon, Color: req.Color,
-		TargetAmount: req.TargetAmount, CurrentAmount: req.CurrentAmount,
+		TargetAmount: models.FromYuan(req.TargetAmount), CurrentAmount: models.FromYuan(req.CurrentAmount),
 		StartDate: req.StartDate.T(), TargetDate: req.TargetDate.T(),
 		Status: "active",
 	}
@@ -430,12 +436,12 @@ func AddSavingRecord(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil { Bad(c, err.Error()); return }
 	rec := models.SavingRecord{
 		UserID: uid, SavingPlanID: reqUri.ID,
-		Amount: req.Amount, RecordDate: req.RecordDate.T(),
+		Amount: models.FromYuan(req.Amount), RecordDate: req.RecordDate.T(),
 		TransactionID: req.TransactionID, Note: req.Note,
 	}
 	database.DB.Create(&rec)
 	database.DB.Model(&models.SavingPlan{}).Where("id = ?", reqUri.ID).
-		UpdateColumn("current_amount", gorm.Expr("current_amount + ?", req.Amount))
+		UpdateColumn("current_amount", gorm.Expr("current_amount + ?", int64(models.FromYuan(req.Amount))))
 	Created(c, rec)
 }
 
@@ -457,7 +463,7 @@ func CreateRecurring(c *gin.Context) {
 	}
 	r := models.Recurring{
 		UserID: uid, BookID: req.BookID, Name: req.Name,
-		Type: models.TransactionType(req.Type), Amount: req.Amount,
+		Type: models.TransactionType(req.Type), Amount: models.FromYuan(req.Amount),
 		CategoryID: req.CategoryID, AccountID: req.AccountID, ToAccountID: req.ToAccountID,
 		Description: req.Description, TagIDs: req.TagIDs,
 		RecurringType: models.RecurringType(req.RecurringType),
@@ -521,11 +527,13 @@ func CreateInstallment(c *gin.Context) {
 	var req dto.CreateInstallmentRequest
 	if err := c.ShouldBindJSON(&req); err != nil { Bad(c, err.Error()); return }
 	first, _ := time.Parse("2006-01-02", req.FirstRepayDate)
-	monthlyAmt := (req.TotalAmount + req.InterestAmount) / float64(req.TotalMonths)
+	total := models.FromYuan(req.TotalAmount) + models.FromYuan(req.InterestAmount)
+	// 月供 = (总额+利息)/期数，整数分四舍五入
+	monthlyAmt := models.Money((int64(total) + int64(req.TotalMonths)/2) / int64(req.TotalMonths))
 	ins := models.Installment{
 		UserID: uid, BookID: req.BookID, Name: req.Name,
-		TotalAmount: req.TotalAmount, TotalMonths: req.TotalMonths,
-		MonthlyAmount: monthlyAmt, InterestAmount: req.InterestAmount,
+		TotalAmount: models.FromYuan(req.TotalAmount), TotalMonths: req.TotalMonths,
+		MonthlyAmount: monthlyAmt, InterestAmount: models.FromYuan(req.InterestAmount),
 		CategoryID: req.CategoryID, AccountID: req.AccountID,
 		FirstRepayDate: first, NextRepayDate: first,
 		Description: req.Description, Status: "active",
@@ -556,7 +564,7 @@ func CreateReimbursement(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil { Bad(c, err.Error()); return }
 	r := models.Reimbursement{
 		UserID: uid, BookID: req.BookID, Name: req.Name,
-		TotalAmount: req.TotalAmount, Remark: req.Remark,
+		TotalAmount: models.FromYuan(req.TotalAmount), Remark: req.Remark,
 		TransactionIDs: req.TransactionIDs, Status: "pending",
 		SubmittedAt: time.Now(),
 	}
@@ -577,7 +585,7 @@ func UpdateReimbursement(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil { Bad(c, err.Error()); return }
 	r := database.DB.Model(&models.Reimbursement{}).Where("id = ? AND user_id = ?", reqUri.ID, uid)
 	updates := map[string]interface{}{
-		"status": req.Status, "received_amount": req.ReceivedAmount, "remark": req.Remark,
+		"status": req.Status, "received_amount": models.FromYuan(req.ReceivedAmount), "remark": req.Remark,
 	}
 	if req.Status == "received" {
 		updates["received_at"] = time.Now()

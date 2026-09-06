@@ -58,14 +58,14 @@ func CreateTransaction(c *gin.Context) {
 		UserID:           uid,
 		BookID:           req.BookID,
 		Type:             models.TransactionType(req.Type),
-		Amount:           req.Amount,
+		Amount:           models.FromYuan(req.Amount),
 		Currency:         firstNotEmpty(req.Currency, "CNY"),
 		ExchangeRate:     req.ExchangeRate,
 		CategoryID:       req.CategoryID,
 		AccountID:        req.AccountID,
 		ToAccountID:      req.ToAccountID,
-		TransferFee:      req.TransferFee,
-		TransferDiscount: req.TransferDiscount,
+		TransferFee:      models.FromYuan(req.TransferFee),
+		TransferDiscount: models.FromYuan(req.TransferDiscount),
 		RefundOfID:       req.RefundOfID,
 		TxDate:           req.TxDate.T(),
 		Description:      req.Description,
@@ -154,15 +154,16 @@ func isDebtAccount(a *models.Account) bool {
 
 // debtSign 返回账户余额方向系数：普通资产账户为 +1（正数=我拥有的钱）；
 // 信用卡/负债账户为 -1（正数=欠款，增减方向与资产相反）。
-func debtSign(a *models.Account) float64 {
+func debtSign(a *models.Account) int64 {
 	if isDebtAccount(a) {
 		return -1
 	}
 	return 1
 }
 
+// updateAccountBalances 按整数分运算更新余额（金额列为 bigint，无浮点误差）
 func updateAccountBalances(db *gorm.DB, tx *models.Transaction, from, to *models.Account, isAdd bool) {
-	factor := 1.0
+	factor := int64(1)
 	if !isAdd {
 		factor = -1
 	}
@@ -172,21 +173,24 @@ func updateAccountBalances(db *gorm.DB, tx *models.Transaction, from, to *models
 	// ds = 账户方向系数，债务类账户取反
 	dsFrom := debtSign(from)
 	dsTo := debtSign(to)
+	amount := int64(tx.Amount)
+	fee := int64(tx.TransferFee)
+	discount := int64(tx.TransferDiscount)
 	switch tx.Type {
 	case models.TxExpense, models.TxReimburse:
 		// 支出：from账户余额减少（信用卡则欠款增加）
-		db.Model(from).Update("balance", gorm.Expr("balance - ?", tx.Amount*factor*dsFrom))
+		db.Model(from).Update("balance", gorm.Expr("balance - ?", amount*factor*dsFrom))
 	case models.TxIncome, models.TxRefund:
 		// 收入/退款：from账户余额增加（信用卡则欠款减少）
-		db.Model(from).Update("balance", gorm.Expr("balance + ?", tx.Amount*factor*dsFrom))
+		db.Model(from).Update("balance", gorm.Expr("balance + ?", amount*factor*dsFrom))
 	case models.TxTransfer:
 		// 转账：from 减少 amount、增加 discount（信用卡侧方向取反）；to 增加 amount
-		db.Model(from).Update("balance", gorm.Expr("balance - ? + ?", tx.Amount*factor*dsFrom, tx.TransferDiscount*factor*dsFrom))
+		db.Model(from).Update("balance", gorm.Expr("balance - ? + ?", amount*factor*dsFrom, discount*factor*dsFrom))
 		if tx.TransferFee > 0 {
-			db.Model(from).Update("balance", gorm.Expr("balance - ?", tx.TransferFee*factor*dsFrom))
+			db.Model(from).Update("balance", gorm.Expr("balance - ?", fee*factor*dsFrom))
 		}
 		if to != nil && to.ID > 0 {
-			db.Model(to).Update("balance", gorm.Expr("balance + ?", tx.Amount*factor*dsTo))
+			db.Model(to).Update("balance", gorm.Expr("balance + ?", amount*factor*dsTo))
 		}
 	case models.TxAdjust:
 		// 调整：直接设置（由Adjust处理，这里不做）
@@ -195,11 +199,11 @@ func updateAccountBalances(db *gorm.DB, tx *models.Transaction, from, to *models
 
 // applyBudgetUsed 应用预算 used_amount 变更（支持所有 period_type，通过 start/end_date 范围匹配）
 // factor=+1 增加（创建/修改为新值），factor=-1 减少（删除/撤销旧值）
-func applyBudgetUsed(db *gorm.DB, uid, bookID, catID uint, date time.Time, amount float64, txType models.TransactionType, includeInBudget bool, factor float64) {
+func applyBudgetUsed(db *gorm.DB, uid, bookID, catID uint, date time.Time, amount models.Money, txType models.TransactionType, includeInBudget bool, factor int64) {
 	if txType != models.TxExpense || !includeInBudget || amount <= 0 {
 		return
 	}
-	delta := amount * factor
+	delta := int64(amount) * factor
 	// 总预算（category_id=0）
 	db.Model(&models.Budget{}).
 		Where("user_id = ? AND book_id = ? AND category_id = 0 AND start_date <= ? AND end_date >= ?",
@@ -267,10 +271,10 @@ func ListTransactions(c *gin.Context) {
 		q = q.Where("description LIKE ? OR merchant LIKE ? OR remark LIKE ?", k, k, k)
 	}
 	if req.MinAmount > 0 {
-		q = q.Where("amount >= ?", req.MinAmount)
+		q = q.Where("amount >= ?", models.FromYuan(req.MinAmount))
 	}
 	if req.MaxAmount > 0 {
-		q = q.Where("amount <= ?", req.MaxAmount)
+		q = q.Where("amount <= ?", models.FromYuan(req.MaxAmount))
 	}
 	if req.TagID > 0 {
 		q = q.Joins("JOIN transaction_tags ON transactions.id = transaction_tags.transaction_id").
@@ -300,9 +304,9 @@ func ListTransactions(c *gin.Context) {
 	}
 	type dayGroup struct {
 		Date        string               `json:"date"`
-		DayIncome   float64              `json:"day_income"`
-		DayExpense  float64              `json:"day_expense"`
-		DayBalance  float64              `json:"day_balance"`
+		DayIncome   models.Money         `json:"day_income"`
+		DayExpense  models.Money         `json:"day_expense"`
+		DayBalance  models.Money         `json:"day_balance"`
 		Transactions []models.Transaction `json:"transactions"`
 	}
 	var grouped []dayGroup
@@ -321,7 +325,7 @@ func ListTransactions(c *gin.Context) {
 	}
 
 	// 汇总 — 必须用新 query，不能复用已执行过 Find 的 q
-	var sumIn, sumOut float64
+	var sumIn, sumOut models.Money
 	sq := database.DB.Model(&models.Transaction{}).Where("user_id = ?", uid)
 	if req.BookID > 0 {
 		sq = sq.Where("book_id = ?", req.BookID)
@@ -341,9 +345,9 @@ func ListTransactions(c *gin.Context) {
 		for _, s := range sums {
 			switch s.Type {
 			case string(models.TxIncome), string(models.TxRefund):
-				sumIn += s.Amt
+				sumIn += models.FromCents(s.Amt)
 			case string(models.TxExpense):
-				sumOut += s.Amt
+				sumOut += models.FromCents(s.Amt)
 			}
 		}
 	}
@@ -390,14 +394,14 @@ func UpdateTransaction(c *gin.Context) {
 	updates := map[string]interface{}{
 		"book_id":            req.BookID,
 		"type":               req.Type,
-		"amount":             req.Amount,
+		"amount":             models.FromYuan(req.Amount),
 		"currency":           req.Currency,
 		"exchange_rate":      req.ExchangeRate,
 		"category_id":        req.CategoryID,
 		"account_id":         req.AccountID,
 		"to_account_id":      req.ToAccountID,
-		"transfer_fee":       req.TransferFee,
-		"transfer_discount":  req.TransferDiscount,
+		"transfer_fee":       models.FromYuan(req.TransferFee),
+		"transfer_discount":  models.FromYuan(req.TransferDiscount),
 		"refund_of_id":       req.RefundOfID,
 		"tx_date":            req.TxDate.T(),
 		"description":        req.Description,
@@ -512,21 +516,21 @@ func ListBudgets(c *gin.Context) {
 	// 计算剩余
 	type budgetView struct {
 		models.Budget
-		Remaining   float64 `json:"remaining"`
-		UsageRate   float64 `json:"usage_rate"`
-		IsOverBudget bool    `json:"is_over_budget"`
-		DailyBudget float64 `json:"daily_budget"`
+		Remaining   models.Money `json:"remaining"`
+		UsageRate   float64      `json:"usage_rate"`
+		IsOverBudget bool        `json:"is_over_budget"`
+		DailyBudget float64      `json:"daily_budget"`
 	}
 	out := make([]budgetView, 0, len(list))
 	for _, b := range list {
 		v := budgetView{Budget: b, Remaining: b.Amount - b.UsedAmount, UsageRate: 0}
 		if b.Amount > 0 {
-			v.UsageRate = math.Round(b.UsedAmount/b.Amount*1000) / 1000
+			v.UsageRate = math.Round(b.UsedAmount.Yuan()/b.Amount.Yuan()*1000) / 1000
 		}
 		v.IsOverBudget = b.UsedAmount > b.Amount
 		days := b.EndDate.Sub(b.StartDate).Hours()/24 + 1
 		if days > 0 {
-			v.DailyBudget = math.Round((b.Amount-b.UsedAmount)/days*100) / 100
+			v.DailyBudget = math.Round((b.Amount - b.UsedAmount).Yuan()/days*100) / 100
 		}
 		out = append(out, v)
 	}
@@ -545,7 +549,7 @@ func CreateBudget(c *gin.Context) {
 		BookID:     req.BookID,
 		PeriodType: req.PeriodType,
 		CategoryID: req.CategoryID,
-		Amount:     req.Amount,
+		Amount:     models.FromYuan(req.Amount),
 		StartDate:  req.StartDate.T(),
 		EndDate:    req.EndDate.T(),
 		AlertRate:  req.AlertRate,

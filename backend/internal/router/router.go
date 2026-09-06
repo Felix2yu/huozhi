@@ -93,6 +93,7 @@ func New(mode string, staticDir string) *gin.Engine {
 			{
 				categories.GET("", handlers.ListCategories)
 				categories.POST("", handlers.CreateCategory)
+				categories.PUT("/reorder", handlers.ReorderCategories)
 				categories.PUT("/:id", handlers.UpdateCategory)
 				categories.DELETE("/:id", handlers.DeleteCategory)
 			}

@@ -244,7 +244,7 @@ func processRecurring(r *models.Recurring) {
 		db.Model(&lock).Update("next_run_at", next)
 	}
 	db.Commit()
-	log.Printf("[Cron] 周期记账执行 ok recurring_id=%d tx_id=%d amount=%.2f type=%s next=%v",
+	log.Printf("[Cron] 周期记账执行 ok recurring_id=%d tx_id=%d amount=%s type=%s next=%v",
 		lock.ID, tx.ID, lock.Amount, lock.Type, next)
 }
 
@@ -327,7 +327,7 @@ func saveDailyAssetSnapshot() {
 	for _, u := range users {
 		var accounts []models.Account
 		database.DB.Where("user_id = ? AND is_archived = ?", u.ID, false).Find(&accounts)
-		var asset, debt float64
+		var asset, debt models.Money
 		for _, a := range accounts {
 			if !a.IncludeInTotal {
 				continue

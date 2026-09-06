@@ -83,8 +83,8 @@ func TestParseQianJiRows(t *testing.T) {
 	if tx0.Type != models.TxExpense {
 		t.Errorf("row0 type = %s, want expense", tx0.Type)
 	}
-	if tx0.Amount != 26.9 {
-		t.Errorf("row0 amount = %v, want 26.9", tx0.Amount)
+	if tx0.Amount != models.Money(2690) {
+		t.Errorf("row0 amount = %v, want 26.9", tx0.Amount.String())
 	}
 	if tx0.Currency != "CNY" {
 		t.Errorf("row0 currency = %s, want CNY", tx0.Currency)
@@ -113,7 +113,7 @@ func TestParseQianJiRows(t *testing.T) {
 	if tx1.Type != models.TxRefund {
 		t.Errorf("row1 type = %s, want refund", tx1.Type)
 	}
-	if tx1.Amount != 14 {
+	if tx1.Amount != models.FromYuan(14) {
 		t.Errorf("row1 amount = %v, want 14", tx1.Amount)
 	}
 	var c1 models.Category
@@ -130,13 +130,13 @@ func TestParseQianJiRows(t *testing.T) {
 	if tx2.Type != models.TxTransfer {
 		t.Errorf("row2 type = %s, want transfer", tx2.Type)
 	}
-	if tx2.Amount != 8 {
+	if tx2.Amount != models.FromYuan(8) {
 		t.Errorf("row2 amount = %v, want 8", tx2.Amount)
 	}
 	if tx2.ToAccountID == 0 {
 		t.Errorf("row2 ToAccountID not resolved")
 	}
-	if tx2.TransferFee != 2.0 {
+	if tx2.TransferFee != models.FromYuan(2) {
 		t.Errorf("row2 transfer fee = %v, want 2.0", tx2.TransferFee)
 	}
 	var a2 models.Account
@@ -275,7 +275,7 @@ func TestParseQianJiRowsTransferByAccounts(t *testing.T) {
 	if tx.AccountID == 0 || tx.ToAccountID == 0 {
 		t.Errorf("accounts not resolved: from=%d to=%d", tx.AccountID, tx.ToAccountID)
 	}
-	if tx.Amount != 500 {
+	if tx.Amount != models.FromYuan(500) {
 		t.Errorf("amount = %v, want 500", tx.Amount)
 	}
 }
@@ -362,8 +362,8 @@ func TestParseQianJiRowsPreviouslyMissingFields(t *testing.T) {
 	if ref.ReimburseStatus != "done" {
 		t.Errorf("refund ReimburseStatus = %q, want done", ref.ReimburseStatus)
 	}
-	if ref.ReimburseAmount != 88.5 {
-		t.Errorf("refund ReimburseAmount = %v, want 88.5", ref.ReimburseAmount)
+	if ref.ReimburseAmount != models.Money(8850) {
+		t.Errorf("refund ReimburseAmount = %v, want 88.5", ref.ReimburseAmount.String())
 	}
 	if ref.RefundOfExternalID != "ext-001" {
 		t.Errorf("RefundOfExternalID = %q, want ext-001", ref.RefundOfExternalID)
@@ -443,4 +443,59 @@ func colLetter(i int) string {
 		i /= 26
 	}
 	return s
+}
+
+// 钱迹自定义一级分类（系统里不存在）不应被兜底吞掉：应按名称创建一级分类，
+// 二级分类挂在其下；「分类=二级分类同名」时直接挂一级，不建同名子分类。
+func TestParseQianJiRowsCustomTopCategory(t *testing.T) {
+	uid, bookID := qjSetup(t)
+	rows := [][]string{
+		{"ID", "时间", "账本", "分类", "二级分类", "类型", "金额", "币种", "账户1", "账户2", "备注", "已报销", "手续费", "优惠券", "记账者", "账单标记", "标签", "账单图片", "关联账单"},
+		{"qj-c1", "2026-09-04 12:00:00", "日常账本", "电器数码", "软件服务", "支出", "100", "CNY", "花呗", "", "Adobe", "", "", "", "子翼", "", "", "", ""},
+		{"qj-c2", "2026-09-04 12:30:00", "日常账本", "植物花卉", "", "支出", "50", "CNY", "花呗", "", "多肉", "", "", "", "子翼", "", "", "", ""},
+		{"qj-c3", "2026-09-04 13:00:00", "日常账本", "食物", "食物", "支出", "20", "CNY", "花呗", "", "夜宵", "", "", "", "子翼", "", "", "", ""},
+	}
+	txs, err := parseQianJiRows(rows, nil, uid, bookID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(txs) != 3 {
+		t.Fatalf("parsed %d txs, want 3", len(txs))
+	}
+
+	assertTop := func(name string) models.Category {
+		t.Helper()
+		var c models.Category
+		if err := database.DB.Where("user_id = ? AND name = ? AND parent_id = 0", uid, name).First(&c).Error; err != nil {
+			t.Fatalf("自定义一级分类「%s」未创建: %v", name, err)
+		}
+		return c
+	}
+
+	// 1) 电器数码 → 新建一级分类；软件服务挂其下
+	top := assertTop("电器数码")
+	var sub models.Category
+	if err := database.DB.First(&sub, txs[0].CategoryID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if sub.Name != "软件服务" || sub.ParentID != top.ID {
+		t.Errorf("交易应挂在「电器数码」下的二级「软件服务」(parent=%d), got %s (parent=%d)", top.ID, sub.Name, sub.ParentID)
+	}
+
+	// 2) 植物花卉（无二级）→ 新建一级并直接挂
+	top = assertTop("植物花卉")
+	if txs[1].CategoryID != top.ID {
+		t.Errorf("无二级分类的交易应直接挂一级「植物花卉」id=%d, got %d", top.ID, txs[1].CategoryID)
+	}
+
+	// 3) 分类=食物、二级分类=食物 → 只建一级「食物」，不建同名子分类
+	top = assertTop("食物")
+	var sameNameSubs int64
+	database.DB.Model(&models.Category{}).Where("user_id = ? AND name = ? AND parent_id > 0", uid, "食物").Count(&sameNameSubs)
+	if sameNameSubs != 0 {
+		t.Errorf("不应创建与一级同名的二级分类")
+	}
+	if txs[2].CategoryID != top.ID {
+		t.Errorf("同名二级应直接挂一级「食物」id=%d, got %d", top.ID, txs[2].CategoryID)
+	}
 }

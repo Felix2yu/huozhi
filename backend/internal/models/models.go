@@ -83,15 +83,15 @@ type Account struct {
 	Name          string      `gorm:"size:100;not null" json:"name"`
 	Type          AccountType `gorm:"size:20;not null;index" json:"type"`
 	Currency      string      `gorm:"size:10;default:CNY" json:"currency"`
-	Balance       float64     `gorm:"default:0" json:"balance"`         // 当前余额
-	InitialAmount float64     `gorm:"default:0" json:"initial_amount"`  // 初始金额
+	Balance       Money       `gorm:"default:0" json:"balance"`         // 当前余额（分）
+	InitialAmount Money       `gorm:"default:0" json:"initial_amount"`  // 初始金额（分）
 	Icon          string      `gorm:"size:50" json:"icon"`
 	Color         string      `gorm:"size:20" json:"color"`
 	BankName        string `gorm:"size:100" json:"bank_name"`          // 银行名
 	CardNo4         string `gorm:"size:10" json:"card_no4"`            // 尾号4位
 	EncryptedCardNo string `gorm:"size:512" json:"-"`                  // 完整卡号（AES-GCM 加密存，默认不返回前端）
 	// 信用卡专属
-	CreditLimit     float64 `gorm:"default:0" json:"credit_limit"`       // 额度
+	CreditLimit     Money   `gorm:"default:0" json:"credit_limit"`       // 额度（分）
 	BillDay         int     `gorm:"default:0" json:"bill_day"`           // 账单日
 	RepayDay        int     `gorm:"default:0" json:"repay_day"`          // 还款日
 	ExpireMonth     int     `gorm:"default:0" json:"expire_month"`       // 卡有效期月份 1-12
@@ -165,7 +165,7 @@ type Transaction struct {
 	UserID        uint            `gorm:"not null;index" json:"user_id"`
 	BookID        uint            `gorm:"not null;index" json:"book_id"`
 	Type          TransactionType `gorm:"size:20;not null;index" json:"type"`
-	Amount        float64         `gorm:"not null;index" json:"amount"`
+	Amount        Money           `gorm:"not null;index" json:"amount"` // 金额（分）
 	Currency      string          `gorm:"size:10;default:CNY" json:"currency"`
 	// 汇率（多币种），amount * ExchangeRate = 账本货币金额
 	ExchangeRate  float64         `gorm:"default:1" json:"exchange_rate"`
@@ -173,12 +173,12 @@ type Transaction struct {
 	AccountID     uint            `gorm:"not null;index" json:"account_id"`
 	// 转账相关
 	ToAccountID   uint            `gorm:"default:0;index" json:"to_account_id"`
-	TransferFee   float64         `gorm:"default:0" json:"transfer_fee"`
-	TransferDiscount float64      `gorm:"default:0" json:"transfer_discount"`
+	TransferFee   Money           `gorm:"default:0" json:"transfer_fee"` // 手续费（分）
+	TransferDiscount Money         `gorm:"default:0" json:"transfer_discount"` // 优惠（分）
 	// 关联退款/报销
 	RefundOfID    uint            `gorm:"default:0;index" json:"refund_of_id"`
 	ReimburseStatus string        `gorm:"size:20;default:none" json:"reimburse_status"` // none, pending, done
-	ReimburseAmount float64       `gorm:"default:0" json:"reimburse_amount"`
+	ReimburseAmount Money         `gorm:"default:0" json:"reimburse_amount"` // 报销金额（分）
 	// 记账者（协作账本中记录是谁记的账）
 	RecordedBy    string          `gorm:"size:100" json:"recorded_by"`
 	// 账单标记（信用卡账单归属标记，如某笔消费归属的账单月份）
@@ -237,8 +237,8 @@ type Budget struct {
 	BookID      uint         `gorm:"not null;index" json:"book_id"`
 	PeriodType  string       `gorm:"size:20;not null" json:"period_type"` // monthly, yearly, custom
 	CategoryID  uint         `gorm:"default:0;index" json:"category_id"` // 0=总预算
-	Amount      float64      `gorm:"not null" json:"amount"`
-	UsedAmount  float64      `gorm:"default:0" json:"used_amount"`
+	Amount      Money        `gorm:"not null" json:"amount"` // 金额（分）
+	UsedAmount  Money        `gorm:"default:0" json:"used_amount"` // 已用（分）
 	StartDate   time.Time    `gorm:"not null" json:"start_date"`
 	EndDate     time.Time    `gorm:"not null" json:"end_date"`
 	AlertRate   float64      `gorm:"default:0.8" json:"alert_rate"` // 超80%提醒
@@ -256,8 +256,8 @@ type SavingPlan struct {
 	Name          string    `gorm:"size:100;not null" json:"name"`
 	Icon          string    `gorm:"size:50" json:"icon"`
 	Color         string    `gorm:"size:20" json:"color"`
-	TargetAmount  float64   `gorm:"not null" json:"target_amount"`
-	CurrentAmount float64   `gorm:"default:0" json:"current_amount"`
+	TargetAmount  Money     `gorm:"not null" json:"target_amount"` // 目标金额（分）
+	CurrentAmount Money     `gorm:"default:0" json:"current_amount"` // 当前金额（分）
 	StartDate     time.Time `gorm:"not null" json:"start_date"`
 	TargetDate    time.Time `gorm:"not null" json:"target_date"`
 	Status        string    `gorm:"size:20;default:active" json:"status"` // active, done, paused
@@ -268,7 +268,7 @@ type SavingRecord struct {
 	BaseModel
 	UserID      uint      `gorm:"not null;index" json:"user_id"`
 	SavingPlanID uint     `gorm:"not null;index" json:"saving_plan_id"`
-	Amount      float64   `gorm:"not null" json:"amount"`
+	Amount      Money     `gorm:"not null" json:"amount"` // 金额（分）
 	RecordDate  time.Time `gorm:"not null" json:"record_date"`
 	TransactionID uint    `gorm:"default:0;index" json:"transaction_id"`
 	Note        string    `gorm:"size:500" json:"note"`
@@ -295,7 +295,7 @@ type Recurring struct {
 	BookID      uint            `gorm:"not null;index" json:"book_id"`
 	Name        string          `gorm:"size:100;not null" json:"name"`
 	Type        TransactionType `gorm:"size:20;not null" json:"type"`
-	Amount      float64         `gorm:"not null" json:"amount"`
+	Amount      Money           `gorm:"not null" json:"amount"` // 金额（分）
 	CategoryID  uint            `gorm:"not null" json:"category_id"`
 	AccountID   uint            `gorm:"not null" json:"account_id"`
 	ToAccountID uint            `gorm:"default:0" json:"to_account_id"`
@@ -385,11 +385,11 @@ type Installment struct {
 	UserID          uint      `gorm:"not null;index" json:"user_id"`
 	BookID          uint      `gorm:"not null;index" json:"book_id"`
 	Name            string    `gorm:"size:100;not null" json:"name"`
-	TotalAmount     float64   `gorm:"not null" json:"total_amount"`
+	TotalAmount     Money     `gorm:"not null" json:"total_amount"` // 总额（分）
 	TotalMonths     int       `gorm:"not null" json:"total_months"`
 	PaidMonths      int       `gorm:"default:0" json:"paid_months"`
-	MonthlyAmount   float64   `gorm:"not null" json:"monthly_amount"`
-	InterestAmount  float64   `gorm:"default:0" json:"interest_amount"`
+	MonthlyAmount   Money     `gorm:"not null" json:"monthly_amount"` // 月供（分）
+	InterestAmount  Money     `gorm:"default:0" json:"interest_amount"` // 利息（分）
 	CategoryID      uint      `gorm:"not null" json:"category_id"`
 	AccountID       uint      `gorm:"not null" json:"account_id"`
 	FirstRepayDate  time.Time `gorm:"not null" json:"first_repay_date"`
@@ -406,8 +406,8 @@ type Reimbursement struct {
 	UserID        uint      `gorm:"not null;index" json:"user_id"`
 	BookID        uint      `gorm:"not null;index" json:"book_id"`
 	Name          string    `gorm:"size:100;not null" json:"name"`
-	TotalAmount   float64   `gorm:"not null" json:"total_amount"`
-	ReceivedAmount float64  `gorm:"default:0" json:"received_amount"`
+	TotalAmount   Money     `gorm:"not null" json:"total_amount"` // 总额（分）
+	ReceivedAmount Money     `gorm:"default:0" json:"received_amount"` // 已收（分）
 	Status        string    `gorm:"size:20;default:pending" json:"status"` // pending, received, partial
 	SubmittedAt   time.Time `json:"submitted_at"`
 	ReceivedAt    time.Time `json:"received_at"`
@@ -423,9 +423,9 @@ type AssetSnapshot struct {
 	ID        uint      `gorm:"primarykey" json:"id"`
 	UserID    uint      `gorm:"not null;uniqueIndex:idx_user_date" json:"user_id"`
 	SnapDate  time.Time `gorm:"not null;uniqueIndex:idx_user_date;index" json:"snap_date"`
-	TotalAsset float64  `gorm:"default:0" json:"total_asset"`
-	TotalDebt  float64  `gorm:"default:0" json:"total_debt"`
-	NetAsset   float64  `gorm:"default:0" json:"net_asset"`
+	TotalAsset Money    `gorm:"default:0" json:"total_asset"` // 总资产（分）
+	TotalDebt  Money    `gorm:"default:0" json:"total_debt"` // 总负债（分）
+	NetAsset   Money    `gorm:"default:0" json:"net_asset"` // 净资产（分）
 	Currency   string   `gorm:"size:10;default:CNY" json:"currency"`
 	Detail     string   `gorm:"type:text" json:"detail"` // JSON 各账户余额快照
 	CreatedAt  time.Time `json:"created_at"`

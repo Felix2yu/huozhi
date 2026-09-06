@@ -78,7 +78,8 @@ func parseQianJiRows(rows [][]string, rowImgs map[int][]string, uid, bookID uint
 		}
 		e := findCategoryOrCreate(uid, bid, "其他支出", models.KindExpense, "📦")
 		i := findCategoryOrCreate(uid, bid, "其他收入", models.KindIncome, "💰")
-		t := findCategoryOrCreate(uid, bid, "转账", models.KindExpense, "🔁")
+		// 转账不属于收支，与支出/收入平级（kind=system，与建账本时预置的「转账」一致）
+		t := findCategoryOrCreate(uid, bid, "转账", models.KindSystem, "🔄")
 		fallbackCache[bid] = [3]models.Category{e, i, t}
 		return e, i, t
 	}
@@ -108,7 +109,7 @@ func parseQianJiRows(rows [][]string, rowImgs map[int][]string, uid, bookID uint
 
 		tx := models.Transaction{
 			BookID:      rowBookID,
-			Amount:      amt,
+			Amount:      models.FromYuan(amt),
 			Currency:    firstNonEmpty(get(row, "币种"), "CNY"),
 			TxDate:      d,
 			Description: get(row, "备注"),
@@ -129,24 +130,24 @@ func parseQianJiRows(rows [][]string, rowImgs map[int][]string, uid, bookID uint
 		switch typeStr {
 		case "收入":
 			tx.Type = models.TxIncome
-			parentID := matchCategory(uid, rowBookID, get(row, "分类"), models.KindIncome, incomeCat)
+			parentID := matchTopCategory(uid, rowBookID, get(row, "分类"), models.KindIncome, incomeCat)
 			tx.CategoryID = resolveSubCategory(uid, parentID, subName)
 		case "退款":
 			tx.Type = models.TxRefund
-			parentID := matchCategoryAny(uid, bookID, get(row, "分类"), incomeCat)
+			parentID := matchTopCategoryAny(uid, rowBookID, get(row, "分类"), incomeCat)
 			tx.CategoryID = resolveSubCategory(uid, parentID, subName)
 		case "转账":
 			tx.Type = models.TxTransfer
 			tx.CategoryID = resolveSubCategory(uid, transferCat.ID, subName)
 			if fee := parseFloat(get(row, "手续费")); fee > 0 {
-				tx.TransferFee = fee
+				tx.TransferFee = models.FromYuan(fee)
 			}
 			if disc := parseFloat(get(row, "优惠券")); disc > 0 {
-				tx.TransferDiscount = disc
+				tx.TransferDiscount = models.FromYuan(disc)
 			}
 		case "支出":
 			tx.Type = models.TxExpense
-			parentID := matchCategory(uid, rowBookID, get(row, "分类"), models.KindExpense, expenseCat)
+			parentID := matchTopCategory(uid, rowBookID, get(row, "分类"), models.KindExpense, expenseCat)
 			tx.CategoryID = resolveSubCategory(uid, parentID, subName)
 		default:
 			// 其他 / 未知类型：钱迹中「账户1、账户2 同时存在」即视为转账（含信用卡还款等）；
@@ -155,14 +156,14 @@ func parseQianJiRows(rows [][]string, rowImgs map[int][]string, uid, bookID uint
 				tx.Type = models.TxTransfer
 				tx.CategoryID = resolveSubCategory(uid, transferCat.ID, subName)
 				if fee := parseFloat(get(row, "手续费")); fee > 0 {
-					tx.TransferFee = fee
+					tx.TransferFee = models.FromYuan(fee)
 				}
 				if disc := parseFloat(get(row, "优惠券")); disc > 0 {
-					tx.TransferDiscount = disc
+					tx.TransferDiscount = models.FromYuan(disc)
 				}
 			} else {
 				tx.Type = models.TxExpense
-				parentID := matchCategory(uid, rowBookID, get(row, "分类"), models.KindExpense, expenseCat)
+				parentID := matchTopCategory(uid, rowBookID, get(row, "分类"), models.KindExpense, expenseCat)
 				tx.CategoryID = resolveSubCategory(uid, parentID, subName)
 			}
 		}
@@ -180,7 +181,7 @@ func parseQianJiRows(rows [][]string, rowImgs map[int][]string, uid, bookID uint
 		if rb := get(row, "已报销"); rb != "" {
 			if num := parseFloat(rb); num > 0 {
 				tx.ReimburseStatus = "done"
-				tx.ReimburseAmount = num
+				tx.ReimburseAmount = models.FromYuan(num)
 			} else if isReimbursed(rb) {
 				tx.ReimburseStatus = "done"
 			} else {
@@ -228,19 +229,44 @@ func parseQianJiDate(s string) time.Time {
 	return time.Now()
 }
 
-// matchCategoryAny 按名称匹配分类（不限 kind），用于退款等需保留原分类名的场景
-func matchCategoryAny(uid, bookID uint, name string, fallback models.Category) uint {
+// matchTopCategory 按名称匹配钱迹账单的「一级分类」，仅匹配 parent_id=0 的顶层分类；
+// 不存在（钱迹允许自定义一级分类）则按名称创建，而不是吞进兜底分类，
+// 否则「电器数码」这类自定义一级会被丢弃、其二级分类整体挂错层级。
+func matchTopCategory(uid, bookID uint, name string, kind models.CategoryKind, fallback models.Category) uint {
+	return matchTopCategoryOfKind(uid, bookID, name, &kind, fallback)
+}
+
+// matchTopCategoryAny 同 matchTopCategory，但不限分类 kind（退款需挂回原支出分类）。
+func matchTopCategoryAny(uid, bookID uint, name string, fallback models.Category) uint {
+	return matchTopCategoryOfKind(uid, bookID, name, nil, fallback)
+}
+
+func matchTopCategoryOfKind(uid, bookID uint, name string, kind *models.CategoryKind, fallback models.Category) uint {
+	name = strings.TrimSpace(name)
 	if name == "" {
 		return fallback.ID
 	}
+	wantKind := fallback.Kind
+	if kind != nil {
+		wantKind = *kind
+	}
 	var c models.Category
-	if err := database.DB.Where("user_id = ? AND (book_id = 0 OR book_id = ?) AND name = ?", uid, bookID, name).First(&c).Error; err == nil {
+	q := database.DB.Where("user_id = ? AND (book_id = 0 OR book_id = ?) AND parent_id = 0 AND name = ?", uid, bookID, name)
+	if kind != nil {
+		q = q.Where("kind = ?", wantKind)
+	}
+	if err := q.First(&c).Error; err == nil {
 		return c.ID
 	}
-	if err := database.DB.Where("user_id = ? AND (book_id = 0 OR book_id = ?) AND name LIKE ?", uid, bookID, "%"+name+"%").First(&c).Error; err == nil {
-		return c.ID
+	// 不存在则按钱迹的一级分类名创建
+	c = models.Category{
+		UserID: uid,
+		BookID: bookID,
+		Name:   name,
+		Kind:   wantKind,
 	}
-	return fallback.ID
+	database.DB.Create(&c)
+	return c.ID
 }
 
 // resolveSubCategory 在一级分类 parentID 下查找/创建名为 subName 的二级分类，
@@ -253,6 +279,10 @@ func resolveSubCategory(uid, parentID uint, subName string) uint {
 	}
 	var parent models.Category
 	if err := database.DB.First(&parent, parentID).Error; err != nil {
+		return parentID
+	}
+	// 钱迹常见「分类=食物、二级分类=食物」：同名直接挂一级，避免建出同名子分类
+	if subName == parent.Name {
 		return parentID
 	}
 	kind := parent.Kind

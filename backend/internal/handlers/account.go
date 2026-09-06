@@ -69,10 +69,10 @@ func ListAccounts(c *gin.Context) {
 
 	// 汇总
 	type summary struct {
-		TotalAsset  float64 `json:"total_asset"`
-		TotalDebt   float64 `json:"total_debt"`
-		NetAsset    float64 `json:"net_asset"`
-		CashFlow    float64 `json:"cash_flow"`
+		TotalAsset  models.Money `json:"total_asset"`
+		TotalDebt   models.Money `json:"total_debt"`
+		NetAsset    models.Money `json:"net_asset"`
+		CashFlow    models.Money `json:"cash_flow"`
 	}
 	s := summary{}
 	for _, a := range accounts {
@@ -133,14 +133,14 @@ func CreateAccount(c *gin.Context) {
 		Name:            req.Name,
 		Type:            models.AccountType(req.Type),
 		Currency:        firstNotEmpty(req.Currency, "CNY"),
-		Balance:         req.InitialAmount,
-		InitialAmount:   req.InitialAmount,
+		Balance:         models.FromYuan(req.InitialAmount),
+		InitialAmount:   models.FromYuan(req.InitialAmount),
 		Icon:            req.Icon,
 		Color:           req.Color,
 		BankName:        req.BankName,
 		CardNo4:         cardNo4,
 		EncryptedCardNo: encryptedCardNo,
-		CreditLimit:     req.CreditLimit,
+		CreditLimit:     models.FromYuan(req.CreditLimit),
 		BillDay:         req.BillDay,
 		RepayDay:        req.RepayDay,
 		ExpireMonth:     req.ExpireMonth,
@@ -169,7 +169,7 @@ func CreateAccount(c *gin.Context) {
 				UserID:            uid,
 				BookID:            req.BookID,
 				Type:              models.TxAdjust,
-				Amount:            req.InitialAmount,
+				Amount:            models.FromYuan(req.InitialAmount),
 				Currency:          acc.Currency,
 				CategoryID:        adjCat.ID,
 				AccountID:         acc.ID,
@@ -295,10 +295,11 @@ func AdjustAccountBalance(c *gin.Context) {
 	}
 
 	// 计算差额
-	diff := req.Amount - acc.Balance
+	newBalance := models.FromYuan(req.Amount)
+	diff := newBalance - acc.Balance
 
 	// 更新余额
-	database.DB.Model(&acc).Update("balance", req.Amount)
+	database.DB.Model(&acc).Update("balance", newBalance)
 
 	// 插入调整记录
 	var adjCat models.Category
@@ -319,7 +320,7 @@ func AdjustAccountBalance(c *gin.Context) {
 	database.DB.Create(&tx)
 
 	Broadcast(c, "accounts", "update", acc.ID)
-	OK(c, gin.H{"new_balance": req.Amount, "diff": diff, "transaction": tx})
+	OK(c, gin.H{"new_balance": newBalance, "diff": diff, "transaction": tx})
 }
 
 // ========== 资产分组 ==========
@@ -364,18 +365,18 @@ func GetCreditSummary(c *gin.Context) {
 		uid, models.AccCredit, false).Find(&cards)
 
 	type repayOut struct {
-		ID          uint    `json:"id"`
-		Name        string  `json:"name"`
-		BankName    string  `json:"bank_name"`
-		CardNo4     string  `json:"card_no4"`
-		RepayDay    int     `json:"repay_day"`
-		BillDay     int     `json:"bill_day"`
-		Balance     float64 `json:"balance"`
-		CreditLimit float64 `json:"credit_limit"`
-		DaysLeft    int     `json:"days_left"`     // 距下一个还款日还剩几天
-		RepayDate   string  `json:"repay_date"`    // 下次还款日
-		BillAmount  float64 `json:"bill_amount"`   // 已出账金额（本月支出）
-		Overdue     bool    `json:"overdue"`        // 是否已逾期
+		ID          uint         `json:"id"`
+		Name        string       `json:"name"`
+		BankName    string       `json:"bank_name"`
+		CardNo4     string       `json:"card_no4"`
+		RepayDay    int          `json:"repay_day"`
+		BillDay     int          `json:"bill_day"`
+		Balance     models.Money `json:"balance"`
+		CreditLimit models.Money `json:"credit_limit"`
+		DaysLeft    int          `json:"days_left"`     // 距下一个还款日还剩几天
+		RepayDate   string       `json:"repay_date"`    // 下次还款日
+		BillAmount  models.Money `json:"bill_amount"`   // 已出账金额（本月支出）
+		Overdue     bool         `json:"overdue"`        // 是否已逾期
 	}
 	var out []repayOut
 
@@ -418,9 +419,9 @@ func GetCreditSummary(c *gin.Context) {
 		out = append(out, repayOut{
 			ID: card.ID, Name: card.Name, BankName: card.BankName, CardNo4: card.CardNo4,
 			RepayDay: card.RepayDay, BillDay: card.BillDay,
-			Balance: round2(card.Balance), CreditLimit: round2(card.CreditLimit),
+			Balance: card.Balance, CreditLimit: card.CreditLimit,
 			DaysLeft: daysLeft, RepayDate: nextRepay.Format("2006-01-02"),
-			BillAmount: round2(billAmount), Overdue: overdue,
+			BillAmount: models.FromCents(billAmount), Overdue: overdue,
 		})
 	}
 

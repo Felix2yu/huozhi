@@ -56,6 +56,29 @@ func ListCategories(c *gin.Context) {
 	OK(c, result)
 }
 
+// ReorderCategories 批量更新分类排序（拖拽排序用）。
+// 单独的排序接口不受 is_system 限制：系统预置分类也应支持调整显示顺序。
+func ReorderCategories(c *gin.Context) {
+	uid := middleware.GetUID(c)
+	var req struct {
+		Items []struct {
+			ID   uint `json:"id"`
+			Sort int  `json:"sort"`
+		} `json:"items" binding:"required,min=1"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		Bad(c, "参数错误: "+err.Error())
+		return
+	}
+	for _, it := range req.Items {
+		database.DB.Model(&models.Category{}).
+			Where("id = ? AND user_id = ?", it.ID, uid).
+			Update("sort", it.Sort)
+	}
+	Broadcast(c, "categories", "update", 0)
+	OK(c, nil)
+}
+
 // CreateCategory 创建分类
 func CreateCategory(c *gin.Context) {
 	uid := middleware.GetUID(c)
