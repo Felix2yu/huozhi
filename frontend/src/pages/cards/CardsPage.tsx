@@ -55,7 +55,7 @@ function CardFace({
     : (acc.card_no4 ? `**** **** **** ${acc.card_no4}` : '');
 
   return (
-    <div className="card3d-wrap w-full max-w-[320px] mx-auto">
+    <div className="card3d-wrap w-full">
       <div
         className={cn('card3d', flipped && 'flipped')}
         onClick={onFlip}
@@ -213,7 +213,7 @@ export default function CardsPage() {
       {/* 头部 */}
       <header className="flex items-center justify-between pt-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <CreditCard className="text-brand-600" size={26} />
             我的银行卡
           </h1>
@@ -227,7 +227,7 @@ export default function CardsPage() {
       </header>
 
       {/* 汇总条 */}
-      <section className="grid md:grid-cols-3 gap-4">
+      <section className="grid md:grid-cols-3 gap-5">
         <div className="card card-body">
           <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
             <Landmark size={13} className="text-slate-400" /> 储蓄卡余额
