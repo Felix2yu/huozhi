@@ -130,6 +130,8 @@ export const categoryApi = {
   create: (data: any) => http.post<any, Category>('/categories', data),
   update: (id: number, data: any) => http.put<any, Category>(`/categories/${id}`, data),
   remove: (id: number) => http.delete<any, void>(`/categories/${id}`),
+  reorder: (items: { id: number; sort: number }[]) =>
+    http.put<any, void>('/categories/reorder', { items }),
 };
 
 // 标签

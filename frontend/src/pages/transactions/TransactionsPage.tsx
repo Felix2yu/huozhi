@@ -464,7 +464,7 @@ export default function TransactionsPage() {
 
       {/* 图片放大预览 */}
       {previewImg && (
-        <div className="fixed inset-0 z-[60] bg-black/80 grid place-items-center p-4" onClick={() => setPreviewImg(null)}>
+        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4" onClick={() => setPreviewImg(null)}>
           <img src={previewImg} alt="预览" className="max-w-full max-h-full object-contain rounded-lg" />
           <button className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/20 text-white grid place-items-center hover:bg-white/30 transition">
             <X size={18} />

@@ -458,11 +458,11 @@ export default function SettingsPage() {
                   <FileText size={14} /> 下载 CSV 模板
                 </button>
               </div>
-              <div className="grid md:grid-cols-[1fr_auto] gap-4 items-end">
-                <div>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="w-64">
                   <label className="label">选择账本</label>
                   <select
-                    className="input"
+                    className="input h-10 py-0"
                     value={importBookId}
                     onChange={e => setImportBookId(Number(e.target.value))}
                   >
@@ -471,7 +471,7 @@ export default function SettingsPage() {
                     ))}
                   </select>
                 </div>
-                <button className="btn-primary" onClick={doExport}>
+                <button className="btn-primary h-10" onClick={doExport}>
                   <Download size={16} /> 立即导出
                 </button>
               </div>
@@ -515,11 +515,11 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="grid md:grid-cols-[1fr_auto] gap-4 items-end">
-                <div>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="w-64">
                   <label className="label">目标账本</label>
                   <select
-                    className="input"
+                    className="input h-10 py-0"
                     value={importBookId}
                     onChange={e => setImportBookId(Number(e.target.value))}
                   >
@@ -529,8 +529,7 @@ export default function SettingsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="label">&nbsp;</label>
-                  <button className="btn-secondary" onClick={triggerImport}>
+                  <button className="btn-secondary h-10" onClick={triggerImport}>
                     <Upload size={14} /> 选择文件
                   </button>
                   <input

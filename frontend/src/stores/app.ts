@@ -103,8 +103,19 @@ export const useAppStore = create<AppState>((set, get) => ({
       tagApi.list(),
       accountApi.list({ book_id: bid, include_archived: 0 }).catch(() => ({ accounts: [] as Account[] } as any)),
     ]);
+    // 后端返回的是嵌套树（二级分类在 roots 的 children 里），
+    // 而各页面（分类管理 / 记一笔分类抽屉等）按平铺列表 + parent_id 消费，
+    // 这里统一拍平，二级分类直接进入同层数组。
+    const flatten = (list?: any[]): any[] =>
+      (list || []).flatMap((c: any) => (c.children?.length ? [c, ...c.children] : [c]));
     set({
-      categories: cats || { expense: [], income: [], system: [] },
+      categories: cats
+        ? {
+            expense: flatten(cats.expense),
+            income: flatten(cats.income),
+            system: flatten(cats.system),
+          }
+        : { expense: [], income: [], system: [] },
       tags,
       accounts: (accs as any).accounts || accs || [],
     });

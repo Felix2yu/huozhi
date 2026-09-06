@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAppStore } from '@/stores/app';
 import { categoryApi } from '@/api';
@@ -127,11 +127,64 @@ export default function CategoriesPage() {
     });
   };
 
-  const moveSort = async (c: Category, dir: -1 | 1) => {
+  // ===== 拖拽排序 =====
+  const dragRef = useRef<{ id: number; parentId: number } | null>(null);
+  const [dropHint, setDropHint] = useState<{ id: number; pos: 'before' | 'after' } | null>(null);
+
+  const onDragStart = (c: Category) => (e: React.DragEvent) => {
+    dragRef.current = { id: c.id, parentId: c.parent_id || 0 };
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(c.id));
+  };
+
+  // 插入位置指示条：显示在目标行的上/下边缘
+  const DropBar = ({ show, pos }: { show: boolean; pos: 'before' | 'after' }) =>
+    show ? (
+      <div
+        className={cn(
+          'absolute inset-x-2 h-1 bg-brand-500 rounded-full shadow-[0_0_6px_rgba(16,185,129,0.6)] pointer-events-none z-10',
+          pos === 'before' ? 'top-0' : 'bottom-0'
+        )}
+      />
+    ) : null;
+
+  const onDragOver = (parentId: number, target: Category) => (e: React.DragEvent) => {
+    const drag = dragRef.current;
+    if (!drag || drag.parentId !== parentId || drag.id === target.id) return;
+    e.preventDefault();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const pos = e.clientY < rect.top + rect.height / 2 ? 'before' as const : 'after' as const;
+    setDropHint(h => (h && h.id === target.id && h.pos === pos ? h : { id: target.id, pos }));
+  };
+
+  // 放下后：把被拖项移到目标行位置，并按新顺序重排同级 sort（0,10,20...）
+  const onDrop = (parentId: number, target: Category) => async (e: React.DragEvent) => {
+    e.preventDefault();
+    const drag = dragRef.current;
+    dragRef.current = null;
+    setDropHint(null);
+    if (!drag || drag.id === target.id || drag.parentId !== parentId) return;
+
+    const siblings = (parentId === 0
+      ? tree
+      : tree.find(p => p.id === parentId)?.children || []
+    ).slice();
+    const from = siblings.findIndex(x => x.id === drag.id);
+    if (from < 0) return;
+    const [moved] = siblings.splice(from, 1);
+    let at = siblings.findIndex(x => x.id === target.id);
+    if (at < 0) return;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    if (e.clientY >= rect.top + rect.height / 2) at += 1; // 下半部分 → 放到目标之后
+    siblings.splice(at, 0, moved);
+
     try {
-      await categoryApi.update(c.id, { sort: c.sort + dir * 10 });
+      await categoryApi.reorder(siblings.map((x, i) => ({ id: x.id, sort: i * 10 })));
+      toast.success('已调整顺序');
       load();
-    } catch (e) { /* ignore */ }
+    } catch {
+      toast.error('排序失败');
+    }
   };
 
   return (
@@ -199,7 +252,22 @@ export default function CategoriesPage() {
               return (
                 <li key={p.id} className="border border-slate-100 rounded-xl overflow-hidden">
                   {/* 一级 */}
-                  <div className="flex items-center gap-2 p-3 hover:bg-slate-50 transition bg-slate-50/50">
+                  <div
+                    className="relative flex items-center gap-2 p-3 hover:bg-slate-50 transition bg-slate-50/50"
+                    onDragOver={onDragOver(0, p)}
+                    onDrop={onDrop(0, p)}
+                  >
+                    <DropBar show={dropHint?.id === p.id && dropHint.pos === 'before'} pos="before" />
+                    <DropBar show={dropHint?.id === p.id && dropHint.pos === 'after'} pos="after" />
+                    <div
+                      draggable
+                      onDragStart={onDragStart(p)}
+                      onDragEnd={() => setDropHint(null)}
+                      title="拖动调整顺序"
+                      className="w-8 h-8 rounded-lg grid place-items-center text-slate-300 hover:text-slate-500 hover:bg-slate-100 cursor-grab active:cursor-grabbing shrink-0"
+                    >
+                      <GripVertical size={16} />
+                    </div>
                     <button
                       className="w-8 h-8 rounded-lg grid place-items-center text-slate-400 hover:bg-slate-200"
                       onClick={() => hasChildren && toggleExpand(p.id)}
@@ -207,7 +275,7 @@ export default function CategoriesPage() {
                     >
                       {hasChildren
                         ? (isOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />)
-                        : <GripVertical size={16} className="opacity-30" />}
+                        : <span className="w-[18px]" />}
                     </button>
                     <div
                       className="w-10 h-10 rounded-lg grid place-items-center text-xl shrink-0"
@@ -222,12 +290,8 @@ export default function CategoriesPage() {
                         {p.need_tag && <span className="chip bg-purple-50 text-purple-600">需标签</span>}
                       </div>
                       <div className="text-xs text-slate-400 mt-0.5">
-                        子分类 {p.children.length} 个 · 排序 {p.sort}
+                        子分类 {p.children.length} 个
                       </div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0 hide-sm">
-                      <button className="btn-ghost btn-sm" onClick={() => moveSort(p, -1)} title="上移">↑</button>
-                      <button className="btn-ghost btn-sm" onClick={() => moveSort(p, 1)} title="下移">↓</button>
                     </div>
                     <button
                       className="btn-ghost btn-sm text-brand-600"
@@ -259,8 +323,21 @@ export default function CategoriesPage() {
                       {p.children.map(c => (
                         <li
                           key={c.id}
-                          className="flex items-center gap-2 p-3 pl-14 hover:bg-slate-50 border-b border-slate-50 last:border-b-0 transition"
+                          className="relative flex items-center gap-2 p-3 pl-14 hover:bg-slate-50 border-b border-slate-50 last:border-b-0 transition"
+                          onDragOver={onDragOver(p.id, c)}
+                          onDrop={onDrop(p.id, c)}
                         >
+                          <DropBar show={dropHint?.id === c.id && dropHint.pos === 'before'} pos="before" />
+                          <DropBar show={dropHint?.id === c.id && dropHint.pos === 'after'} pos="after" />
+                          <div
+                            draggable
+                            onDragStart={onDragStart(c)}
+                            onDragEnd={() => setDropHint(null)}
+                            title="拖动调整顺序"
+                            className="w-8 h-8 rounded-lg grid place-items-center text-slate-300 hover:text-slate-500 hover:bg-slate-100 cursor-grab active:cursor-grabbing shrink-0"
+                          >
+                            <GripVertical size={14} />
+                          </div>
                           <div className="w-8 h-8 rounded-lg grid place-items-center text-base shrink-0"
                             style={{ background: (c.color || '#64748b') + '15' }}
                           >
@@ -272,11 +349,6 @@ export default function CategoriesPage() {
                               {c.is_system && <span className="chip bg-blue-50 text-blue-600 !text-[10px]">系统</span>}
                               {c.need_tag && <span className="chip bg-purple-50 text-purple-600 !text-[10px]">需标签</span>}
                             </div>
-                            <div className="text-xs text-slate-400 mt-0.5">排序 {c.sort}</div>
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0 hide-sm">
-                            <button className="btn-ghost btn-sm" onClick={() => moveSort(c, -1)}>↑</button>
-                            <button className="btn-ghost btn-sm" onClick={() => moveSort(c, 1)}>↓</button>
                           </div>
                           <button className="btn-ghost btn-sm" onClick={() => openEdit(c)} disabled={c.is_system}>
                             <Edit3 size={14} />
@@ -380,15 +452,6 @@ export default function CategoriesPage() {
               </select>
             </div>
           )}
-          <div>
-            <label className="label">排序号（越小越靠前）</label>
-            <input
-              className="input"
-              type="number"
-              value={editForm.sort}
-              onChange={e => setEditForm(f => ({ ...f, sort: Number(e.target.value) }))}
-            />
-          </div>
           <label className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
             <span className="text-sm text-slate-700">选择该分类时必须填写标签</span>
             <input

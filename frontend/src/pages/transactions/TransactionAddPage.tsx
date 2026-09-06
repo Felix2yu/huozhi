@@ -768,7 +768,7 @@ export default function TransactionAddPage() {
       {/* 图片预览 */}
       {preview && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 grid place-items-center p-4"
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
           onClick={() => setPreview(null)}
         >
           <img src={preview} alt="" className="max-w-full max-h-full rounded-lg" />
