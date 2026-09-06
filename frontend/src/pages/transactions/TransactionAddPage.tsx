@@ -518,7 +518,7 @@ export default function TransactionAddPage() {
               <Clock size={15} className="text-slate-400 shrink-0" />
             </div>
             {timePopOpen && (
-              <div className="absolute z-30 right-0 top-full mt-1 w-52 card p-2.5 shadow-xl flex items-center gap-1.5">
+              <div className="absolute z-30 right-0 top-full mt-1 w-max card px-2.5 py-2 shadow-xl flex items-center gap-1.5 whitespace-nowrap">
                 <select
                   className="input w-16 flex-none text-center tabular-nums"
                   value={form.tx_time.split(':')[0] || '00'}
