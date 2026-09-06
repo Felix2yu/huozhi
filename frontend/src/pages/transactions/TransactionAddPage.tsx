@@ -6,8 +6,8 @@ import { txApi, aiApi, uploadApi } from '@/api';
 import type { Transaction, TransactionType, Tag as TagType } from '@/types';
 import { formatMoney, formatDate, cn } from '@/utils';
 import {
-  ArrowLeft, ArrowRightLeft, Minus, Plus, Calendar as CalendarIcon,
-  Tag, ImagePlus, Save, Repeat1, ChevronDown, Upload, X, Image,
+  ArrowLeft, ArrowRightLeft, Minus, Plus, Calendar as CalendarIcon, Clock,
+  Tag, ImagePlus, Save, Repeat1, ChevronDown, ChevronRight, Upload, X, Image,
   Sparkles, Wand2,
 } from 'lucide-react';
 import { Drawer, TagChip } from '@/components/common';
@@ -60,6 +60,8 @@ export default function TransactionAddPage() {
   const [catDrawerOpen, setCatDrawerOpen] = useState(false);
   const [accDrawerOpen, setAccDrawerOpen] = useState(false);
   const [toAccDrawerOpen, setToAccDrawerOpen] = useState(false);
+  // 分类网格中展开查看二级分类的父分类
+  const [expandedCatId, setExpandedCatId] = useState(0);
 
   // AI 相关状态
   const [aiInput, setAiInput] = useState('');
@@ -165,6 +167,7 @@ export default function TransactionAddPage() {
   }, [editId]);
 
   const switchTab = (t: TabType) => {
+    setExpandedCatId(0);
     setForm(f => ({
       ...f,
       type: t === 'transfer' ? 'transfer' : (t === 'income' ? 'income' : 'expense'),
@@ -348,52 +351,81 @@ export default function TransactionAddPage() {
       )}
 
       {/* 分类选择 Grid */}
-      {tab !== 'transfer' && (
-        <section className="card card-body">
-          <button
-            className="flex items-center justify-between w-full mb-3"
-            onClick={() => setCatDrawerOpen(true)}
-          >
-            <span className="label mb-0">分类</span>
-            <span className="text-sm text-brand-600 flex items-center gap-1">
-              {selectedCat ? (<span>{selectedCat.icon} {selectedCat.name}</span>) : '请选择'}
-              <ChevronDown size={16} />
-            </span>
-          </button>
-          <div className="grid grid-cols-5 md:grid-cols-8 gap-2 max-h-64 overflow-y-auto">
-            {currentCats.filter(c => !c.parent_id || c.parent_id === 0).slice(0, 24).map(c => {
-              const active = form.category_id === c.id;
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => setField('category_id', c.id)}
-                  className={cn(
-                    'flex flex-col items-center gap-1 p-2 rounded-lg transition',
-                    active ? 'bg-brand-50 ring-2 ring-brand-500' : 'hover:bg-slate-50'
-                  )}
-                >
-                  <div
-                    className="w-10 h-10 rounded-full grid place-items-center text-xl"
-                    style={{ background: (c.color || '#64748b') + '15' }}
-                  >
-                    {c.icon || '📦'}
-                  </div>
-                  <span className="text-xs text-slate-600 truncate w-full text-center">{c.name}</span>
-                </button>
-              );
-            })}
+      {tab !== 'transfer' && (() => {
+        const parents = currentCats.filter(c => !c.parent_id || c.parent_id === 0).slice(0, 24);
+        const expandedCat = parents.find(c => c.id === expandedCatId);
+        const children = expandedCatId ? currentCats.filter(c => c.parent_id === expandedCatId) : [];
+        const renderCell = (c: any, onClick: () => void, showSubBadge: boolean) => {
+          const active = form.category_id === c.id;
+          return (
             <button
-              className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-slate-50 text-slate-400"
+              key={c.id}
+              onClick={onClick}
+              className={cn(
+                'relative flex flex-col items-center gap-1 p-2 rounded-lg transition',
+                active ? 'bg-brand-50 ring-2 ring-brand-500' : 'hover:bg-slate-50'
+              )}
+            >
+              <div
+                className="w-10 h-10 rounded-full grid place-items-center text-xl"
+                style={{ background: (c.color || '#64748b') + '15' }}
+              >
+                {c.icon || '📦'}
+              </div>
+              <span className="text-xs text-slate-600 truncate w-full text-center">{c.name}</span>
+              {showSubBadge && (
+                <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-slate-200/80 text-slate-500 grid place-items-center">
+                  <ChevronRight size={10} />
+                </span>
+              )}
+            </button>
+          );
+        };
+        return (
+          <section className="card card-body">
+            <button
+              className="flex items-center justify-between w-full mb-3"
               onClick={() => setCatDrawerOpen(true)}
             >
-              <div className="w-10 h-10 rounded-full bg-slate-100 grid place-items-center">
-                <ChevronDown size={18} />
-              </div>
-              <span className="text-xs">更多</span>
+              <span className="label mb-0">分类</span>
+              <span className="text-sm text-brand-600 flex items-center gap-1">
+                {selectedCat ? (<span>{selectedCat.icon} {selectedCat.name}</span>) : '请选择'}
+                <ChevronDown size={16} />
+              </span>
             </button>
-          </div>
-        </section>
-      )}
+            {expandedCat && (
+              <button
+                className="flex items-center gap-1.5 mb-2 text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded-lg hover:bg-slate-50 transition"
+                onClick={() => setExpandedCatId(0)}
+              >
+                <ArrowLeft size={13} />
+                {expandedCat.icon} {expandedCat.name} · 子分类
+              </button>
+            )}
+            <div className="grid grid-cols-5 md:grid-cols-8 gap-2 max-h-64 overflow-y-auto">
+              {expandedCat
+                ? children.map(c => renderCell(c, () => setField('category_id', c.id), false))
+                : parents.map(c => {
+                    const hasChildren = currentCats.some(x => x.parent_id === c.id);
+                    return renderCell(
+                      c,
+                      () => (hasChildren ? setExpandedCatId(c.id) : setField('category_id', c.id)),
+                      hasChildren,
+                    );
+                  })}
+              <button
+                className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-slate-50 text-slate-400"
+                onClick={() => setCatDrawerOpen(true)}
+              >
+                <div className="w-10 h-10 rounded-full bg-slate-100 grid place-items-center">
+                  <ChevronDown size={18} />
+                </div>
+                <span className="text-xs">更多</span>
+              </button>
+            </div>
+          </section>
+        );
+      })()}
 
       {/* 账户选择 */}
       <section className="card card-body space-y-3">
@@ -441,25 +473,41 @@ export default function TransactionAddPage() {
         )}
       </section>
 
-      {/* 日期时间 */}
+      {/* 日期时间：显示统一为年月日 + 24 小时制，点击唤起原生选择器 */}
       <section className="card card-body grid grid-cols-2 gap-3">
         <div>
           <label className="label flex items-center gap-1">
             <CalendarIcon size={14} className="text-slate-400" /> 日期
           </label>
-          <input
-            type="date" className="input"
-            value={form.tx_date}
-            onChange={e => setField('tx_date', e.target.value)}
-          />
+          <div className="relative">
+            <div className="input flex items-center justify-between cursor-pointer select-none">
+              <span className="tabular-nums">{form.tx_date}</span>
+              <CalendarIcon size={15} className="text-slate-400 shrink-0" />
+            </div>
+            <input
+              type="date"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              value={form.tx_date}
+              onClick={e => (e.currentTarget as any).showPicker?.()}
+              onChange={e => setField('tx_date', e.target.value)}
+            />
+          </div>
         </div>
         <div>
           <label className="label">时间</label>
-          <input
-            type="time" className="input"
-            value={form.tx_time}
-            onChange={e => setField('tx_time', e.target.value)}
-          />
+          <div className="relative">
+            <div className="input flex items-center justify-between cursor-pointer select-none">
+              <span className="tabular-nums">{form.tx_time}</span>
+              <Clock size={15} className="text-slate-400 shrink-0" />
+            </div>
+            <input
+              type="time"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              value={form.tx_time}
+              onClick={e => (e.currentTarget as any).showPicker?.()}
+              onChange={e => setField('tx_time', e.target.value)}
+            />
+          </div>
         </div>
       </section>
 
@@ -608,9 +656,9 @@ export default function TransactionAddPage() {
           </label>
         )}
         <div className="flex items-center justify-between gap-3">
-          <span className="text-sm text-slate-700">报销状态</span>
+          <span className="text-sm text-slate-700 dark:text-slate-200 shrink-0">报销状态</span>
           <select
-            className="input"
+            className="input w-auto min-w-36"
             value={form.reimburse_status}
             onChange={e => setField('reimburse_status', e.target.value as 'none' | 'pending' | 'done')}
           >
