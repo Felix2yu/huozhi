@@ -38,7 +38,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen grid md:grid-cols-2 bg-gradient-to-br from-indigo-50 via-white to-brand-50">
+    <div className="min-h-screen grid md:grid-cols-2 bg-gradient-to-br from-indigo-50 via-white to-brand-50 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900">
       <div className="hidden md:flex flex-col justify-center p-16">
         <div className="max-w-md mx-auto">
           <h1 className="text-4xl font-bold text-slate-800 mb-4 leading-tight">

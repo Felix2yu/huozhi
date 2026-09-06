@@ -126,17 +126,17 @@ export default function TransactionsPage() {
         <div className="grid grid-cols-3 gap-3 md:gap-6">
           <div className="text-center md:text-left">
             <div className="text-xs text-slate-500 flex items-center gap-1 md:justify-start justify-center">
-              <ArrowUpRight size={14} className="text-emerald-500" /> 收入
+              <ArrowUpRight size={14} className="text-income" /> 收入
             </div>
-            <div className="text-lg md:text-2xl font-bold text-emerald-600 tabular-nums mt-1">
+            <div className="text-lg md:text-2xl font-bold text-income tabular-nums mt-1">
               {formatMoney(summary?.total_income || 0)}
             </div>
           </div>
           <div className="text-center">
             <div className="text-xs text-slate-500 flex items-center gap-1 justify-center">
-              <ArrowDownRight size={14} className="text-red-500" /> 支出
+              <ArrowDownRight size={14} className="text-expense" /> 支出
             </div>
-            <div className="text-lg md:text-2xl font-bold text-red-500 tabular-nums mt-1">
+            <div className="text-lg md:text-2xl font-bold text-expense tabular-nums mt-1">
               {formatMoney(summary?.total_expense || 0)}
             </div>
           </div>
@@ -146,7 +146,7 @@ export default function TransactionsPage() {
             </div>
             <div className={cn(
               'text-lg md:text-2xl font-bold tabular-nums mt-1',
-              (summary?.net || 0) >= 0 ? 'text-brand-600' : 'text-red-500'
+              (summary?.net || 0) >= 0 ? 'text-brand-600' : 'text-expense'
             )}>
               {(summary?.net || 0) >= 0 ? '+' : ''}{formatMoney(summary?.net || 0)}
             </div>
@@ -240,8 +240,8 @@ export default function TransactionsPage() {
                     </span>
                   </div>
                   <div className="text-xs tabular-nums space-x-3">
-                    <span className="text-emerald-600">+{formatMoney(g.day_income)}</span>
-                    <span className="text-red-500">-{formatMoney(g.day_expense)}</span>
+                    <span className="text-income">+{formatMoney(g.day_income)}</span>
+                    <span className="text-expense">-{formatMoney(g.day_expense)}</span>
                   </div>
                 </div>
                 <ul className="divide-y divide-slate-50 rounded-xl border border-slate-100 overflow-hidden">

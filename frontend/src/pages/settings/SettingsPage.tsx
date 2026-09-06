@@ -5,6 +5,7 @@ import { useAppStore } from '@/stores/app';
 import { authApi, bookApi, ioApi } from '@/api';
 import type { User as UserT } from '@/types';
 import { cn, formatDate } from '@/utils';
+import { applyColorScheme, applyShowAnimations, COLOR_SCHEMES, getColorScheme, getShowAnimations } from '@/utils/theme';
 import {
   Settings as SettingsIcon, User as UserIcon, Lock, Book, Globe, Upload, Download,
   FileText, LogOut, Check, X, ChevronRight, AlertCircle, Info, CheckCircle2,
@@ -72,6 +73,12 @@ export default function SettingsPage() {
 
   // 登出
   const [logoutOpen, setLogoutOpen] = useState(false);
+
+  // 收支配色方案
+  const [colorScheme, setColorScheme] = useState<ReturnType<typeof getColorScheme>>(getColorScheme());
+
+  // 显示动画（真实生效：持久化 + no-anim 类全局禁用过渡/动画）
+  const [showAnim, setShowAnim] = useState<boolean>(getShowAnimations());
 
   const submitProfile = async () => {
     if (!profileForm.nickname.trim()) { toast.error('昵称不能为空'); return; }
@@ -184,8 +191,8 @@ export default function SettingsPage() {
                 className={cn(
                   'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition',
                   tab === k
-                    ? 'bg-brand-50 text-brand-700 font-semibold'
-                    : 'text-slate-600 hover:bg-slate-50'
+                    ? 'bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300 font-semibold'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                 )}
               >
                 <Icon size={16} />
@@ -193,10 +200,10 @@ export default function SettingsPage() {
               </button>
             </li>
           ))}
-          <li className="pt-2 mt-2 border-t border-slate-100">
+          <li className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800">
             <button
               onClick={() => setLogoutOpen(true)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-500 hover:bg-red-50 transition"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition"
             >
               <LogOut size={16} />
               <span>退出登录</span>
@@ -222,7 +229,7 @@ export default function SettingsPage() {
                   )}
                 </div>
                 <div>
-                  <div className="text-lg font-bold text-slate-800">{user?.nickname}</div>
+                  <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{user?.nickname}</div>
                   <div className="text-sm text-slate-500 mt-0.5">@{user?.username}</div>
                   <div className="text-xs text-slate-400 mt-2">
                     注册于 {user?.created_at ? formatDate(user.created_at, 'YYYY-MM-DD') : '-'}
@@ -321,8 +328,8 @@ export default function SettingsPage() {
                   )}
                 </div>
 
-                <div className="p-3 rounded-lg bg-slate-50 text-xs text-slate-500 flex items-start gap-2">
-                  <Shield size={14} className="shrink-0 mt-0.5 text-slate-400" />
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 text-xs text-slate-500 dark:text-slate-400 flex items-start gap-2">
+                  <Shield size={14} className="shrink-0 mt-0.5 text-slate-400 dark:text-slate-500" />
                   <span>密码长度至少 6 位，建议包含大小写字母、数字与特殊字符。修改成功后将需要重新登录。</span>
                 </div>
               </div>
@@ -419,11 +426,45 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="mt-6 grid md:grid-cols-2 gap-4 pt-5 border-t border-slate-100">
-                <SettingToggle label="通知提醒" hint="账单、预算与到期提醒" />
-                <SettingToggle label="深色模式" hint="跟随系统或手动切换" />
-                <SettingToggle label="显示动画" hint="页面切换与加载动画" />
-                <SettingToggle label="指纹/面容解锁" hint="打开 APP 时验证身份" />
+              <div className="mt-6 grid md:grid-cols-2 gap-4 pt-5 border-t border-slate-100 dark:border-slate-800">
+                <SettingToggle
+                  label="显示动画"
+                  hint="页面切换与加载动画（默认跟随系统减弱动态设置）"
+                  checked={showAnim}
+                  onChange={(v) => { setShowAnim(v); applyShowAnimations(v); }}
+                />
+              </div>
+
+              {/* 收支配色方案 */}
+              <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800">
+                <label className="label">收支配色方案</label>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mb-3">
+                  选择收入与支出的代表色，修改后立即全站生效（自动保存，无需点击保存偏好）
+                </p>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {COLOR_SCHEMES.map(s => (
+                    <button
+                      key={s.key}
+                      type="button"
+                      onClick={() => { setColorScheme(s.key); applyColorScheme(s.key); }}
+                      className={cn(
+                        'flex items-center gap-3 p-3 rounded-xl border transition text-left',
+                        colorScheme === s.key
+                          ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10'
+                          : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      )}
+                    >
+                      <span className="flex items-center gap-1.5 shrink-0">
+                        <span className="w-3.5 h-3.5 rounded-full" style={{ background: s.income }} />
+                        <span className="w-3.5 h-3.5 rounded-full" style={{ background: s.expense }} />
+                      </span>
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{s.label}</span>
+                      {colorScheme === s.key && (
+                        <Check size={16} className="ml-auto text-brand-600 dark:text-brand-400 shrink-0" />
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="mt-6 flex justify-end">
@@ -450,15 +491,10 @@ export default function SettingsPage() {
 
             {/* 导出 */}
             <section className="card card-body">
-              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-                  <Download size={18} className="text-emerald-600" /> 导出账单为 CSV
-                </h3>
-                <button className="btn-secondary btn-sm" onClick={() => ioApi.template()}>
-                  <FileText size={14} /> 下载 CSV 模板
-                </button>
-              </div>
-              <div className="flex flex-wrap items-end gap-3">
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2 mb-4">
+                <Download size={18} className="text-brand-600 dark:text-brand-400" /> 导出账单为 CSV
+              </h3>
+              <div className="flex flex-wrap items-end justify-between gap-3">
                 <div className="w-64">
                   <label className="label">选择账本</label>
                   <select
@@ -471,11 +507,16 @@ export default function SettingsPage() {
                     ))}
                   </select>
                 </div>
-                <button className="btn-primary h-10" onClick={doExport}>
-                  <Download size={16} /> 立即导出
-                </button>
+                <div className="flex items-center gap-3">
+                  <button className="btn-secondary h-10" onClick={() => ioApi.template()}>
+                    <FileText size={14} /> 下载 CSV 模板
+                  </button>
+                  <button className="btn-primary h-10" onClick={doExport}>
+                    <Download size={16} /> 立即导出
+                  </button>
+                </div>
               </div>
-              <p className="text-xs text-slate-400 mt-3 flex items-start gap-1.5">
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-3 flex items-start gap-1.5">
                 <Info size={12} className="shrink-0 mt-0.5" />
                 导出内容包含所选账本的交易流水、分类结构（仅 CSV），可在 Excel/Numbers 打开用于存档。
               </p>
@@ -503,8 +544,8 @@ export default function SettingsPage() {
                       className={cn(
                         'p-4 rounded-xl border text-left transition',
                         importSource === s.k
-                          ? 'border-brand-500 bg-brand-50 shadow-sm'
-                          : 'border-slate-200 hover:bg-slate-50'
+                          ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10 shadow-sm'
+                          : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
                       )}
                     >
                       <div className="text-2xl mb-2">{s.emoji}</div>
@@ -612,7 +653,7 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              <div className="mt-4 p-4 rounded-xl bg-slate-50 text-xs text-slate-500 space-y-2">
+              <div className="mt-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800 text-xs text-slate-500 dark:text-slate-400 space-y-2">
                 <div className="font-medium text-slate-700 flex items-center gap-1">
                   <HelpCircle size={14} /> 导入指南
                 </div>
@@ -637,8 +678,8 @@ export default function SettingsPage() {
               <div className="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-brand-500 via-brand-600 to-purple-600 grid place-items-center text-4xl shadow-lg shadow-brand-200/50">
                 货
               </div>
-              <h2 className="text-2xl font-bold text-slate-800 mt-4">货殖</h2>
-              <p className="text-slate-500 mt-1">一个清爽、好用的个人/家庭记账系统</p>
+              <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mt-4">货殖</h2>
+              <p className="text-slate-500 dark:text-slate-400 mt-1">一个清爽、好用的个人/家庭记账系统</p>
               <div className="mt-5 inline-flex items-center gap-2 chip bg-slate-100 !py-1.5 !px-3">
                 <Smartphone size={14} /> 版本号 <b>v1.0.0</b> (build 20250101)
               </div>
@@ -684,36 +725,37 @@ export default function SettingsPage() {
 function SectionHeader({ title, subtitle, Icon }: { title: string; subtitle?: string; Icon: any }) {
   return (
     <div className="flex items-center gap-3 pb-1">
-      <div className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 grid place-items-center">
+      <div className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-300 grid place-items-center">
         <Icon size={20} />
       </div>
       <div className="flex-1">
-        <h2 className="font-bold text-slate-800 text-lg leading-tight">{title}</h2>
+        <h2 className="font-bold text-slate-800 dark:text-slate-100 text-lg leading-tight">{title}</h2>
         {subtitle && <p className="text-sm text-slate-400 mt-0.5">{subtitle}</p>}
       </div>
     </div>
   );
 }
 
-function SettingToggle({ label, hint }: { label: string; hint?: string }) {
-  const [on, setOn] = useState(false);
+function SettingToggle({
+  label, hint, checked, onChange,
+}: { label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    <label className="flex items-start justify-between p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition cursor-pointer">
+    <label className="flex items-start justify-between p-3 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer">
       <div>
-        <div className="text-sm font-medium text-slate-700">{label}</div>
-        {hint && <div className="text-xs text-slate-400 mt-0.5">{hint}</div>}
+        <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</div>
+        {hint && <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{hint}</div>}
       </div>
       <button
         type="button"
-        onClick={() => setOn(v => !v)}
+        onClick={() => onChange(!checked)}
         className={cn(
           'relative w-11 h-6 rounded-full transition shrink-0 mt-0.5',
-          on ? 'bg-brand-600' : 'bg-slate-200'
+          checked ? 'bg-brand-600' : 'bg-slate-200 dark:bg-slate-700'
         )}
       >
         <span className={cn(
           'absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all',
-          on ? 'left-[22px]' : 'left-0.5'
+          checked ? 'left-[22px]' : 'left-0.5'
         )} />
       </button>
     </label>
@@ -724,18 +766,18 @@ function AboutRow({
   label, desc, Icon, accent,
 }: { label: string; desc?: string; Icon: any; accent?: boolean }) {
   return (
-    <div className="flex items-center gap-3 py-3 cursor-pointer hover:bg-slate-50 -mx-5 px-5 transition">
+    <div className="flex items-center gap-3 py-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 -mx-5 px-5 transition">
       <div className={cn(
         'w-9 h-9 rounded-lg grid place-items-center shrink-0',
-        accent ? 'bg-red-50 text-red-500' : 'bg-slate-100 text-slate-500'
+        accent ? 'bg-red-50 text-red-500 dark:bg-red-500/10 dark:text-red-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
       )}>
         <Icon size={16} />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-slate-800">{label}</div>
-        {desc && <div className="text-xs text-slate-400 mt-0.5">{desc}</div>}
+        <div className="text-sm font-medium text-slate-800 dark:text-slate-100">{label}</div>
+        {desc && <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{desc}</div>}
       </div>
-      <ChevronRight size={16} className="text-slate-300 shrink-0" />
+      <ChevronRight size={16} className="text-slate-300 dark:text-slate-600 shrink-0" />
     </div>
   );
 }

@@ -196,7 +196,7 @@ export default function CategoriesPage() {
             onClick={() => setTab('expense')}
             className={cn(
               'flex items-center justify-center gap-1.5 py-2.5 rounded-lg font-medium transition',
-              tab === 'expense' ? 'bg-red-50 text-red-600' : 'text-slate-500 hover:bg-slate-50'
+              tab === 'expense' ? 'bg-expense-soft text-expense-fg' : 'text-slate-500 hover:bg-slate-50'
             )}
           >
             <Minus size={16} /> 支出分类
@@ -206,7 +206,7 @@ export default function CategoriesPage() {
             onClick={() => setTab('income')}
             className={cn(
               'flex items-center justify-center gap-1.5 py-2.5 rounded-lg font-medium transition',
-              tab === 'income' ? 'bg-emerald-50 text-emerald-600' : 'text-slate-500 hover:bg-slate-50'
+              tab === 'income' ? 'bg-income-soft text-income-fg' : 'text-slate-500 hover:bg-slate-50'
             )}
           >
             <ArrowUpRight size={16} /> 收入分类

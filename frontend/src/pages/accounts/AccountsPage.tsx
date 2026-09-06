@@ -10,6 +10,7 @@ import {
   Settings as SettingsIcon, ChevronDown, Check, X, TrendingDown, Eye, EyeOff,
 } from 'lucide-react';
 import { Modal, ConfirmDialog, Empty } from '@/components/common';
+import { useChartTheme } from '@/hooks/useChartTheme';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Area, AreaChart } from 'recharts';
 
 const TYPE_FILTERS: Array<{ k: AccountType | 'all'; label: string; icon: string }> = [
@@ -46,6 +47,7 @@ const POPULAR_BANKS = [
 ];
 
 export default function AccountsPage() {
+  const ct = useChartTheme();
   const bookId = useAppStore(s => s.currentBookId);
   const storeAccounts = useAppStore(s => s.accounts);
   const loadDicts = useAppStore(s => s.loadDictionaries);
@@ -293,12 +295,12 @@ export default function AccountsPage() {
                     <stop offset="95%" stopColor="#6366F1" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: ct.tick }} />
+                <YAxis tick={{ fontSize: 11, fill: ct.tick }} />
                 <Tooltip
                   formatter={(v) => formatMoney(Number(v) || 0)}
-                  contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0' }}
+                  contentStyle={ct.tooltipStyle}
                 />
                 <Area type="monotone" dataKey="net_asset"
                   stroke="#6366F1" strokeWidth={2.5} fill="url(#assetGrad)" />

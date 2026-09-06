@@ -32,12 +32,23 @@ export default function AppLayout() {
   const setCurrentBook = useAppStore(s => s.setCurrentBook);
   const sidebarOpen = useAppStore(s => s.sidebarOpen);
   const toggleSidebar = useAppStore(s => s.toggleSidebar);
+  const closeSidebar = useAppStore(s => s.closeSidebar);
   const logout = useAppStore(s => s.logout);
   const nav = useNavigate();
+  const location = useLocation();
 
+  // 移动端：路由切换后自动收起侧边栏
   useEffect(() => {
-    // 移动端默认关闭侧边栏
-  }, []);
+    closeSidebar();
+  }, [location.pathname, closeSidebar]);
+
+  // 视口从移动端切换到桌面端时确保侧栏不被错误收起（桌面端始终静态展示）
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const onChange = () => { if (mq.matches) closeSidebar(); };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [closeSidebar]);
 
   const currentBook = books.find(b => b.id === currentBookId) || books[0];
 
@@ -49,22 +60,22 @@ export default function AppLayout() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* ========== 侧边栏 ========== */}
       <aside
         className={cn(
-          'fixed md:static inset-y-0 left-0 z-40 w-64 bg-white border-r border-slate-100 flex flex-col transition-transform',
+          'fixed md:static inset-y-0 left-0 z-40 w-64 bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800 flex flex-col transition-transform',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         )}
       >
         {/* Logo */}
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
           <div className="w-9 h-9 rounded-xl bg-brand-600 grid place-items-center text-white font-bold">
             {currentBook?.icon?.slice(0, 1) || '账'}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-semibold text-slate-800 leading-tight">货殖</div>
-            <div className="text-xs text-slate-500">简洁纯粹的记账本</div>
+            <div className="font-semibold text-slate-800 dark:text-slate-100 leading-tight">货殖</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">简洁纯粹的记账本</div>
           </div>
           <button className="md:hidden btn-ghost btn-sm" onClick={toggleSidebar}>
             <X size={18} />
@@ -72,8 +83,8 @@ export default function AppLayout() {
         </div>
 
         {/* 账本切换 */}
-        <div className="px-3 py-3 border-b border-slate-100">
-          <label className="text-xs text-slate-500 px-2 flex items-center gap-1">
+        <div className="px-3 py-3 border-b border-slate-100 dark:border-slate-800">
+          <label className="text-xs text-slate-500 dark:text-slate-400 px-2 flex items-center gap-1">
             <BookMarked size={12} /> 当前账本
           </label>
           <select
@@ -87,8 +98,8 @@ export default function AppLayout() {
               </option>
             ))}
           </select>
-          <div className="mt-2 text-xs text-slate-500 px-2">
-            共 <b className="text-slate-700">{books.length}</b> 个账本
+          <div className="mt-2 text-xs text-slate-500 dark:text-slate-400 px-2">
+            共 <b className="text-slate-700 dark:text-slate-200">{books.length}</b> 个账本
           </div>
         </div>
 
@@ -110,7 +121,7 @@ export default function AppLayout() {
         </nav>
 
         {/* 快捷记账按钮 */}
-        <div className="px-3 py-3 border-t border-slate-100 space-y-2">
+        <div className="px-3 py-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
           <NavLink
             to="/transactions/add"
             className="btn-primary w-full"
@@ -118,13 +129,13 @@ export default function AppLayout() {
             <Plus size={18} />
             记一笔
           </NavLink>
-          <div className="flex items-center justify-between text-xs text-slate-500">
+          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
             <div className="flex items-center gap-2 min-w-0">
               <div className="w-7 h-7 rounded-full bg-brand-100 text-brand-700 grid place-items-center font-semibold truncate">
                 {user?.nickname?.[0] || 'U'}
               </div>
               <div className="truncate">
-                <div className="text-slate-700 font-medium truncate">{user?.nickname}</div>
+                <div className="text-slate-700 dark:text-slate-200 font-medium truncate">{user?.nickname}</div>
                 <div className="text-[11px] truncate">{user?.email || user?.username}</div>
               </div>
             </div>
@@ -150,13 +161,13 @@ export default function AppLayout() {
       {/* ========== 主内容 ========== */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* 顶栏 */}
-        <header className="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-slate-100">
+        <header className="sticky top-0 z-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b border-slate-100 dark:border-slate-800">
           <div className="px-4 md:px-8 py-3 flex items-center gap-3">
             <button className="md:hidden btn-ghost btn-sm" onClick={toggleSidebar}>
               <Menu size={20} />
             </button>
             <div className="flex-1 min-w-0">
-              <h1 className="text-base md:text-lg font-semibold text-slate-800 truncate">
+              <h1 className="text-base md:text-lg font-semibold text-slate-800 dark:text-slate-100 truncate">
                 {currentBook?.icon || '📘'} {currentBook?.name || '账本'}
               </h1>
             </div>
@@ -165,7 +176,7 @@ export default function AppLayout() {
           </div>
         </header>
 
-        <main className="flex-1 px-4 md:px-8 py-5 md:py-8 max-w-[1400px] w-full mx-auto">
+        <main className="flex-1 px-4 md:px-8 pt-5 md:pt-8 pb-24 md:pb-8 max-w-[1400px] w-full mx-auto">
           <Outlet />
         </main>
 
@@ -202,10 +213,10 @@ function TopMiniStats() {
   if (!st) return null;
   return (
     <div className="hide-sm hidden md:flex items-center gap-4 text-xs">
-      <Stat label="本月收入" value={formatMoney(st.in)} cls="text-emerald-600" />
-      <Stat label="本月支出" value={formatMoney(st.out)} cls="text-red-500" />
-      <Stat label="本月结余" value={formatMoney(st.net)} cls={st.net >= 0 ? 'text-brand-600' : 'text-red-500'} />
-      <Stat label="总资产" value={formatMoney(st.asset)} cls="text-indigo-600" />
+      <Stat label="本月收入" value={formatMoney(st.in)} cls="text-income" />
+      <Stat label="本月支出" value={formatMoney(st.out)} cls="text-expense" />
+      <Stat label="本月结余" value={formatMoney(st.net)} cls={st.net >= 0 ? 'text-brand-600 dark:text-brand-400' : 'text-expense'} />
+      <Stat label="总资产" value={formatMoney(st.asset)} cls="text-indigo-600 dark:text-indigo-400" />
     </div>
   );
 }
@@ -324,7 +335,7 @@ function MobileTabs() {
     { to: '/settings',     label: '我的', icon: UserMob },
   ];
   return (
-    <nav className="only-sm fixed bottom-0 inset-x-0 z-20 bg-white border-t border-slate-100 pb-[env(safe-area-inset-bottom)]">
+    <nav className="only-sm fixed bottom-0 inset-x-0 z-20 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 pb-[env(safe-area-inset-bottom)]">
       <div className="grid grid-cols-5">
         {tabs.map(t => {
           const active = t.to === path || (t.to !== '/transactions/add' && path.startsWith(t.to) && t.to !== '/dashboard')
@@ -336,7 +347,7 @@ function MobileTabs() {
                 onClick={() => nav(t.to)}
                 className="relative flex items-center justify-center"
               >
-                <div className="absolute -top-5 w-14 h-14 rounded-full bg-brand-600 text-white grid place-items-center shadow-lg border-4 border-slate-50">
+                <div className="absolute -top-5 w-14 h-14 rounded-full bg-brand-600 text-white grid place-items-center shadow-lg border-4 border-slate-50 dark:border-slate-900">
                   <t.icon size={24} />
                 </div>
               </button>
@@ -348,7 +359,7 @@ function MobileTabs() {
               onClick={() => nav(t.to)}
               className={cn(
                 'flex flex-col items-center justify-center gap-0.5 py-2.5 text-[11px]',
-                active ? 'text-brand-600' : 'text-slate-400'
+                active ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400 dark:text-slate-500'
               )}
             >
               <t.icon size={20} />

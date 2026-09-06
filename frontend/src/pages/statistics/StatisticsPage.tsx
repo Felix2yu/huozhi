@@ -10,6 +10,7 @@ import {
   Trophy, AlertCircle, Download,
 } from 'lucide-react';
 import { AmountBadge, Empty } from '@/components/common';
+import { useChartTheme } from '@/hooks/useChartTheme';
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
@@ -70,6 +71,7 @@ function getRange(preset: RangePreset, customStart = '', customEnd = '') {
 }
 
 export default function StatisticsPage() {
+  const ct = useChartTheme();
   const navigate = useNavigate();
   const bookId = useAppStore(s => s.currentBookId);
   const accounts = useAppStore(s => s.accounts);
@@ -204,21 +206,21 @@ export default function StatisticsPage() {
       {/* 汇总卡片 */}
       <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          icon={<ArrowUpRight size={18} className="text-emerald-600" />}
+          icon={<ArrowUpRight size={18} className="text-income" />}
           label="总收入"
           value={formatMoney(summary?.total_income || 0)}
           sub={`${summary?.income_count || 0} 笔 · 日均 ${formatMoney(summary?.avg_daily_income || 0)}`}
           color="emerald"
         />
         <StatCard
-          icon={<ArrowDownRight size={18} className="text-red-500" />}
+          icon={<ArrowDownRight size={18} className="text-expense" />}
           label="总支出"
           value={formatMoney(summary?.total_expense || 0)}
           sub={`${summary?.expense_count || 0} 笔 · 日均 ${formatMoney(summary?.avg_daily_expense || 0)}`}
           color="red"
         />
         <StatCard
-          icon={<TrendingUp size={18} className={cn((summary?.net || 0) >= 0 ? 'text-brand-600' : 'text-red-500')} />}
+          icon={<TrendingUp size={18} className={cn((summary?.net || 0) >= 0 ? 'text-brand-600' : 'text-expense')} />}
           label="净结余"
           value={(summary?.net || 0) >= 0 ? `+${formatMoney(summary?.net || 0)}` : formatMoney(summary?.net || 0)}
           sub={`共 ${summary?.transaction_count || 0} 笔交易`}
@@ -248,29 +250,29 @@ export default function StatisticsPage() {
           <div className="h-72">
             <ResponsiveContainer>
               <LineChart data={trend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }}
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: ct.tick }}
                   tickFormatter={(s) => {
                     if (preset === 'this_year') return s.slice(5, 7) + '月';
                     if (preset === 'this_quarter') return s.slice(5);
                     return s.length >= 10 ? s.slice(8) : s;
                   }}
                 />
-                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                <YAxis tick={{ fontSize: 11, fill: ct.tick }} />
                 <Tooltip
                   formatter={(v, n) => [
                     formatMoney(Number(v) || 0),
                     n === 'income' ? '收入' : n === 'expense' ? '支出' : '结余',
                   ]}
-                  contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0' }}
+                  contentStyle={ct.tooltipStyle}
                 />
                 <Legend
                   formatter={(n) => n === 'income' ? '收入' : n === 'expense' ? '支出' : '结余'}
                 />
                 <Line type="monotone" dataKey="income" name="income"
-                  stroke="#10B981" strokeWidth={2.5} dot={false} />
+                  stroke={ct.income} strokeWidth={2.5} dot={false} />
                 <Line type="monotone" dataKey="expense" name="expense"
-                  stroke="#EF4444" strokeWidth={2.5} dot={false} />
+                  stroke={ct.expense} strokeWidth={2.5} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -290,14 +292,14 @@ export default function StatisticsPage() {
                 onClick={() => setViewMode('expense')}
                 className={cn(
                   'px-3 py-1 rounded-md text-xs font-medium transition',
-                  viewMode === 'expense' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-500'
+                  viewMode === 'expense' ? 'bg-white text-expense shadow-sm' : 'text-slate-500'
                 )}
               >支出</button>
               <button
                 onClick={() => setViewMode('income')}
                 className={cn(
                   'px-3 py-1 rounded-md text-xs font-medium transition',
-                  viewMode === 'income' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500'
+                  viewMode === 'income' ? 'bg-white text-income shadow-sm' : 'text-slate-500'
                 )}
               >收入</button>
             </div>
@@ -319,7 +321,7 @@ export default function StatisticsPage() {
                     </Pie>
                     <Tooltip
                       formatter={(v) => formatMoney(Number(v) || 0)}
-                      contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0' }}
+                      contentStyle={ct.tooltipStyle}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -352,16 +354,16 @@ export default function StatisticsPage() {
             <div className="h-[420px]">
               <ResponsiveContainer>
                 <BarChart layout="vertical" data={barData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: ct.tick }} />
                   <YAxis type="category" dataKey="name"
-                    tick={{ fontSize: 12, fill: '#475569' }} width={110} />
+                    tick={{ fontSize: 12, fill: ct.tick }} width={110} />
                   <Tooltip
                     formatter={(v, n) => [
                       n === 'value' ? formatMoney(Number(v) || 0) : `${v} 笔`,
                       n === 'value' ? '金额' : '笔数',
                     ]}
-                    contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0' }}
+                    contentStyle={ct.tooltipStyle}
                   />
                   <Bar dataKey="value" radius={[0, 6, 6, 0]} name="value">
                     {barData.map((_, i) => (
@@ -434,20 +436,20 @@ export default function StatisticsPage() {
           <div className="h-72">
             <ResponsiveContainer>
               <BarChart data={accountData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: ct.tick }} />
+                <YAxis tick={{ fontSize: 11, fill: ct.tick }} />
                 <Tooltip
                   formatter={(v) => formatMoney(Number(v) || 0)}
-                  contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0' }}
+                  contentStyle={ct.tooltipStyle}
                 />
                 <Legend
                   formatter={(n) => n === 'income' ? '收入' : n === 'expense' ? '支出' : '净收支'}
                 />
                 <Bar dataKey="income" name="income" stackId="a"
-                  fill="#10B981" radius={[4, 4, 0, 0]} />
+                  fill={ct.income} radius={[4, 4, 0, 0]} />
                 <Bar dataKey="expense" name="expense" stackId="a"
-                  fill="#EF4444" radius={[4, 4, 0, 0]} />
+                  fill={ct.expense} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -478,15 +480,15 @@ export default function StatisticsPage() {
                     <stop offset="95%" stopColor="#06B6D4" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: ct.tick }} />
+                <YAxis tick={{ fontSize: 11, fill: ct.tick }} />
                 <Tooltip
                   formatter={(v, n) => [
                     formatMoney(Number(v) || 0),
                     n === 'net_asset' ? '净值' : n === 'total_asset' ? '总资产' : '总负债',
                   ]}
-                  contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0' }}
+                  contentStyle={ct.tooltipStyle}
                 />
                 <Legend
                   formatter={(n) => n === 'net_asset' ? '净值' : n === 'total_asset' ? '总资产' : '总负债'}
@@ -522,10 +524,10 @@ function StatCard({
   color: 'emerald' | 'red' | 'brand' | 'indigo';
 }) {
   const ring = {
-    emerald: 'border-emerald-100 bg-emerald-50/50',
-    red: 'border-red-100 bg-red-50/50',
-    brand: 'border-brand-100 bg-brand-50/50',
-    indigo: 'border-indigo-100 bg-indigo-50/50',
+    emerald: 'bg-income-soft border-slate-200',
+    red: 'bg-expense-soft border-slate-200',
+    brand: 'bg-brand-50 border-slate-200',
+    indigo: 'bg-indigo-50 border-slate-200',
   }[color];
   return (
     <div className={`card card-body border ${ring} transition hover:-translate-y-0.5 hover:shadow-lg`}>

@@ -5,6 +5,7 @@ import { useAppStore } from '@/stores/app';
 import { txApi, aiApi, uploadApi } from '@/api';
 import type { Transaction, TransactionType, Tag as TagType } from '@/types';
 import { formatMoney, formatDate, cn } from '@/utils';
+import { getFinanceColors } from '@/utils/theme';
 import {
   ArrowLeft, ArrowRightLeft, Minus, Plus, Calendar as CalendarIcon,
   Tag, ImagePlus, Save, Repeat1, ChevronDown, Upload, X, Image,
@@ -262,8 +263,8 @@ export default function TransactionAddPage() {
       <section className="card card-body p-1.5">
         <div className="grid grid-cols-3 gap-1.5">
           {[
-            { k: 'expense', label: '支出', Icon: Minus, cls: 'text-red-500' },
-            { k: 'income', label: '收入', Icon: Plus, cls: 'text-emerald-600' },
+            { k: 'expense', label: '支出', Icon: Minus, cls: 'text-expense' },
+            { k: 'income', label: '收入', Icon: Plus, cls: 'text-income' },
             { k: 'transfer', label: '转账', Icon: ArrowRightLeft, cls: 'text-indigo-600' },
           ].map(({ k, label, Icon, cls }) => (
             <button
@@ -272,8 +273,8 @@ export default function TransactionAddPage() {
               className={cn(
                 'flex items-center justify-center gap-1.5 py-2.5 rounded-lg font-medium transition',
                 tab === k
-                  ? k === 'expense' ? 'bg-red-50 text-red-600'
-                    : k === 'income' ? 'bg-emerald-50 text-emerald-600'
+                  ? k === 'expense' ? 'bg-expense-soft text-expense-fg'
+                    : k === 'income' ? 'bg-income-soft text-income-fg'
                     : 'bg-indigo-50 text-indigo-600'
                   : 'text-slate-500 hover:bg-slate-50'
               )}
@@ -317,7 +318,7 @@ export default function TransactionAddPage() {
         <label className="label">金额</label>
         <div className="flex items-end gap-3">
           <div className="text-4xl font-bold tabular-nums" style={{
-            color: tab === 'income' ? '#10B981' : tab === 'transfer' ? '#6366F1' : '#EF4444'
+            color: getFinanceColors()[tab === 'income' ? 'income' : tab === 'transfer' ? 'transfer' : 'expense']
           }}>¥</div>
           <input
             className="flex-1 !text-4xl !font-bold !tabular-nums !py-2 !border-0 !px-0 focus:!ring-0"

@@ -36,7 +36,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen grid md:grid-cols-2 bg-gradient-to-br from-brand-50 via-white to-emerald-50">
+    <div className="min-h-screen grid md:grid-cols-2 bg-gradient-to-br from-brand-50 via-white to-emerald-50 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900">
       {/* 左侧宣传 */}
       <div className="hidden md:flex flex-col justify-center items-center p-16 relative overflow-hidden">
         <div className="absolute top-10 left-10 w-40 h-40 bg-brand-200 rounded-full blur-3xl opacity-40" />
@@ -123,7 +123,7 @@ export default function LoginPage() {
 function Feature({ icon, title, desc }: { icon: string; title: string; desc: string }) {
   return (
     <li className="flex items-start gap-3">
-      <div className="w-10 h-10 rounded-xl bg-white shadow-card grid place-items-center text-xl shrink-0">
+      <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 shadow-card grid place-items-center text-xl shrink-0">
         {icon}
       </div>
       <div>

@@ -9,12 +9,14 @@ import {
   Plus, ChevronRight, Receipt, Target, CalendarDays, CreditCard, AlertCircle, Clock,
 } from 'lucide-react';
 import { AmountBadge, Empty, Progress } from '@/components/common';
+import { useChartTheme } from '@/hooks/useChartTheme';
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line,
 } from 'recharts';
 
 export default function DashboardPage() {
+  const ct = useChartTheme();
   const bookId = useAppStore(s => s.currentBookId);
   const [asset, setAsset] = useState<AssetOverview | null>(null);
   const [stats, setStats] = useState<StatisticsData | null>(null);
@@ -142,7 +144,7 @@ export default function DashboardPage() {
                     </Pie>
                     <Tooltip
                       formatter={(v) => formatMoney(Number(v) || 0)}
-                      contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0' }}
+                      contentStyle={ct.tooltipStyle}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -176,17 +178,17 @@ export default function DashboardPage() {
             <div className="h-64">
               <ResponsiveContainer>
                 <LineChart data={trend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(s) => s.slice(8)} />
-                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: ct.tick }} tickFormatter={(s) => s.slice(8)} />
+                  <YAxis tick={{ fontSize: 11, fill: ct.tick }} />
                   <Tooltip
                     formatter={(v, n) => [formatMoney(Number(v) || 0), n === 'income' ? '收入' : n === 'expense' ? '支出' : '结余']}
-                    contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0' }}
+                    contentStyle={ct.tooltipStyle}
                   />
                   <Line type="monotone" dataKey="income" name="income"
-                    stroke="#10B981" strokeWidth={2.2} dot={false} />
+                    stroke={ct.income} strokeWidth={2.2} dot={false} />
                   <Line type="monotone" dataKey="expense" name="expense"
-                    stroke="#EF4444" strokeWidth={2.2} dot={false} />
+                    stroke={ct.expense} strokeWidth={2.2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -294,12 +296,12 @@ export default function DashboardPage() {
                     name: accountTypeLabel(k), value: v,
                   }))}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={80} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: ct.tick }} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: ct.tick }} width={80} />
                   <Tooltip
                     formatter={(v) => formatMoney(Number(v) || 0)}
-                    contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0' }}
+                    contentStyle={ct.tooltipStyle}
                   />
                   <Bar dataKey="value" radius={[0, 6, 6, 0]}>
                     {Object.entries(asset.by_type).map((_, i) => (

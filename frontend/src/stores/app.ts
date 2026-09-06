@@ -23,6 +23,7 @@ interface AppState {
   // actions
   setLoading: (b: boolean) => void;
   toggleSidebar: () => void;
+  closeSidebar: () => void;
   bumpListVersion: () => void;
 
   // auth
@@ -53,6 +54,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setLoading: (b) => set({ loading: b }),
   toggleSidebar: () => set({ sidebarOpen: !get().sidebarOpen }),
+  closeSidebar: () => set({ sidebarOpen: false }),
   bumpListVersion: () => set({ listVersion: get().listVersion + 1 }),
 
   setAuth(token, user) {

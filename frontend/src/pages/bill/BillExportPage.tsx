@@ -95,11 +95,11 @@ export default function BillExportPage() {
           </div>
           <div className="p-5 text-center border-r border-slate-100">
             <div className="text-xs text-slate-400">总收入</div>
-            <div className="text-2xl font-bold text-emerald-600 mt-1 tabular-nums">{formatMoney(summary.total_income)}</div>
+            <div className="text-2xl font-bold text-income mt-1 tabular-nums">{formatMoney(summary.total_income)}</div>
           </div>
           <div className="p-5 text-center">
             <div className="text-xs text-slate-400">总支出</div>
-            <div className="text-2xl font-bold text-red-500 mt-1 tabular-nums">{formatMoney(summary.total_expense)}</div>
+            <div className="text-2xl font-bold text-expense mt-1 tabular-nums">{formatMoney(summary.total_expense)}</div>
           </div>
         </div>
 
@@ -107,7 +107,7 @@ export default function BillExportPage() {
         <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
           <div className="p-6">
             <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-red-500" /> 支出分类
+              <span className="w-2 h-2 rounded-full bg-expense" /> 支出分类
             </h3>
             {category_expense.length === 0 ? (
               <div className="text-sm text-slate-400 py-8 text-center">本月暂无支出</div>
@@ -131,7 +131,7 @@ export default function BillExportPage() {
           </div>
           <div className="p-6">
             <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" /> 收入分类
+              <span className="w-2 h-2 rounded-full bg-income" /> 收入分类
             </h3>
             {category_income.length === 0 ? (
               <div className="text-sm text-slate-400 py-8 text-center">本月暂无收入</div>
@@ -172,9 +172,9 @@ export default function BillExportPage() {
                 {daily_trend.filter((d) => d.income > 0 || d.expense > 0).map((d, i) => (
                   <tr key={i} className="border-b border-slate-50">
                     <td className="py-2 text-slate-600 tabular-nums">{d.date}</td>
-                    <td className="py-2 text-right text-emerald-600 tabular-nums">{d.income > 0 ? formatMoney(d.income) : '—'}</td>
-                    <td className="py-2 text-right text-red-500 tabular-nums">{d.expense > 0 ? formatMoney(d.expense) : '—'}</td>
-                    <td className={['py-2 text-right tabular-nums', d.net >= 0 ? 'text-slate-700' : 'text-red-500'].join(' ')}>
+                    <td className="py-2 text-right text-income tabular-nums">{d.income > 0 ? formatMoney(d.income) : '—'}</td>
+                    <td className="py-2 text-right text-expense tabular-nums">{d.expense > 0 ? formatMoney(d.expense) : '—'}</td>
+                    <td className={['py-2 text-right tabular-nums', d.net >= 0 ? 'text-slate-700' : 'text-expense'].join(' ')}>
                       {formatMoney(d.net)}
                     </td>
                   </tr>
