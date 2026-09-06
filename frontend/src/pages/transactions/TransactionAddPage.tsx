@@ -62,6 +62,20 @@ export default function TransactionAddPage() {
   const [toAccDrawerOpen, setToAccDrawerOpen] = useState(false);
   // 分类网格中展开查看二级分类的父分类
   const [expandedCatId, setExpandedCatId] = useState(0);
+  // 时间选择弹层（自定义时/分选择，避免原生控件的 12 小时制显示）
+  const [timePopOpen, setTimePopOpen] = useState(false);
+  const timePopRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!timePopOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (timePopRef.current && !timePopRef.current.contains(e.target as Node)) {
+        setTimePopOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [timePopOpen]);
 
   // AI 相关状态
   const [aiInput, setAiInput] = useState('');
@@ -495,18 +509,46 @@ export default function TransactionAddPage() {
         </div>
         <div>
           <label className="label">时间</label>
-          <div className="relative">
-            <div className="input flex items-center justify-between cursor-pointer select-none">
+          <div className="relative" ref={timePopRef}>
+            <div
+              className="input flex items-center justify-between cursor-pointer select-none"
+              onClick={() => setTimePopOpen(o => !o)}
+            >
               <span className="tabular-nums">{form.tx_time}</span>
               <Clock size={15} className="text-slate-400 shrink-0" />
             </div>
-            <input
-              type="time"
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              value={form.tx_time}
-              onClick={e => (e.currentTarget as any).showPicker?.()}
-              onChange={e => setField('tx_time', e.target.value)}
-            />
+            {timePopOpen && (
+              <div className="absolute z-30 right-0 top-full mt-1 w-52 card p-2.5 shadow-xl flex items-center gap-1.5">
+                <select
+                  className="input w-16 flex-none text-center tabular-nums"
+                  value={form.tx_time.split(':')[0] || '00'}
+                  onChange={e => setField('tx_time', `${e.target.value}:${form.tx_time.split(':')[1] || '00'}`)}
+                >
+                  {Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0')).map(h => (
+                    <option key={h} value={h}>{h}</option>
+                  ))}
+                </select>
+                <span className="text-xs text-slate-400 shrink-0">时</span>
+                <select
+                  className="input w-16 flex-none text-center tabular-nums"
+                  value={form.tx_time.split(':')[1] || '00'}
+                  onChange={e => setField('tx_time', `${form.tx_time.split(':')[0] || '00'}:${e.target.value}`)}
+                >
+                  {Array.from({ length: 60 }, (_, m) => String(m).padStart(2, '0')).map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+                <span className="text-xs text-slate-400 shrink-0">分</span>
+                <button
+                  type="button"
+                  className="ml-auto btn-ghost btn-sm text-xs text-brand-600 shrink-0 px-2"
+                  onClick={() => {
+                    const now = new Date();
+                    setField('tx_time', `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
+                  }}
+                >此刻</button>
+              </div>
+            )}
           </div>
         </div>
       </section>
