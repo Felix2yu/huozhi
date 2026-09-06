@@ -165,7 +165,47 @@ func GetStatistics(c *gin.Context) {
 		result["by_category_income"] = incomeRank
 	}
 
-	// 2) 按账户
+	// 2) 按账本（全部账本聚合视图下可见各账本开销）
+	if dimension == "book" || dimension == "all" {
+		var bookRows []struct {
+			BookID    uint
+			Type      string
+			SumAmount float64
+		}
+		base().Select("book_id, type, SUM(amount) sum_amount").
+			Where("type IN ?", []string{string(models.TxExpense), string(models.TxIncome), string(models.TxRefund)}).
+			Group("book_id, type").Scan(&bookRows)
+		out := map[uint]gin.H{}
+		for _, r := range bookRows {
+			if _, ok := out[r.BookID]; !ok {
+				out[r.BookID] = gin.H{"book_id": r.BookID, "income": models.Money(0), "expense": models.Money(0)}
+			}
+			switch r.Type {
+			case string(models.TxIncome), string(models.TxRefund):
+				out[r.BookID]["income"] = out[r.BookID]["income"].(models.Money) + models.FromCents(r.SumAmount)
+			case string(models.TxExpense):
+				out[r.BookID]["expense"] = out[r.BookID]["expense"].(models.Money) + models.FromCents(r.SumAmount)
+			}
+		}
+		// 补充账本名称
+		bookIDs := make([]uint, 0, len(out))
+		for id := range out {
+			bookIDs = append(bookIDs, id)
+		}
+		if len(bookIDs) > 0 {
+			var books []models.Book
+			database.DB.Where("id IN ?", bookIDs).Find(&books)
+			for _, b := range books {
+				if _, ok := out[b.ID]; ok {
+					out[b.ID]["book_name"] = b.Name
+					out[b.ID]["icon"] = b.Icon
+				}
+			}
+		}
+		result["by_book"] = out
+	}
+
+	// 2b) 按账户
 	if dimension == "account" || dimension == "all" {
 		var accRows []struct {
 			AccountID uint
@@ -241,12 +281,12 @@ func GetStatistics(c *gin.Context) {
 
 	// 4) Top 支出排行榜
 	var topExp []struct {
-		ID          uint
-		Amount      models.Money
-		Description string
-		TxDate      time.Time
-		CategoryID  uint
-		Merchant    string
+		ID          uint         `json:"id"`
+		Amount      models.Money `json:"amount"`
+		Description string       `json:"description"`
+		TxDate      time.Time    `json:"tx_date"`
+		CategoryID  uint         `json:"category_id"`
+		Merchant    string       `json:"merchant"`
 	}
 	base().Where("type = ?", string(models.TxExpense)).Order("amount DESC").Limit(10).
 		Select("id, amount, description, tx_date, category_id, merchant").Scan(&topExp)
