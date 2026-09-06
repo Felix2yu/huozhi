@@ -12,6 +12,7 @@ import {
   Bell, Palette, Shield, HelpCircle, Heart, Smartphone,
 } from 'lucide-react';
 import { Modal, ConfirmDialog } from '@/components/common';
+import { PageHeader, HeroCard } from '@/components/common/page';
 
 type TabKey = 'profile' | 'password' | 'prefs' | 'io' | 'about';
 
@@ -180,7 +181,29 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="grid lg:grid-cols-[220px_1fr] gap-5">
+    <div className="space-y-5">
+      <PageHeader title="系统设置" subtitle="资料、偏好与数据管理" />
+
+      {/* 个人横幅 Hero */}
+      <HeroCard>
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="w-14 h-14 rounded-2xl bg-white/15 border border-white/20 grid place-items-center text-2xl font-bold shrink-0 overflow-hidden">
+            {user?.avatar ? (
+              <img src={user.avatar} className="w-full h-full object-cover" alt="" />
+            ) : (
+              (user?.nickname || user?.username || '?').slice(0, 1).toUpperCase()
+            )}
+          </div>
+          <div className="min-w-0">
+            <div className="text-lg font-bold">{user?.nickname}</div>
+            <div className="text-sm text-white/70 mt-0.5">
+              @{user?.username} · 注册于 {user?.created_at ? formatDate(user.created_at, 'YYYY-MM-DD') : '-'}
+            </div>
+          </div>
+        </div>
+      </HeroCard>
+
+      <div className="grid lg:grid-cols-[220px_1fr] gap-5">
       {/* 侧边 Tab */}
       <aside className="card p-2 h-fit sticky top-5">
         <ul className="space-y-1">
@@ -718,6 +741,7 @@ export default function SettingsPage() {
         okText="退出"
         danger
       />
+      </div>
     </div>
   );
 }

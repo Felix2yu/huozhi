@@ -9,6 +9,7 @@ import {
   Check, X, GripVertical, Minus, ArrowUpRight,
 } from 'lucide-react';
 import { Modal, ConfirmDialog, Empty } from '@/components/common';
+import { PageHeader, HeroCard, HeroStat, SegmentedTabs } from '@/components/common/page';
 import { CATEGORY_ICONS as PRESET_ICONS, randomIcon } from '@/constants/icons';
 
 const PRESET_COLORS = [
@@ -183,31 +184,26 @@ export default function CategoriesPage() {
 
   return (
     <div className="space-y-5">
-      {/* Tab */}
-      <section className="card p-1.5">
-        <div className="grid grid-cols-2 gap-1.5">
-          <button
-            onClick={() => setTab('expense')}
-            className={cn(
-              'flex items-center justify-center gap-1.5 py-2.5 rounded-lg font-medium transition',
-              tab === 'expense' ? 'bg-expense-soft text-expense-fg' : 'text-slate-500 hover:bg-slate-50'
-            )}
-          >
-            <Minus size={16} /> 支出分类
-            <span className="chip chip-expense">{expRaw.length}</span>
-          </button>
-          <button
-            onClick={() => setTab('income')}
-            className={cn(
-              'flex items-center justify-center gap-1.5 py-2.5 rounded-lg font-medium transition',
-              tab === 'income' ? 'bg-income-soft text-income-fg' : 'text-slate-500 hover:bg-slate-50'
-            )}
-          >
-            <ArrowUpRight size={16} /> 收入分类
-            <span className="chip chip-income">{incRaw.length}</span>
-          </button>
+      <PageHeader title="分类管理" subtitle="管理支出/收入分类，支持拖拽排序" />
+
+      {/* 分类概览 Hero */}
+      <HeroCard>
+        <div className="grid grid-cols-2 gap-4">
+          <HeroStat label="支出分类" value={`${expRaw.length} 个`} />
+          <HeroStat label="收入分类" value={`${incRaw.length} 个`} />
         </div>
-      </section>
+        <div className="text-xs text-white/60 mt-3">拖动分类行可调整顺序，支持两级子分类</div>
+      </HeroCard>
+
+      {/* Tab */}
+      <SegmentedTabs
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'expense', label: '支出分类', icon: Minus },
+          { value: 'income', label: '收入分类', icon: ArrowUpRight },
+        ]}
+      />
 
       {/* 顶部操作 */}
       <section className="card card-body">

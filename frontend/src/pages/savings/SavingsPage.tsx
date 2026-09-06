@@ -9,6 +9,7 @@ import {
   Check, X, Sparkles, Rocket, Coins, Award,
 } from 'lucide-react';
 import { Modal, ConfirmDialog, Empty, Progress } from '@/components/common';
+import { PageHeader, HeroCard, SegmentedTabs } from '@/components/common/page';
 import { CATEGORY_ICONS as PRESET_ICONS } from '@/constants/icons';
 
 const PRESET_COLORS = ['#F59E0B', '#10B981', '#6366F1', '#EC4899', '#06B6D4', '#EF4444'];
@@ -177,11 +178,17 @@ export default function SavingsPage() {
 
   return (
     <div className="space-y-5">
+      <PageHeader
+        title="存钱计划"
+        subtitle="为目标一点一点攒钱"
+        actions={
+          <button className="btn-primary" onClick={openCreate}>
+            <Plus size={16} /> 新建存钱计划
+          </button>
+        }
+      />
       {/* 总览卡片 */}
-      <section className="rounded-2xl bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 p-6 text-white shadow-soft relative overflow-hidden">
-        <div className="absolute -right-10 -top-10 w-48 h-48 bg-white/10 rounded-full blur-2xl" />
-        <div className="absolute right-20 bottom-0 w-32 h-32 bg-white/10 rounded-full blur-xl" />
-        <div className="relative">
+      <HeroCard>
           <div className="flex items-center gap-2 text-white/70 text-sm">
             <PiggyBank size={16} /> 存钱计划总览
           </div>
@@ -219,32 +226,19 @@ export default function SavingsPage() {
               />
             </div>
           </div>
-        </div>
-      </section>
+      </HeroCard>
 
       {/* 操作栏 */}
-      <section className="card card-body flex items-center justify-between flex-wrap gap-3">
-        <div className="flex gap-1 p-0.5 bg-slate-100 rounded-lg">
-          {[
-            { k: 'all', label: '全部' },
-            { k: 'active', label: '进行中' },
-            { k: 'done', label: '已达成' },
-            { k: 'paused', label: '已暂停' },
-          ].map(s => (
-            <button
-              key={s.k}
-              onClick={() => setStatusFilter(s.k as StatusFilter)}
-              className={cn(
-                'px-3 py-1.5 rounded-md text-xs font-medium transition',
-                statusFilter === s.k ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500'
-              )}
-            >{s.label}</button>
-          ))}
-        </div>
-        <button className="btn-primary btn-sm" onClick={openCreate}>
-          <Plus size={14} /> 新建存钱计划
-        </button>
-      </section>
+      <SegmentedTabs
+        value={statusFilter}
+        onChange={v => setStatusFilter(v as StatusFilter)}
+        options={[
+          { value: 'all', label: '全部' },
+          { value: 'active', label: '进行中' },
+          { value: 'done', label: '已达成' },
+          { value: 'paused', label: '已暂停' },
+        ]}
+      />
 
       {/* 计划卡片列表 */}
       <section className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">

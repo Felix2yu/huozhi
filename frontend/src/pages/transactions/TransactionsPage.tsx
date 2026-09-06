@@ -11,6 +11,7 @@ import {
   Image as ImageIcon, MapPin, Store, StickyNote,
 } from 'lucide-react';
 import { AmountBadge, ConfirmDialog, Drawer, Empty, Modal, TagChip } from '@/components/common';
+import { PageHeader, HeroCard, HeroStat } from '@/components/common/page';
 
 export default function TransactionsPage() {
   const navigate = useNavigate();
@@ -121,38 +122,30 @@ export default function TransactionsPage() {
 
   return (
     <div className="space-y-5">
-      {/* 顶部汇总卡片 */}
-      <section className="card card-body">
+      <PageHeader
+        title="账单流水"
+        subtitle={`${filters.start_date} ~ ${filters.end_date}`}
+      />
+      {/* 顶部汇总 Hero */}
+      <HeroCard>
         <div className="grid grid-cols-3 gap-3 md:gap-6">
-          <div className="text-center md:text-left">
-            <div className="text-xs text-slate-500 flex items-center gap-1 md:justify-start justify-center">
-              <ArrowUpRight size={14} className="text-income" /> 收入
-            </div>
-            <div className="text-lg md:text-2xl font-bold text-income tabular-nums mt-1">
-              {formatMoney(summary?.total_income || 0)}
-            </div>
-          </div>
-          <div className="text-center">
-            <div className="text-xs text-slate-500 flex items-center gap-1 justify-center">
-              <ArrowDownRight size={14} className="text-expense" /> 支出
-            </div>
-            <div className="text-lg md:text-2xl font-bold text-expense tabular-nums mt-1">
-              {formatMoney(summary?.total_expense || 0)}
-            </div>
-          </div>
-          <div className="text-center md:text-right">
-            <div className="text-xs text-slate-500 flex items-center gap-1 md:justify-end justify-center">
-              <Receipt size={14} className="text-brand-600" /> 结余
-            </div>
-            <div className={cn(
-              'text-lg md:text-2xl font-bold tabular-nums mt-1',
-              (summary?.net || 0) >= 0 ? 'text-brand-600' : 'text-expense'
-            )}>
-              {(summary?.net || 0) >= 0 ? '+' : ''}{formatMoney(summary?.net || 0)}
-            </div>
-          </div>
+          <HeroStat
+            label={<span className="flex items-center gap-1"><ArrowUpRight size={13} /> 收入</span>}
+            value={formatMoney(summary?.total_income || 0)}
+            className="text-emerald-100"
+          />
+          <HeroStat
+            label={<span className="flex items-center gap-1"><ArrowDownRight size={13} /> 支出</span>}
+            value={formatMoney(summary?.total_expense || 0)}
+            className="text-rose-100"
+          />
+          <HeroStat
+            label="结余"
+            value={`${(summary?.net || 0) >= 0 ? '+' : ''}${formatMoney(summary?.net || 0)}`}
+            className={cn((summary?.net || 0) >= 0 ? 'text-white' : 'text-rose-100')}
+          />
         </div>
-      </section>
+      </HeroCard>
 
       {/* 操作栏 */}
       <section className="card">

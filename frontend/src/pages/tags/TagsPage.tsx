@@ -10,6 +10,7 @@ import {
   ArrowUpRight, Flame, Star,
 } from 'lucide-react';
 import { Modal, ConfirmDialog, Empty } from '@/components/common';
+import { PageHeader, HeroCard } from '@/components/common/page';
 
 const PRESET_COLORS = [
   '#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
@@ -116,15 +117,23 @@ export default function TagsPage() {
 
   return (
     <div className="space-y-5">
+      <PageHeader
+        title="标签中心"
+        subtitle="给账单打标签，多维管理消费"
+        actions={
+          <button className="btn-primary" onClick={openCreate}>
+            <Plus size={16} /> 新建标签
+          </button>
+        }
+      />
       {/* 概览 */}
-      <section className="rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 p-6 text-white shadow-soft relative overflow-hidden">
-        <div className="absolute -right-16 -top-16 w-64 h-64 bg-white/10 rounded-full blur-2xl" />
-        <div className="relative flex items-center justify-between flex-wrap gap-4">
+      <HeroCard>
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-white/70 text-sm">
               <Hash size={16} /> 标签管理
             </div>
-            <div className="text-4xl font-bold tabular-nums mt-2 tracking-tight">
+            <div className="text-3xl md:text-4xl font-bold tabular-nums mt-2 tracking-tight">
               {list.length}
               <span className="text-xl font-medium text-white/60 ml-2">个标签</span>
             </div>
@@ -141,11 +150,8 @@ export default function TagsPage() {
               </span>
             </div>
           </div>
-          <button className="btn bg-white text-purple-700 hover:bg-white/90 shadow-lg" onClick={openCreate}>
-            <Plus size={16} /> 新建标签
-          </button>
         </div>
-      </section>
+      </HeroCard>
 
       {/* 搜索 + 排序 */}
       <section className="card card-body">

@@ -9,6 +9,7 @@ import {
   TrendingDown, TrendingUp, PieChart as PieIcon,
 } from 'lucide-react';
 import { Modal, ConfirmDialog, Empty, Progress } from '@/components/common';
+import { PageHeader, HeroCard } from '@/components/common/page';
 
 type Period = 'monthly' | 'yearly' | 'custom';
 
@@ -121,15 +122,17 @@ export default function BudgetsPage() {
 
   return (
     <div className="space-y-5">
+      <PageHeader
+        title="预算管理"
+        subtitle="总预算与分类预算"
+        actions={
+          <button className="btn-primary btn-sm" onClick={openCreate}>
+            <Plus size={14} /> 新增预算
+          </button>
+        }
+      />
       {/* 总预算卡片 */}
-      <section className={cn(
-        'rounded-2xl p-6 text-white shadow-soft relative overflow-hidden',
-        totalBudget?.is_over_budget
-          ? 'bg-gradient-to-br from-red-500 via-red-600 to-rose-600'
-          : 'bg-gradient-to-br from-brand-600 via-indigo-600 to-purple-600'
-      )}>
-        <div className="absolute -right-20 -top-20 w-72 h-72 bg-white/10 rounded-full blur-3xl" />
-        <div className="relative">
+      <HeroCard tone={totalBudget?.is_over_budget ? 'warning' : 'brand'}>
           <div className="flex items-center gap-2 text-white/70 text-sm">
             <Target size={16} /> 总预算
           </div>
@@ -200,8 +203,7 @@ export default function BudgetsPage() {
               </div>
             </div>
           </div>
-        </div>
-      </section>
+      </HeroCard>
 
       {/* 操作栏 */}
       <section className="card card-body flex items-center justify-between flex-wrap gap-3">
@@ -218,9 +220,6 @@ export default function BudgetsPage() {
               }}
             >设置总预算</button>
           )}
-          <button className="btn-primary btn-sm" onClick={openCreate}>
-            <Plus size={14} /> 新增预算
-          </button>
         </div>
       </section>
 

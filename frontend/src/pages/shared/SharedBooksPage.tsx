@@ -9,6 +9,7 @@ import {
   UserPlus, Book as BookIcon, Settings as SettingsIcon, Copy,
 } from 'lucide-react';
 import { Modal, ConfirmDialog, Empty } from '@/components/common';
+import { PageHeader, HeroCard } from '@/components/common/page';
 
 type Role = 'owner' | 'editor' | 'viewer';
 
@@ -179,18 +180,29 @@ export default function SharedBooksPage() {
 
   return (
     <div className="space-y-5">
-      {/* 顶部 */}
-      <section className="card card-body flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="font-semibold text-slate-800 flex items-center gap-2">
-            <BookIcon size={20} className="text-brand-600" /> 账本管理
-          </h2>
-          <p className="text-xs text-slate-400 mt-1">管理和共享账本，邀请家人朋友一起记账</p>
+      <PageHeader
+        title="账本管理"
+        subtitle="管理和共享账本，邀请家人朋友一起记账"
+        actions={
+          <button className="btn-primary" onClick={openBookCreate}>
+            <Plus size={16} /> 新建账本
+          </button>
+        }
+      />
+
+      {/* 账本总览 Hero */}
+      <HeroCard>
+        <div className="flex items-center gap-2 text-white/70 text-sm">
+          <BookIcon size={16} /> 账本总览
         </div>
-        <button className="btn-primary" onClick={openBookCreate}>
-          <Plus size={16} /> 新建账本
-        </button>
-      </section>
+        <div className="text-3xl md:text-4xl font-bold tabular-nums mt-2 tracking-tight">
+          {books.length}
+          <span className="text-xl font-medium text-white/60 ml-2">个账本</span>
+        </div>
+        <div className="text-sm text-white/70 mt-2">
+          活跃 {books.filter(b => !b.is_archived).length} 个 · 切换记账账本请用侧边栏的账本切换器
+        </div>
+      </HeroCard>
 
       {/* 账本卡片 */}
       <section className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">

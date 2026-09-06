@@ -5,13 +5,13 @@ import { useAppStore } from '@/stores/app';
 import { txApi, aiApi, uploadApi } from '@/api';
 import type { Transaction, TransactionType, Tag as TagType } from '@/types';
 import { formatMoney, formatDate, cn } from '@/utils';
-import { getFinanceColors } from '@/utils/theme';
 import {
-  ArrowLeft, ArrowRightLeft, Minus, Plus, Calendar as CalendarIcon,
+  ArrowRightLeft, Minus, Plus, Calendar as CalendarIcon,
   Tag, ImagePlus, Save, Repeat1, ChevronDown, Upload, X, Image,
   Sparkles, Wand2,
 } from 'lucide-react';
 import { Drawer, TagChip } from '@/components/common';
+import { PageHeader, HeroCard, SegmentedTabs } from '@/components/common/page';
 
 type TabType = 'expense' | 'income' | 'transfer';
 
@@ -253,41 +253,52 @@ export default function TransactionAddPage() {
 
   return (
     <div className="space-y-5 pb-28">
-      {/* 顶部操作栏 */}
-      <div className="flex items-center justify-between">
-        <button className="btn-ghost btn-sm" onClick={() => navigate(-1)}>
-          <ArrowLeft size={18} /> 返回
-        </button>
-        <h1 className="font-semibold text-slate-800">{editId ? '编辑账单' : '记一笔'}</h1>
-        <div className="w-16" />
-      </div>
+      <PageHeader back title={editId ? '编辑账单' : '记一笔'} />
 
       {/* 类型切换 Tab */}
-      <section className="card card-body p-1.5">
-        <div className="grid grid-cols-3 gap-1.5">
-          {[
-            { k: 'expense', label: '支出', Icon: Minus, cls: 'text-expense' },
-            { k: 'income', label: '收入', Icon: Plus, cls: 'text-income' },
-            { k: 'transfer', label: '转账', Icon: ArrowRightLeft, cls: 'text-indigo-600' },
-          ].map(({ k, label, Icon, cls }) => (
-            <button
-              key={k}
-              onClick={() => switchTab(k as TabType)}
-              className={cn(
-                'flex items-center justify-center gap-1.5 py-2.5 rounded-lg font-medium transition',
-                tab === k
-                  ? k === 'expense' ? 'bg-expense-soft text-expense-fg'
-                    : k === 'income' ? 'bg-income-soft text-income-fg'
-                    : 'bg-indigo-50 text-indigo-600'
-                  : 'text-slate-500 hover:bg-slate-50'
-              )}
-            >
-              <Icon size={16} className={tab === k ? cls : ''} />
-              {label}
-            </button>
-          ))}
+      <SegmentedTabs
+        value={tab}
+        onChange={v => switchTab(v as TabType)}
+        options={[
+          { value: 'expense', label: '支出', icon: Minus },
+          { value: 'income', label: '收入', icon: Plus },
+          { value: 'transfer', label: '转账', icon: ArrowRightLeft },
+        ]}
+      />
+
+      {/* 金额 Hero */}
+      <HeroCard>
+        <div className="flex items-end justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="text-white/70 text-xs mb-1">
+              {editId ? '编辑账单' : '记一笔'} · {{ expense: '支出', income: '收入', transfer: '转账' }[tab]}
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl md:text-3xl font-bold shrink-0">¥</span>
+              <input
+                className="flex-1 min-w-0 bg-transparent border-0 p-0 text-3xl md:text-4xl font-bold tabular-nums text-white placeholder-white/40 focus:outline-none focus:ring-0"
+                placeholder="0.00"
+                inputMode="decimal"
+                value={form.amount}
+                onChange={e => {
+                  const v = e.target.value.replace(/[^0-9.]/g, '');
+                  const parts = v.split('.');
+                  setField('amount', parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : v);
+                }}
+              />
+            </div>
+            {form.amount && (
+              <div className="text-xs text-white/60 mt-1">
+                大写: {formatMoney(form.amount)}
+              </div>
+            )}
+          </div>
+          <button
+            className="shrink-0 rounded-lg bg-white/15 hover:bg-white/25 px-3 py-1.5 text-sm font-medium transition-colors"
+            onClick={() => setField('amount', String(Math.round(parseFloat(form.amount || '0') / 2 * 100) / 100))}
+          >AA</button>
         </div>
-      </section>
+      </HeroCard>
 
       {/* AI 智能记账 */}
       <section className="card card-body !bg-gradient-to-br from-violet-50 via-white to-indigo-50 border-violet-200">
@@ -314,36 +325,6 @@ export default function TransactionAddPage() {
             ) : <><Wand2 size={14} className="mr-1 inline" />试试</>}
           </button>
         </div>
-      </section>
-
-      {/* 金额输入 */}
-      <section className="card card-body">
-        <label className="label">金额</label>
-        <div className="flex items-end gap-3">
-          <div className="text-4xl font-bold tabular-nums" style={{
-            color: getFinanceColors()[tab === 'income' ? 'income' : tab === 'transfer' ? 'transfer' : 'expense']
-          }}>¥</div>
-          <input
-            className="flex-1 !text-4xl !font-bold !tabular-nums !py-2 !border-0 !px-0 focus:!ring-0"
-            placeholder="0.00"
-            inputMode="decimal"
-            value={form.amount}
-            onChange={e => {
-              const v = e.target.value.replace(/[^0-9.]/g, '');
-              const parts = v.split('.');
-              setField('amount', parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : v);
-            }}
-          />
-          <button
-            className="btn-ghost btn-sm text-slate-400"
-            onClick={() => setField('amount', String(Math.round(parseFloat(form.amount || '0') / 2 * 100) / 100))}
-          >AA</button>
-        </div>
-        {form.amount && (
-          <div className="text-xs text-slate-400 mt-1">
-            大写: {formatMoney(form.amount)}
-          </div>
-        )}
       </section>
 
       {/* 分类选择 Grid */}

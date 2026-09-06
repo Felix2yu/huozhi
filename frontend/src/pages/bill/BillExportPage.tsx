@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useAppStore } from '@/stores/app';
 import { billApi } from '@/api';
 import type { BillData } from '@/api';
 import { formatMoney } from '@/utils';
-import { Download, ArrowLeft, Printer } from 'lucide-react';
+import { Download, Printer } from 'lucide-react';
+import { PageHeader } from '@/components/common/page';
 
 export default function BillExportPage() {
   const [params] = useSearchParams();
-  const navigate = useNavigate();
   const bookId = useAppStore(s => s.currentBookId);
   const [data, setData] = useState<BillData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,22 +27,33 @@ export default function BillExportPage() {
   if (loading) return <div className="grid place-items-center py-32 text-slate-400">加载账单中...</div>;
   if (error || !data) return <div className="p-10 text-center text-red-500">{error || '加载失败'}</div>;
 
-  const { meta, summary, category_expense, category_income, daily_trend, budgets, assets } = data;
+  const { meta, summary } = data;
+  // 后端在部分账本/月份组合下可能返回 null 数组，统一兜底避免整页崩溃
+  const category_expense = data.category_expense || [];
+  const category_income = data.category_income || [];
+  const daily_trend = data.daily_trend || [];
+  const budgets = data.budgets || [];
+  const assets = data.assets || { total_asset: 0, total_debt: 0, net_asset: 0 };
   const PALETTE = ['#6366F1', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316'];
 
   return (
-    <div className="max-w-4xl mx-auto p-6 md:p-10">
+    <div className="max-w-4xl mx-auto space-y-5">
       {/* 工具栏（打印时隐藏） */}
-      <div className="no-print flex items-center justify-between mb-6">
-        <button className="btn-ghost" onClick={() => navigate(-1)}><ArrowLeft size={16} /> 返回</button>
-        <div className="flex items-center gap-2">
-          <button className="btn-secondary" onClick={handlePrint}>
-            <Printer size={16} /> 打印 / 保存 PDF
-          </button>
-          <button className="btn-primary" onClick={handlePrint}>
-            <Download size={16} /> 导出 PDF
-          </button>
-        </div>
+      <div className="no-print">
+        <PageHeader
+          back
+          title={`账单导出 · ${meta.month.replace('-', '/')}`}
+          actions={
+            <>
+              <button className="btn-secondary" onClick={handlePrint}>
+                <Printer size={16} /> 打印 / 保存 PDF
+              </button>
+              <button className="btn-primary" onClick={handlePrint}>
+                <Download size={16} /> 导出 PDF
+              </button>
+            </>
+          }
+        />
       </div>
 
       {/* 账单主体 */}

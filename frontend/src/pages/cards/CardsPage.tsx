@@ -5,8 +5,9 @@ import { useAppStore } from '@/stores/app';
 import { accountApi } from '@/api';
 import type { Account } from '@/types';
 import { formatMoney, cn } from '@/utils';
-import { Plus, CreditCard, Landmark, AlertCircle, Clock, Layers } from 'lucide-react';
+import { Plus, CreditCard, Landmark, AlertCircle, Layers } from 'lucide-react';
 import { Empty } from '@/components/common';
+import { PageHeader, HeroCard } from '@/components/common/page';
 import { BankMark } from '@/components/BankMark';
 
 // ============ 卡面组件 ============
@@ -209,75 +210,72 @@ export default function CardsPage() {
   }, [bookId, loadAccounts]);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-16">
+    <div className="space-y-5 md:space-y-6">
       {/* 头部 */}
-      <header className="flex items-center justify-between pt-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <CreditCard className="text-brand-600" size={26} />
-            我的银行卡
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            储蓄卡 {debits.length} 张 · 信用卡 {credits.length} 张 · 点击卡面翻转查看背面
-          </p>
-        </div>
-        <button className="btn-primary" onClick={() => navigate('/accounts')}>
-          <Plus size={16} /> 新增账户
-        </button>
-      </header>
+      <PageHeader
+        title="我的银行卡"
+        subtitle={`储蓄卡 ${debits.length} 张 · 信用卡 ${credits.length} 张 · 点击卡面翻转查看背面`}
+        actions={
+          <button className="btn-primary" onClick={() => navigate('/accounts')}>
+            <Plus size={16} /> 新增账户
+          </button>
+        }
+      />
 
-      {/* 汇总条 */}
-      <section className="grid md:grid-cols-3 gap-5">
-        <div className="card card-body">
-          <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
-            <Landmark size={13} className="text-slate-400" /> 储蓄卡余额
+      {/* 汇总 Hero */}
+      <HeroCard>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
+          <div>
+            <div className="flex items-center gap-1 text-xs text-white/70 mb-1">
+              <Landmark size={13} /> 储蓄卡余额
+            </div>
+            <div className="text-2xl font-bold tabular-nums">
+              {formatMoney(debitTotal)}
+            </div>
+            <div className="text-[11px] text-white/60 mt-1">共 {debits.length} 张卡</div>
           </div>
-          <div className="text-2xl font-bold tabular-nums text-slate-800">
-            {formatMoney(debitTotal)}
+          <div>
+            <div className="flex items-center gap-1 text-xs text-white/70 mb-1">
+              <CreditCard size={13} /> 信用卡总额度
+            </div>
+            <div className="text-2xl font-bold tabular-nums">{formatMoney(creditSummary.total)}</div>
+            <div className="mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden">
+              <div
+                className={cn(
+                  'h-full rounded-full transition-all',
+                  creditSummary.used / creditSummary.total > 0.8 ? 'bg-red-400' :
+                  creditSummary.used / creditSummary.total > 0.6 ? 'bg-amber-400' : 'bg-emerald-400',
+                )}
+                style={{ width: `${creditSummary.total ? Math.min(100, creditSummary.used / creditSummary.total * 100) : 0}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-[11px] mt-1.5">
+              <span className="text-white/60">已用 {formatMoney(creditSummary.used)}</span>
+              <span className="text-white/80 font-medium">可用 {formatMoney(creditSummary.available)}</span>
+            </div>
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">共 {debits.length} 张卡</div>
+          <div>
+            <div className="flex items-center gap-1 text-xs text-white/70 mb-1">
+              <AlertCircle size={13} /> 卡到期提醒
+            </div>
+            {expiringSoon.length > 0 ? (
+              <>
+                <div className="text-2xl font-bold text-amber-200">{expiringSoon.length} 张</div>
+                <div className="text-[11px] text-white/60 mt-1 truncate">
+                  {expiringSoon.map(c =>
+                    `${c.bank_name || c.name} · ${String(c.expire_month).padStart(2, '0')}/${String(c.expire_year).padStart(2, '0')}`
+                  ).join('，')}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-emerald-200">全部正常</div>
+                <div className="text-[11px] text-white/60 mt-1">未来 90 天内无到期卡</div>
+              </>
+            )}
+          </div>
         </div>
-        <div className="card card-body bg-gradient-to-br from-slate-900 to-slate-700 text-white border-0 shadow-lg">
-          <div className="flex items-center gap-2 text-xs text-white/70 mb-1">
-            <CreditCard size={13} /> 信用卡总额度
-          </div>
-          <div className="text-2xl font-bold tabular-nums">{formatMoney(creditSummary.total)}</div>
-          <div className="mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden">
-            <div
-              className={cn(
-                'h-full rounded-full transition-all',
-                creditSummary.used / creditSummary.total > 0.8 ? 'bg-red-400' :
-                creditSummary.used / creditSummary.total > 0.6 ? 'bg-amber-400' : 'bg-emerald-400',
-              )}
-              style={{ width: `${creditSummary.total ? Math.min(100, creditSummary.used / creditSummary.total * 100) : 0}%` }}
-            />
-          </div>
-          <div className="flex justify-between text-[11px] mt-1.5">
-            <span className="text-white/60">已用 {formatMoney(creditSummary.used)}</span>
-            <span className="text-white/80 font-medium">可用 {formatMoney(creditSummary.available)}</span>
-          </div>
-        </div>
-        <div className="card card-body">
-          <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
-            <AlertCircle size={13} className="text-amber-500" /> 卡到期提醒
-          </div>
-          {expiringSoon.length > 0 ? (
-            <>
-              <div className="text-2xl font-bold text-amber-600">{expiringSoon.length} 张</div>
-              <div className="text-[11px] text-slate-400 mt-1 truncate">
-                {expiringSoon.map(c =>
-                  `${c.bank_name || c.name} · ${String(c.expire_month).padStart(2, '0')}/${String(c.expire_year).padStart(2, '0')}`
-                ).join('，')}
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="text-2xl font-bold text-emerald-600">全部正常</div>
-              <div className="text-[11px] text-slate-400 mt-1">未来 90 天内无到期卡</div>
-            </>
-          )}
-        </div>
-      </section>
+      </HeroCard>
 
       {/* 信用卡专区 */}
       {credits.length > 0 && (

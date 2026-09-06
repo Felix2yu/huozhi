@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { BookOpen as BookIcon } from 'lucide-react';
 import { AmountBadge, Empty } from '@/components/common';
+import { PageHeader, HeroCard, SegmentedTabs } from '@/components/common/page';
 import { useChartTheme } from '@/hooks/useChartTheme';
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip,
@@ -159,26 +160,18 @@ export default function StatisticsPage() {
 
   return (
     <div className="space-y-5">
+      <PageHeader title="统计分析" subtitle={`${range.start_str} ~ ${range.end_str}`} />
+
       {/* 时间范围选择 */}
+      <SegmentedTabs
+        value={preset}
+        onChange={setPreset}
+        options={(Object.keys(PRESET_LABELS) as RangePreset[]).map(p => ({
+          value: p, label: PRESET_LABELS[p], icon: Calendar,
+        }))}
+      />
       <section className="card card-body">
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-            {(Object.keys(PRESET_LABELS) as RangePreset[]).map(p => (
-              <button
-                key={p}
-                onClick={() => setPreset(p)}
-                className={cn(
-                  'shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition whitespace-nowrap',
-                  preset === p
-                    ? 'bg-brand-600 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                )}
-              >
-                <Calendar size={13} className="inline mr-1" />
-                {PRESET_LABELS[p]}
-              </button>
-            ))}
-          </div>
           {preset === 'custom' && (
             <div className="flex items-center gap-2">
               <input
@@ -213,39 +206,58 @@ export default function StatisticsPage() {
         </div>
       </section>
 
-      {/* 汇总卡片 */}
-      <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          icon={<ArrowUpRight size={18} className="text-income" />}
-          label="总收入"
-          value={formatMoney(summary?.total_income || 0)}
-          sub={`${summary?.income_count || 0} 笔 · 日均 ${formatMoney(summary?.avg_daily_income || 0)}`}
-          color="emerald"
-        />
-        <StatCard
-          icon={<ArrowDownRight size={18} className="text-expense" />}
-          label="总支出"
-          value={formatMoney(summary?.total_expense || 0)}
-          sub={`${summary?.expense_count || 0} 笔 · 日均 ${formatMoney(summary?.avg_daily_expense || 0)}`}
-          color="red"
-        />
-        <StatCard
-          icon={<TrendingUp size={18} className={cn((summary?.net || 0) >= 0 ? 'text-brand-600' : 'text-expense')} />}
-          label="净结余"
-          value={(summary?.net || 0) >= 0 ? `+${formatMoney(summary?.net || 0)}` : formatMoney(summary?.net || 0)}
-          sub={`共 ${summary?.transaction_count || 0} 笔交易`}
-          color={(summary?.net || 0) >= 0 ? 'brand' : 'red'}
-        />
-        <StatCard
-          icon={<BarChart3 size={18} className="text-indigo-600" />}
-          label="储蓄率"
-          value={(summary?.total_income || 0) > 0
-            ? `${pct(Math.max(0, summary?.net || 0), summary!.total_income)}%`
-            : '—'}
-          sub={summary?.total_income ? '结余/收入' : '暂无收入数据'}
-          color="indigo"
-        />
-      </section>
+      {/* 汇总 Hero */}
+      <HeroCard>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+          <div>
+            <div className="text-xs text-white/70 flex items-center gap-1">
+              <ArrowUpRight size={13} /> 总收入
+            </div>
+            <div className="text-lg md:text-xl font-bold tabular-nums mt-0.5">
+              {formatMoney(summary?.total_income || 0)}
+            </div>
+            <div className="text-[11px] text-white/60 mt-0.5">
+              {summary?.income_count || 0} 笔 · 日均 {formatMoney(summary?.avg_daily_income || 0)}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-white/70 flex items-center gap-1">
+              <ArrowDownRight size={13} /> 总支出
+            </div>
+            <div className="text-lg md:text-xl font-bold tabular-nums mt-0.5">
+              {formatMoney(summary?.total_expense || 0)}
+            </div>
+            <div className="text-[11px] text-white/60 mt-0.5">
+              {summary?.expense_count || 0} 笔 · 日均 {formatMoney(summary?.avg_daily_expense || 0)}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-white/70 flex items-center gap-1">
+              <TrendingUp size={13} /> 净结余
+            </div>
+            <div className={cn(
+              'text-lg md:text-xl font-bold tabular-nums mt-0.5',
+              (summary?.net || 0) < 0 && 'text-red-200'
+            )}>
+              {(summary?.net || 0) >= 0 ? `+${formatMoney(summary?.net || 0)}` : formatMoney(summary?.net || 0)}
+            </div>
+            <div className="text-[11px] text-white/60 mt-0.5">共 {summary?.transaction_count || 0} 笔交易</div>
+          </div>
+          <div>
+            <div className="text-xs text-white/70 flex items-center gap-1">
+              <BarChart3 size={13} /> 储蓄率
+            </div>
+            <div className="text-lg md:text-xl font-bold tabular-nums mt-0.5">
+              {(summary?.total_income || 0) > 0
+                ? `${pct(Math.max(0, summary?.net || 0), summary!.total_income)}%`
+                : '—'}
+            </div>
+            <div className="text-[11px] text-white/60 mt-0.5">
+              {summary?.total_income ? '结余/收入' : '暂无收入数据'}
+            </div>
+          </div>
+        </div>
+      </HeroCard>
 
       {/* 收支趋势折线图 */}
       <section className="card card-body">
@@ -549,37 +561,6 @@ export default function StatisticsPage() {
           加载中...
         </div>
       )}
-    </div>
-  );
-}
-
-function StatCard({
-  icon, label, value, sub, color,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  sub: string;
-  color: 'emerald' | 'red' | 'brand' | 'indigo';
-}) {
-  const ring = {
-    emerald: 'bg-income-soft border-slate-200',
-    red: 'bg-expense-soft border-slate-200',
-    brand: 'bg-brand-50 border-slate-200',
-    indigo: 'bg-indigo-50 border-slate-200',
-  }[color];
-  return (
-    <div className={`card card-body border ${ring} transition hover:-translate-y-0.5 hover:shadow-lg`}>
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg grid place-items-center bg-white shadow-sm">
-          {icon}
-        </div>
-        <span className="text-sm text-slate-500">{label}</span>
-      </div>
-      <div className="mt-3 text-2xl md:text-3xl font-bold tabular-nums tracking-tight text-slate-800">
-        {value}
-      </div>
-      <div className="mt-1 text-xs text-slate-400">{sub}</div>
     </div>
   );
 }

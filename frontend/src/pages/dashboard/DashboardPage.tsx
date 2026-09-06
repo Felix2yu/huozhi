@@ -9,6 +9,7 @@ import {
   Plus, ChevronRight, Receipt, Target, CalendarDays, CreditCard, AlertCircle, Clock,
 } from 'lucide-react';
 import { AmountBadge, Empty, Progress } from '@/components/common';
+import { PageHeader, HeroCard } from '@/components/common/page';
 import { useChartTheme } from '@/hooks/useChartTheme';
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip,
@@ -65,12 +66,10 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <PageHeader title="首页总览" subtitle="资产与本月收支概览" />
       {/* 顶部资产卡片 */}
-      <section className="rounded-2xl bg-gradient-to-br from-brand-600 via-brand-500 to-emerald-500 p-6 md:p-8 text-white shadow-soft overflow-hidden relative">
-        <div className="absolute -right-20 -top-20 w-72 h-72 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute -right-10 bottom-0 w-52 h-52 bg-white/5 rounded-full" />
-        <div className="relative">
-          <div className="flex flex-wrap items-end justify-between gap-4">
+      <HeroCard className="p-6 md:p-8">
+        <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <div className="text-white/70 text-sm flex items-center gap-2">
                 <PiggyBank size={16} /> 资产净值
@@ -114,8 +113,7 @@ export default function DashboardPage() {
               sub={`共 ${asset?.account_count || 0} 个账户`}
             />
           </div>
-        </div>
-      </section>
+      </HeroCard>
 
       <div className="grid lg:grid-cols-3 gap-5">
         {/* 支出分类占比 */}

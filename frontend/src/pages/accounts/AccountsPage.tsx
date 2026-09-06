@@ -10,6 +10,7 @@ import {
   Settings as SettingsIcon, ChevronDown, Check, X, TrendingDown, Eye, EyeOff,
 } from 'lucide-react';
 import { Modal, ConfirmDialog, Empty } from '@/components/common';
+import { PageHeader, HeroCard, HeroStat } from '@/components/common/page';
 import { useChartTheme } from '@/hooks/useChartTheme';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Area, AreaChart } from 'recharts';
 import { BankMark } from '@/components/BankMark';
@@ -235,47 +236,32 @@ export default function AccountsPage() {
 
   return (
     <div className="space-y-5">
+      <PageHeader title="账户资产" subtitle="资产净值与账户概览" />
       {/* 顶部资产总览卡片 */}
-      <section className="rounded-2xl bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 p-6 text-white shadow-soft relative overflow-hidden">
-        <div className="absolute -right-16 -top-16 w-64 h-64 bg-white/5 rounded-full blur-2xl" />
-        <div className="relative">
-          <div className="flex items-center gap-2 text-white/60 text-sm">
-            <PiggyBank size={16} /> 资产净值
-          </div>
-          <div className="text-4xl font-bold tabular-nums mt-2 tracking-tight">
-            {formatMoney(summary?.net_asset || 0)}
-          </div>
-          <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
-            <div>
-              <div className="text-white/60 flex items-center gap-1">
-                <Landmark size={14} /> 总资产
-              </div>
-              <div className="text-lg font-semibold tabular-nums mt-0.5">
-                {formatMoney(summary?.total_asset || 0)}
-              </div>
-            </div>
-            <div>
-              <div className="text-white/60 flex items-center gap-1">
-                <TrendingDown size={14} /> 总负债
-              </div>
-              <div className="text-lg font-semibold tabular-nums mt-0.5 text-red-300">
-                {formatMoney(summary?.total_debt || 0)}
-              </div>
-            </div>
-            <div>
-              <div className="text-white/60 flex items-center gap-1">
-                <TrendingUp size={14} /> 现金流
-              </div>
-              <div className={cn(
-                'text-lg font-semibold tabular-nums mt-0.5',
-                (summary?.cash_flow || 0) >= 0 ? 'text-emerald-300' : 'text-red-300'
-              )}>
-                {(summary?.cash_flow || 0) >= 0 ? '+' : ''}{formatMoney(summary?.cash_flow || 0)}
-              </div>
-            </div>
-          </div>
+      <HeroCard>
+        <div className="flex items-center gap-2 text-white/70 text-sm">
+          <PiggyBank size={16} /> 资产净值
         </div>
-      </section>
+        <div className="text-3xl md:text-4xl font-bold tabular-nums mt-2 tracking-tight">
+          {formatMoney(summary?.net_asset || 0)}
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-4">
+          <HeroStat
+            label={<span className="flex items-center gap-1"><Landmark size={12} /> 总资产</span>}
+            value={formatMoney(summary?.total_asset || 0)}
+          />
+          <HeroStat
+            label={<span className="flex items-center gap-1"><TrendingDown size={12} /> 总负债</span>}
+            value={formatMoney(summary?.total_debt || 0)}
+            className="text-red-200"
+          />
+          <HeroStat
+            label={<span className="flex items-center gap-1"><TrendingUp size={12} /> 现金流</span>}
+            value={`${(summary?.cash_flow || 0) >= 0 ? '+' : ''}${formatMoney(summary?.cash_flow || 0)}`}
+            className={(summary?.cash_flow || 0) >= 0 ? 'text-emerald-200' : 'text-red-200'}
+          />
+        </div>
+      </HeroCard>
 
       {/* 资产净值曲线 */}
       <section className="card card-body">
