@@ -3,12 +3,8 @@ import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Receipt, Wallet as WalletIcon, PieChart, BarChart3,
   Tags, Target, Users as UsersGroupIcon, Settings, Plus, BookMarked,
-<<<<<<< HEAD
   Menu, X, LogOut, TrendingUp, CloudOff, CreditCard, ChevronDown, Check,
-=======
-  Menu, X, LogOut, TrendingUp, CloudOff, CreditCard,
   Repeat, FileText,
->>>>>>> origin/main
 } from 'lucide-react';
 import { useAppStore } from '@/stores/app';
 import { cn, formatMoney } from '@/utils';
@@ -26,14 +22,10 @@ const navItems = [
   { to: '/statistics',   label: '统计分析', icon: BarChart3 },
   { to: '/tags',         label: '标签中心', icon: Tags },
   { to: '/savings',      label: '存钱计划', icon: TrendingUp },
-<<<<<<< HEAD
-  { to: '/shared-books', label: '账本管理', icon: UsersGroupIcon },
-=======
   { to: '/recurring',    label: '周期记账', icon: Repeat },
   { to: '/installments', label: '分期管理', icon: CreditCard },
   { to: '/reimbursements', label: '报销管理', icon: FileText },
   { to: '/shared-books', label: '共享账本', icon: UsersGroupIcon },
->>>>>>> origin/main
   { to: '/settings',     label: '系统设置', icon: Settings },
 ];
 
