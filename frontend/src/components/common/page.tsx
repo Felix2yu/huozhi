@@ -95,7 +95,7 @@ export function SegmentedTabs<T extends string>({
 }: {
   value: T;
   onChange: (v: T) => void;
-  options: { value: T; label: ReactNode; icon?: React.ComponentType<{ size?: number | string }> }[];
+  options: { value: T; label: ReactNode; icon?: React.ComponentType<{ size?: number | string }>; activeColor?: string; activeStyle?: React.CSSProperties }[];
   className?: string;
 }) {
   return (
@@ -112,9 +112,10 @@ export function SegmentedTabs<T extends string>({
             className={cn(
               'flex items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition-colors',
               active
-                ? 'bg-brand-600 text-white shadow-sm'
+                ? cn(opt.activeColor || 'bg-brand-600 text-white', 'shadow-sm')
                 : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200',
             )}
+            style={active ? opt.activeStyle : undefined}
           >
             {opt.icon && <opt.icon size={16} />}
             {opt.label}

@@ -440,6 +440,7 @@ function MobileTabs() {
           const active = t.to === path || (t.to !== '/transactions/add' && path.startsWith(t.to) && t.to !== '/dashboard')
             || (t.to === '/dashboard' && path === '/dashboard');
           if (t.center) {
+            if (path === t.to) return null;
             return (
               <button
                 key={t.to}

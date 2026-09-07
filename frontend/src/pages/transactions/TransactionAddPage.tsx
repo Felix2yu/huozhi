@@ -5,6 +5,7 @@ import { useAppStore } from '@/stores/app';
 import { txApi, aiApi, uploadApi } from '@/api';
 import type { Transaction, TransactionType, Tag as TagType } from '@/types';
 import { formatMoney, formatDate, cn } from '@/utils';
+import { getFinanceColors } from '@/utils/theme';
 import {
   ArrowLeft, ArrowRightLeft, Minus, Plus, Calendar as CalendarIcon, Clock,
   Tag, ImagePlus, Save, Repeat1, ChevronDown, ChevronLeft, ChevronRight, Upload, X, Image,
@@ -300,9 +301,9 @@ export default function TransactionAddPage() {
             value={tab}
             onChange={v => switchTab(v as TabType)}
             options={[
-              { value: 'expense', label: '支出', icon: Minus },
-              { value: 'income', label: '收入', icon: Plus },
-              { value: 'transfer', label: '转账', icon: ArrowRightLeft },
+              { value: 'expense', label: '支出', icon: Minus, activeStyle: { backgroundColor: getFinanceColors().expense, color: '#fff' } },
+              { value: 'income', label: '收入', icon: Plus, activeStyle: { backgroundColor: getFinanceColors().income, color: '#fff' } },
+              { value: 'transfer', label: '转账', icon: ArrowRightLeft, activeStyle: { backgroundColor: getFinanceColors().transfer, color: '#fff' } },
             ]}
           />
         </div>
@@ -779,15 +780,15 @@ export default function TransactionAddPage() {
       </section>
 
       {/* 底部固定操作栏 */}
-      <div className="fixed inset-x-0 bottom-0 z-30 p-3 md:p-5 bg-white/95 backdrop-blur border-t border-slate-100 safe-bottom">
-        <div className="max-w-3xl mx-auto flex gap-2">
+      <div className="fixed inset-x-0 bottom-0 z-30 p-3 md:p-5 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-200/60 dark:border-slate-700/60 safe-bottom">
+        <div className="max-w-3xl mx-auto flex gap-2 md:gap-3">
           {!editId && (
             <button
-              className="btn-secondary flex-1"
+              className="btn-secondary shrink-0 md:flex-1"
               disabled={submitting}
               onClick={() => submit(true)}
             >
-              <Repeat1 size={16} /> 保存并再记一笔
+              <Repeat1 size={16} /> <span className="hidden sm:inline">保存并</span>再记一笔
             </button>
           )}
           <button

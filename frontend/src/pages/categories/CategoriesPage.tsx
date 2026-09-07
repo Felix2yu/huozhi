@@ -4,6 +4,7 @@ import { useAppStore } from '@/stores/app';
 import { categoryApi } from '@/api';
 import type { Category, CategoryKind } from '@/types';
 import { cn, formatMoney } from '@/utils';
+import { getFinanceColors } from '@/utils/theme';
 import {
   Plus, Edit3, Trash2, ChevronDown, ChevronRight, FolderPlus,
   Check, X, GripVertical, Minus, ArrowUpRight,
@@ -200,8 +201,8 @@ export default function CategoriesPage() {
         value={tab}
         onChange={setTab}
         options={[
-          { value: 'expense', label: '支出分类', icon: Minus },
-          { value: 'income', label: '收入分类', icon: ArrowUpRight },
+          { value: 'expense', label: '支出分类', icon: Minus, activeStyle: { backgroundColor: getFinanceColors().expense, color: '#fff' } },
+          { value: 'income', label: '收入分类', icon: ArrowUpRight, activeStyle: { backgroundColor: getFinanceColors().income, color: '#fff' } },
         ]}
       />
 
