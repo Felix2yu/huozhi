@@ -152,9 +152,9 @@ export default function TransactionsPage() {
         <div className="card-body space-y-3">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex-1 min-w-[180px] relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
-                className="input pl-9"
+                className="input input-search"
                 placeholder="搜索描述/商户/备注"
                 value={filters.keyword}
                 onChange={(e) => setFilters(f => ({ ...f, keyword: e.target.value }))}
