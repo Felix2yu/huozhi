@@ -76,7 +76,7 @@ export default function AppLayout() {
       {/* ========== 侧边栏（移动端从右侧滑出） ========== */}
       <aside
         className={cn(
-          'fixed md:static inset-y-0 right-0 z-40 w-64 bg-white dark:bg-slate-900 border-l border-slate-100 dark:border-slate-800 flex flex-col transition-transform',
+          'fixed md:sticky md:top-0 inset-y-0 right-0 z-40 w-64 h-screen bg-white dark:bg-slate-900 border-l border-slate-100 dark:border-slate-800 flex flex-col transition-transform shrink-0',
           sidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
         )}
       >
