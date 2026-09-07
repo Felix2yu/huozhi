@@ -21,6 +21,9 @@ import SavingsPage from '@/pages/savings/SavingsPage';
 import SharedBooksPage from '@/pages/shared/SharedBooksPage';
 import SettingsPage from '@/pages/settings/SettingsPage';
 import BillExportPage from '@/pages/bill/BillExportPage';
+import RecurringPage from '@/pages/recurring/RecurringPage';
+import InstallmentsPage from '@/pages/installments/InstallmentsPage';
+import ReimbursementsPage from '@/pages/reimbursements/ReimbursementsPage';
 
 const RequireAuth = ({ children }: { children: React.ReactNode }) => {
   const isAuth = useAppStore(s => s.isAuth);
@@ -127,6 +130,9 @@ export default function App() {
         <Route path="shared-books" element={<SharedBooksPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="bill-export" element={<BillExportPage />} />
+        <Route path="recurring" element={<RecurringPage />} />
+        <Route path="installments" element={<InstallmentsPage />} />
+        <Route path="reimbursements" element={<ReimbursementsPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

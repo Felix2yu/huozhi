@@ -294,8 +294,10 @@ export interface Recurring {
   start_date: string;
   end_date: string;
   max_times: number;
+  run_count: number;
   status: 'active' | 'paused';
   next_run_at: string;
+  created_at: string;
 }
 export interface Installment {
   id: number;
@@ -312,6 +314,7 @@ export interface Installment {
   first_repay_date: string;
   next_repay_date: string;
   status: 'active' | 'done';
+  created_at: string;
 }
 export interface Reimbursement {
   id: number;
@@ -325,4 +328,5 @@ export interface Reimbursement {
   received_at: string;
   remark: string;
   transaction_ids: number[];
+  created_at: string;
 }
