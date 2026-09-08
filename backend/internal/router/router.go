@@ -54,10 +54,15 @@ func New(mode string, staticDir string) *gin.Engine {
 			// 手动触发孤儿附件清理（日常由后台定时任务自动执行）
 			auth.POST("/uploads/cleanup", handlers.CleanupOrphanUploads)
 
-			// AI 智能分类 & 智能记账
-			auth.GET("/ai/status", handlers.AIStatus)
-			auth.POST("/ai/classify", handlers.AIClassify)
-			auth.POST("/ai/smart-record", handlers.AISmartRecord)
+		// AI 智能分类 & 智能记账
+		auth.GET("/ai/status", handlers.AIStatus)
+		auth.POST("/ai/classify", handlers.AIClassify)
+		auth.POST("/ai/smart-record", handlers.AISmartRecord)
+
+		// API密钥管理
+		auth.POST("/api-key/generate", handlers.GenerateAPIKeyHandler)
+		auth.GET("/api-key", handlers.GetAPIKeyInfo)
+		auth.POST("/api-key/toggle", handlers.ToggleAPIKey)
 
 			// 账本
 			books := auth.Group("/books")
@@ -180,6 +185,14 @@ func New(mode string, staticDir string) *gin.Engine {
 				io.GET("/bill", handlers.GetBill)
 			}
 		}
+	}
+
+	// 公开API（需要API key认证）
+	public := api.Group("/public")
+	public.Use(middleware.APIKeyAuth())
+	{
+		public.GET("/bills/:id", handlers.GetPublicBill)
+		public.GET("/bills", handlers.ListPublicBills)
 	}
 
 	// 前端静态托管（配置了 static_dir 时启用；未配置则仅提供 API，开发时由 vite dev server 承担）

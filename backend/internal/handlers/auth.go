@@ -313,3 +313,85 @@ func ChangePassword(c *gin.Context) {
 func HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "time": time.Now().Format(time.RFC3339)})
 }
+
+// GenerateAPIKey 生成或重新生成API密钥
+func GenerateAPIKeyHandler(c *gin.Context) {
+	uid := middleware.GetUID(c)
+	
+	var user models.User
+	if err := database.DB.First(&user, uid).Error; err != nil {
+		NotFound(c, "用户不存在")
+		return
+	}
+
+	// 生成新的API key
+	newAPIKey := middleware.GenerateAPIKey()
+	
+	// 更新用户
+	if err := database.DB.Model(&user).Updates(map[string]interface{}{
+		"api_key":        newAPIKey,
+		"api_key_enabled": true,
+	}).Error; err != nil {
+		InternalErr(c, "生成API密钥失败: "+err.Error())
+		return
+	}
+
+	OK(c, gin.H{
+		"api_key":      newAPIKey,
+		"api_key_enabled": true,
+		"message":      "API密钥已生成并启用",
+	})
+}
+
+// GetAPIKeyInfo 获取当前API密钥信息
+func GetAPIKeyInfo(c *gin.Context) {
+	uid := middleware.GetUID(c)
+	
+	var user models.User
+	if err := database.DB.First(&user, uid).Error; err != nil {
+		NotFound(c, "用户不存在")
+		return
+	}
+
+	// 返回API key信息（只返回部分key用于展示）
+	apiKeyDisplay := ""
+	if len(user.APIKey) > 8 {
+		apiKeyDisplay = user.APIKey[:8] + "****" + user.APIKey[len(user.APIKey)-4:]
+	}
+
+	OK(c, gin.H{
+		"api_key_display": apiKeyDisplay,
+		"api_key_enabled": user.APIKeyEnabled,
+		"has_api_key":     user.APIKey != "",
+	})
+}
+
+// ToggleAPIKey 启用/禁用API密钥
+func ToggleAPIKey(c *gin.Context) {
+	uid := middleware.GetUID(c)
+	
+	var user models.User
+	if err := database.DB.First(&user, uid).Error; err != nil {
+		NotFound(c, "用户不存在")
+		return
+	}
+
+	// 如果没有API key，先生成一个
+	if user.APIKey == "" {
+		user.APIKey = middleware.GenerateAPIKey()
+	}
+
+	// 切换启用状态
+	newEnabled := !user.APIKeyEnabled
+	if err := database.DB.Model(&user).Updates(map[string]interface{}{
+		"api_key_enabled": newEnabled,
+	}).Error; err != nil {
+		InternalErr(c, "更新API密钥状态失败: "+err.Error())
+		return
+	}
+
+	OK(c, gin.H{
+		"api_key_enabled": newEnabled,
+		"message":         "API密钥已" + map[bool]string{true: "启用", false: "禁用"}[newEnabled],
+	})
+}
