@@ -6,6 +6,7 @@ import type { Reimbursement } from '@/types';
 import { cn, formatMoney, formatDate } from '@/utils';
 import { Plus, Trash2, Edit3, CheckCircle, Clock, AlertCircle, FileText } from 'lucide-react';
 import { Modal, ConfirmDialog, Empty } from '@/components/common';
+import { PageHeader, HeroCard, HeroStat } from '@/components/common/page';
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   pending: { label: '待报销', color: 'text-amber-600 bg-amber-50', icon: <Clock size={14} /> },
@@ -119,36 +120,27 @@ export default function ReimbursementsPage() {
 
   return (
     <div className="space-y-5">
-      {/* 总览 */}
-      <section className="rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 p-6 text-white shadow-soft relative overflow-hidden">
-        <div className="absolute -right-10 -top-10 w-48 h-48 bg-white/10 rounded-full blur-2xl" />
-        <div className="relative">
-          <div className="flex items-center gap-2 text-white/70 text-sm">
-            <FileText size={16} /> 报销管理总览
-          </div>
-          <div className="mt-2 flex items-end justify-between flex-wrap gap-4">
-            <div>
-              <div className="text-white/60 text-xs">报销总额</div>
-              <div className="text-4xl font-bold tabular-nums tracking-tight">
-                {formatMoney(totals.total)}
-              </div>
-              <div className="text-sm text-white/70 mt-1">
-                已到账 {formatMoney(totals.received)}
-                <span className="mx-2 text-white/40">·</span>
-                待报销 <b>{totals.pending}</b> 笔
-              </div>
-            </div>
+      <PageHeader
+        title="报销管理"
+        subtitle="跟踪报销申请和到账状态"
+        actions={
+          <button className="btn-primary btn-sm" onClick={openCreate}>
+            <Plus size={14} /> 新增报销
+          </button>
+        }
+      />
+      <HeroCard>
+        <div className="flex items-center gap-2 text-white/70 text-sm">
+          <FileText size={16} /> 报销管理总览
+        </div>
+        <div className="mt-2 flex items-end justify-between flex-wrap gap-4">
+          <HeroStat label="报销总额" value={formatMoney(totals.total)} className="text-3xl md:text-4xl" />
+          <div className="flex gap-3">
+            <HeroStat label="已到账" value={formatMoney(totals.received)} />
+            <HeroStat label="待报销" value={`${totals.pending} 笔`} />
           </div>
         </div>
-      </section>
-
-      {/* 操作栏 */}
-      <section className="card card-body flex items-center justify-between">
-        <div className="text-sm text-slate-500">共 {list.length} 笔报销</div>
-        <button className="btn-primary btn-sm" onClick={openCreate}>
-          <Plus size={14} /> 新建报销单
-        </button>
-      </section>
+      </HeroCard>
 
       {/* 报销列表 */}
       <section className="space-y-3">

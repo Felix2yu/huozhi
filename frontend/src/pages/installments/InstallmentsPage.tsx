@@ -6,6 +6,7 @@ import type { Installment, Account } from '@/types';
 import { cn, formatMoney, formatDate } from '@/utils';
 import { Plus, Trash2, Calendar, CreditCard, CheckCircle } from 'lucide-react';
 import { Modal, ConfirmDialog, Empty, Progress } from '@/components/common';
+import { PageHeader, HeroCard, HeroStat } from '@/components/common/page';
 
 export default function InstallmentsPage() {
   const bookId = useAppStore(s => s.currentBookId);
@@ -106,37 +107,27 @@ export default function InstallmentsPage() {
 
   return (
     <div className="space-y-5">
-      {/* 总览 */}
-      <section className="rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-6 text-white shadow-soft relative overflow-hidden">
-        <div className="absolute -right-10 -top-10 w-48 h-48 bg-white/10 rounded-full blur-2xl" />
-        <div className="relative">
-          <div className="flex items-center gap-2 text-white/70 text-sm">
-            <CreditCard size={16} /> 分期管理总览
-          </div>
-          <div className="mt-2 flex items-end justify-between flex-wrap gap-4">
-            <div>
-              <div className="text-white/60 text-xs">分期总额</div>
-              <div className="text-4xl font-bold tabular-nums tracking-tight">
-                {formatMoney(totals.total)}
-              </div>
-            </div>
-            <div className="space-y-1 text-right">
-              <div className="text-white/60 text-xs">已还 {formatMoney(totals.paid)}</div>
-              <div className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur text-xs">
-                进行中 <b>{totals.active}</b> 笔
-              </div>
-            </div>
+      <PageHeader
+        title="分期管理"
+        subtitle="管理分期付款计划和还款进度"
+        actions={
+          <button className="btn-primary btn-sm" onClick={openCreate}>
+            <Plus size={14} /> 新增分期
+          </button>
+        }
+      />
+      <HeroCard>
+        <div className="flex items-center gap-2 text-white/70 text-sm">
+          <CreditCard size={16} /> 分期管理总览
+        </div>
+        <div className="mt-2 flex items-end justify-between flex-wrap gap-4">
+          <HeroStat label="分期总额" value={formatMoney(totals.total)} className="text-3xl md:text-4xl" />
+          <div className="flex gap-3">
+            <HeroStat label="已还" value={formatMoney(totals.paid)} />
+            <HeroStat label="进行中" value={`${totals.active} 笔`} />
           </div>
         </div>
-      </section>
-
-      {/* 操作栏 */}
-      <section className="card card-body flex items-center justify-between">
-        <div className="text-sm text-slate-500">共 {list.length} 笔分期</div>
-        <button className="btn-primary btn-sm" onClick={openCreate}>
-          <Plus size={14} /> 新建分期
-        </button>
-      </section>
+      </HeroCard>
 
       {/* 分期列表 */}
       <section className="space-y-3">

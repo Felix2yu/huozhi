@@ -6,6 +6,7 @@ import type { Recurring, Account } from '@/types';
 import { cn, formatMoney, formatDate } from '@/utils';
 import { Plus, Trash2, Pause, Play, Calendar, Repeat, ArrowRightLeft } from 'lucide-react';
 import { Modal, ConfirmDialog, Empty } from '@/components/common';
+import { PageHeader, HeroCard, HeroStat } from '@/components/common/page';
 
 const TYPE_MAP: Record<string, { label: string; color: string }> = {
   expense: { label: '支出', color: 'text-expense' },
@@ -127,39 +128,27 @@ export default function RecurringPage() {
 
   return (
     <div className="space-y-5">
-      {/* 总览卡片 */}
-      <section className="rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-500 p-6 text-white shadow-soft relative overflow-hidden">
-        <div className="absolute -right-10 -top-10 w-48 h-48 bg-white/10 rounded-full blur-2xl" />
-        <div className="relative">
-          <div className="flex items-center gap-2 text-white/70 text-sm">
-            <Repeat size={16} /> 周期记账
-          </div>
-          <div className="mt-2 flex items-end justify-between flex-wrap gap-4">
-            <div>
-              <div className="text-white/60 text-xs">规则总数</div>
-              <div className="text-4xl font-bold tabular-nums tracking-tight">
-                {list.length}
-              </div>
-            </div>
-            <div className="space-y-1 text-right">
-              <div className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur text-xs">
-                进行中 <b>{list.filter(i => i.status === 'active').length}</b>
-              </div>
-              <div className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur text-xs">
-                已暂停 <b>{list.filter(i => i.status === 'paused').length}</b>
-              </div>
-            </div>
+      <PageHeader
+        title="周期记账"
+        subtitle="管理自动发生的周期性收支规则"
+        actions={
+          <button className="btn-primary btn-sm" onClick={openCreate}>
+            <Plus size={14} /> 新增规则
+          </button>
+        }
+      />
+      <HeroCard>
+        <div className="flex items-center gap-2 text-white/70 text-sm">
+          <Repeat size={16} /> 周期记账
+        </div>
+        <div className="mt-2 flex items-end justify-between flex-wrap gap-4">
+          <HeroStat label="规则总数" value={list.length} className="text-3xl md:text-4xl" />
+          <div className="flex gap-3">
+            <HeroStat label="进行中" value={list.filter(i => i.status === 'active').length} />
+            <HeroStat label="已暂停" value={list.filter(i => i.status === 'paused').length} />
           </div>
         </div>
-      </section>
-
-      {/* 操作栏 */}
-      <section className="card card-body flex items-center justify-between">
-        <div className="text-sm text-slate-500">共 {list.length} 条规则</div>
-        <button className="btn-primary btn-sm" onClick={openCreate}>
-          <Plus size={14} /> 新建规则
-        </button>
-      </section>
+      </HeroCard>
 
       {/* 规则列表 */}
       <section className="space-y-3">
