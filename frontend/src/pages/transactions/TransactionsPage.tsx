@@ -359,6 +359,10 @@ export default function TransactionsPage() {
               {/* 字段 */}
               <div className="rounded-xl border border-slate-100 divide-y divide-slate-50 text-sm">
                 <div className="flex justify-between px-4 py-2.5">
+                  <span className="text-slate-400">账单 ID</span>
+                  <span className="text-slate-700 font-mono">#{t.id}</span>
+                </div>
+                <div className="flex justify-between px-4 py-2.5">
                   <span className="text-slate-400">时间</span>
                   <span className="text-slate-700">{formatDate(t.tx_date, 'YYYY-MM-DD HH:mm')}</span>
                 </div>
