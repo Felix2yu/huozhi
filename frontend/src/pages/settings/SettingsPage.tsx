@@ -1,26 +1,27 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAppStore } from '@/stores/app';
-import { authApi, bookApi, ioApi } from '@/api';
+import { authApi, bookApi, ioApi, apiKeyApi } from '@/api';
 import type { User as UserT } from '@/types';
 import { cn, formatDate } from '@/utils';
 import { applyColorScheme, applyShowAnimations, COLOR_SCHEMES, getColorScheme, getShowAnimations } from '@/utils/theme';
 import {
   Settings as SettingsIcon, User as UserIcon, Lock, Book, Globe, Upload, Download,
   FileText, LogOut, Check, X, ChevronRight, AlertCircle, Info, CheckCircle2,
-  Bell, Palette, Shield, HelpCircle, Heart, Smartphone,
+  Bell, Palette, Shield, HelpCircle, Heart, Smartphone, Key,
 } from 'lucide-react';
 import { Modal, ConfirmDialog } from '@/components/common';
 import { PageHeader, HeroCard } from '@/components/common/page';
 
-type TabKey = 'profile' | 'password' | 'prefs' | 'io' | 'about';
+type TabKey = 'profile' | 'password' | 'prefs' | 'io' | 'apikey' | 'about';
 
 const TABS: Array<{ k: TabKey; label: string; Icon: any }> = [
   { k: 'profile', label: '个人信息', Icon: UserIcon },
   { k: 'password', label: '修改密码', Icon: Lock },
   { k: 'prefs', label: '偏好设置', Icon: Palette },
   { k: 'io', label: '导入 / 导出', Icon: FileText },
+  { k: 'apikey', label: 'API 密钥', Icon: Key },
   { k: 'about', label: '关于版本', Icon: Info },
 ];
 
@@ -74,6 +75,17 @@ export default function SettingsPage() {
 
   // 登出
   const [logoutOpen, setLogoutOpen] = useState(false);
+
+  // API密钥
+  const [apiKeyInfo, setApiKeyInfo] = useState<{ api_key_display: string; api_key_enabled: boolean; has_api_key: boolean } | null>(null);
+  const [apiKeyLoading, setApiKeyLoading] = useState(false);
+  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  const [showFullKey, setShowFullKey] = useState(false);
+
+  // 加载API密钥信息
+  useEffect(() => {
+    loadApiKeyInfo();
+  }, []);
 
   // 收支配色方案
   const [colorScheme, setColorScheme] = useState<ReturnType<typeof getColorScheme>>(getColorScheme());
@@ -173,6 +185,57 @@ export default function SettingsPage() {
     navigate('/login', { replace: true });
   };
 
+  const loadApiKeyInfo = async () => {
+    try {
+      const info = await apiKeyApi.getInfo();
+      setApiKeyInfo(info);
+    } catch (e) {
+      console.error('加载API密钥信息失败', e);
+    }
+  };
+
+  const handleTabChange = (newTab: TabKey) => {
+    setTab(newTab);
+    if (newTab === 'apikey' && !apiKeyInfo) {
+      loadApiKeyInfo();
+    }
+  };
+
+  const handleGenerateApiKey = async () => {
+    setApiKeyLoading(true);
+    try {
+      const result = await apiKeyApi.generate();
+      setGeneratedKey(result.api_key);
+      setApiKeyInfo({
+        api_key_display: result.api_key.slice(0, 8) + '****' + result.api_key.slice(-4),
+        api_key_enabled: result.api_key_enabled,
+        has_api_key: true,
+      });
+      toast.success('API密钥已生成');
+    } finally {
+      setApiKeyLoading(false);
+    }
+  };
+
+  const handleToggleApiKey = async () => {
+    setApiKeyLoading(true);
+    try {
+      const result = await apiKeyApi.toggle();
+      setApiKeyInfo(prev => prev ? { ...prev, api_key_enabled: result.api_key_enabled } : null);
+      toast.success(result.message);
+    } finally {
+      setApiKeyLoading(false);
+    }
+  };
+
+  const handleCopyApiKey = () => {
+    const keyToCopy = generatedKey || apiKeyInfo?.api_key_display;
+    if (keyToCopy) {
+      navigator.clipboard.writeText(keyToCopy);
+      toast.success('已复制到剪贴板');
+    }
+  };
+
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -210,7 +273,7 @@ export default function SettingsPage() {
           {TABS.map(({ k, label, Icon }) => (
             <li key={k}>
               <button
-                onClick={() => setTab(k)}
+                onClick={() => handleTabChange(k)}
                 className={cn(
                   'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition',
                   tab === k
@@ -687,6 +750,113 @@ export default function SettingsPage() {
                   <li><b>钱迹账单</b>：在钱迹 App 导出账单（xlsx），自动识别「支出/收入/转账/退款」、账户、分类、标签、币种与转账手续费/优惠券。</li>
                   <li>系统会自动进行分类匹配，部分无法识别的记录会标记为「未分类」。</li>
                 </ul>
+              </div>
+            </section>
+          </div>
+        )}
+
+        {/* API密钥管理 */}
+        {tab === 'apikey' && (
+          <div className="space-y-5">
+            <SectionHeader title="API 密钥" subtitle="管理外部系统访问接口的认证密钥" Icon={Key} />
+
+            <section className="card card-body">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-300 grid place-items-center">
+                  <Key size={20} />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-800 dark:text-slate-100">API 访问密钥</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    用于外部系统（如演出网站）调用公开接口查询账单信息
+                  </p>
+                </div>
+              </div>
+
+              {/* 当前状态 */}
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800 mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">密钥状态</span>
+                  <span className={cn(
+                    'px-2.5 py-0.5 rounded-full text-xs font-medium',
+                    apiKeyInfo?.api_key_enabled
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400'
+                      : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+                  )}>
+                    {apiKeyInfo?.api_key_enabled ? '已启用' : '未启用'}
+                  </span>
+                </div>
+                {apiKeyInfo?.has_api_key && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-600 dark:text-slate-400">密钥：</span>
+                    <code className="text-sm font-mono bg-white dark:bg-slate-900 px-2 py-1 rounded border border-slate-200 dark:border-slate-700">
+                      {generatedKey || apiKeyInfo.api_key_display}
+                    </code>
+                    <button
+                      onClick={handleCopyApiKey}
+                      className="text-brand-600 hover:text-brand-700 dark:text-brand-400"
+                      title="复制密钥"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* 操作按钮 */}
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={handleGenerateApiKey}
+                  disabled={apiKeyLoading}
+                  className="btn-primary"
+                >
+                  <Key size={16} />
+                  {apiKeyLoading ? '处理中...' : (apiKeyInfo?.has_api_key ? '重新生成密钥' : '生成密钥')}
+                </button>
+                {apiKeyInfo?.has_api_key && (
+                  <button
+                    onClick={handleToggleApiKey}
+                    disabled={apiKeyLoading}
+                    className={cn(
+                      'px-4 py-2 rounded-lg font-medium transition text-sm',
+                      apiKeyInfo?.api_key_enabled
+                        ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
+                        : 'bg-emerald-500 text-white hover:bg-emerald-600'
+                    )}
+                  >
+                    {apiKeyInfo?.api_key_enabled ? '禁用密钥' : '启用密钥'}
+                  </button>
+                )}
+              </div>
+
+              {/* 使用说明 */}
+              <div className="mt-6 p-4 rounded-xl bg-slate-50 dark:bg-slate-800 text-xs text-slate-500 dark:text-slate-400 space-y-2">
+                <div className="font-medium text-slate-700 flex items-center gap-1">
+                  <HelpCircle size={14} /> 使用说明
+                </div>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>生成密钥后，请妥善保管，不要泄露给他人。</li>
+                  <li>外部系统调用时，需在请求头中添加 <code>X-API-Key: {'<your-api-key>'}</code>。</li>
+                  <li>公开接口地址：<code>/api/public/bills</code>（获取账单列表）和 <code>/api/public/bills/:id</code>（获取单个账单）。</li>
+                  <li>如需禁用访问，点击"禁用密钥"按钮，所有使用该密钥的外部系统将无法访问。</li>
+                  <li>重新生成密钥会使旧密钥立即失效。</li>
+                </ul>
+              </div>
+
+              {/* API文档示例 */}
+              <div className="mt-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800 text-xs space-y-2">
+                <div className="font-medium text-slate-700 dark:text-slate-300">调用示例</div>
+                <pre className="bg-white dark:bg-slate-900 p-3 rounded-lg overflow-x-auto text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+{`# 获取单个账单
+curl -H "X-API-Key: your_api_key" \\
+     http://your-domain/api/public/bills/123
+
+# 获取账单列表
+curl -H "X-API-Key: your_api_key" \\
+     "http://your-domain/api/public/bills?page=1&page_size=20"`}
+                </pre>
               </div>
             </section>
           </div>

@@ -242,6 +242,13 @@ export const aiApi = {
     http.post<any, { description: string; amount: number; type: string; category_id: number; account_id?: number; tx_date: string; tags?: string[]; raw?: string }>('/ai/smart-record', data, { timeout: 120_000 }),
 };
 
+// API密钥管理
+export const apiKeyApi = {
+  generate: () => http.post<any, { api_key: string; api_key_enabled: boolean; message: string }>('/api-key/generate'),
+  getInfo:  () => http.get<any, { api_key_display: string; api_key_enabled: boolean; has_api_key: boolean }>('/api-key'),
+  toggle:   () => http.post<any, { api_key_enabled: boolean; message: string }>('/api-key/toggle'),
+};
+
 // 信用卡还款倒计时
 export const creditApi = {
   summary: () => http.get<any, CreditRepayItem[]>('/accounts/credit-summary'),
