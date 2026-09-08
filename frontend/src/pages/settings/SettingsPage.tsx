@@ -77,7 +77,7 @@ export default function SettingsPage() {
   const [logoutOpen, setLogoutOpen] = useState(false);
 
   // API密钥
-  const [apiKeyInfo, setApiKeyInfo] = useState<{ api_key_display: string; api_key_enabled: boolean; has_api_key: boolean } | null>(null);
+  const [apiKeyInfo, setApiKeyInfo] = useState<{ api_key: string; api_key_enabled: boolean; has_api_key: boolean } | null>(null);
   const [apiKeyLoading, setApiKeyLoading] = useState(false);
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [showFullKey, setShowFullKey] = useState(false);
@@ -207,7 +207,7 @@ export default function SettingsPage() {
       const result = await apiKeyApi.generate();
       setGeneratedKey(result.api_key);
       setApiKeyInfo({
-        api_key_display: result.api_key.slice(0, 8) + '****' + result.api_key.slice(-4),
+        api_key: result.api_key,
         api_key_enabled: result.api_key_enabled,
         has_api_key: true,
       });
@@ -229,7 +229,7 @@ export default function SettingsPage() {
   };
 
   const handleCopyApiKey = () => {
-    const keyToCopy = generatedKey || apiKeyInfo?.api_key_display;
+    const keyToCopy = generatedKey || apiKeyInfo?.api_key;
     if (keyToCopy) {
       navigator.clipboard.writeText(keyToCopy);
       toast.success('已复制到剪贴板');
@@ -790,7 +790,7 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-slate-600 dark:text-slate-400">密钥：</span>
                     <code className="text-sm font-mono bg-white dark:bg-slate-900 px-2 py-1 rounded border border-slate-200 dark:border-slate-700">
-                      {generatedKey || apiKeyInfo.api_key_display}
+                      {generatedKey || (apiKeyInfo?.api_key ? apiKeyInfo.api_key.slice(0, 8) + '****' + apiKeyInfo.api_key.slice(-4) : '')}
                     </code>
                     <button
                       onClick={handleCopyApiKey}

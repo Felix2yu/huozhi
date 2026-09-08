@@ -245,7 +245,7 @@ export const aiApi = {
 // API密钥管理
 export const apiKeyApi = {
   generate: () => http.post<any, { api_key: string; api_key_enabled: boolean; message: string }>('/api-key/generate'),
-  getInfo:  () => http.get<any, { api_key_display: string; api_key_enabled: boolean; has_api_key: boolean }>('/api-key'),
+  getInfo:  () => http.get<any, { api_key: string; api_key_enabled: boolean; has_api_key: boolean }>('/api-key'),
   toggle:   () => http.post<any, { api_key_enabled: boolean; message: string }>('/api-key/toggle'),
 };
 

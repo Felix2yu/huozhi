@@ -353,14 +353,8 @@ func GetAPIKeyInfo(c *gin.Context) {
 		return
 	}
 
-	// 返回API key信息（只返回部分key用于展示）
-	apiKeyDisplay := ""
-	if len(user.APIKey) > 8 {
-		apiKeyDisplay = user.APIKey[:8] + "****" + user.APIKey[len(user.APIKey)-4:]
-	}
-
 	OK(c, gin.H{
-		"api_key_display": apiKeyDisplay,
+		"api_key":         user.APIKey,
 		"api_key_enabled": user.APIKeyEnabled,
 		"has_api_key":     user.APIKey != "",
 	})
