@@ -49,6 +49,9 @@ export function PageHeader({
 const heroTones = {
   brand: 'from-brand-600 via-brand-500 to-emerald-500',
   warning: 'from-red-600 via-rose-500 to-red-500',
+  expense: 'from-red-500 via-rose-500 to-red-400',
+  income: 'from-emerald-500 via-green-500 to-emerald-400',
+  transfer: 'from-indigo-500 via-purple-500 to-indigo-400',
 } as const;
 
 export function HeroCard({

@@ -310,7 +310,7 @@ export default function TransactionAddPage() {
       </div>
 
       {/* 金额 Hero */}
-      <HeroCard>
+      <HeroCard tone={tab}>
         <div className="flex items-end justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="text-white/70 text-xs mb-1">
