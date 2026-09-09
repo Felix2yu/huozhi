@@ -97,10 +97,10 @@ import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
 
 <div class="space-y-4">
 	<div class="flex items-center justify-between">
-		<Tabs>
-			<TabsTrigger value="expense" bind:group={kind}>支出</TabsTrigger>
-			<TabsTrigger value="income" bind:group={kind}>收入</TabsTrigger>
-			<TabsTrigger value="system" bind:group={kind}>系统</TabsTrigger>
+		<Tabs bind:value={kind}>
+			<TabsTrigger value="expense">支出</TabsTrigger>
+			<TabsTrigger value="income">收入</TabsTrigger>
+			<TabsTrigger value="system">系统</TabsTrigger>
 		</Tabs>
 		<Button size="sm" onclick={openNew}>
 			<Plus size={16} />

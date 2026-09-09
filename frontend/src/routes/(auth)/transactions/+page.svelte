@@ -79,11 +79,11 @@ import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
 
 	<!-- 类型筛选 -->
 	<div class="flex items-center gap-2">
-		<Tabs>
-			<TabsTrigger value="all" bind:group={type}>全部</TabsTrigger>
-			<TabsTrigger value="expense" bind:group={type}>支出</TabsTrigger>
-			<TabsTrigger value="income" bind:group={type}>收入</TabsTrigger>
-			<TabsTrigger value="transfer" bind:group={type}>转账</TabsTrigger>
+		<Tabs bind:value={type}>
+			<TabsTrigger value="all">全部</TabsTrigger>
+			<TabsTrigger value="expense">支出</TabsTrigger>
+			<TabsTrigger value="income">收入</TabsTrigger>
+			<TabsTrigger value="transfer">转账</TabsTrigger>
 		</Tabs>
 	</div>
 

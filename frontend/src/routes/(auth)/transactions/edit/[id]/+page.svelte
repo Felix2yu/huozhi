@@ -159,10 +159,10 @@
 		</CardHeader>
 		<CardContent class="space-y-5">
 			<!-- 类型切换 -->
-			<Tabs>
-				<TabsTrigger value="expense" bind:group={type}>支出</TabsTrigger>
-				<TabsTrigger value="income" bind:group={type}>收入</TabsTrigger>
-				<TabsTrigger value="transfer" bind:group={type}>转账</TabsTrigger>
+			<Tabs bind:value={type}>
+				<TabsTrigger value="expense">支出</TabsTrigger>
+				<TabsTrigger value="income">收入</TabsTrigger>
+				<TabsTrigger value="transfer">转账</TabsTrigger>
 			</Tabs>
 
 			<!-- 金额 -->

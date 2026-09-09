@@ -1,24 +1,19 @@
 <script lang="ts">
+import { getContext } from 'svelte';
 import { cn } from '$lib/utils/cn';
 
 let {
 	class: className = '',
 	value,
-	...rest
+	children
 }: {
 	class?: string;
 	value: string;
+	children?: any;
 } = $props();
 
-let current = $state('');
-let selected = $derived(current === value);
-
-$effect(() => {
-	const parent = document.querySelector('[role="tablist"]');
-	if (parent) {
-		// 简单的 context 传递
-	}
-});
+const ctx = getContext<{ value: string }>('tabs-current');
+let selected = $derived(ctx.value === value);
 
 const classes = $derived(
 	cn(
@@ -31,7 +26,7 @@ const classes = $derived(
 );
 
 function handleClick() {
-	selected = true;
+	ctx.value = value;
 }
 </script>
 
@@ -42,7 +37,6 @@ function handleClick() {
 	value={value}
 	class={classes}
 	onclick={handleClick}
-	{...rest}
 >
-	<slot />
+	{@render children?.()}
 </button>
