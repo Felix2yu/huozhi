@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Card from '$lib/components/ui/Card.svelte'
 	import CardContent from '$lib/components/ui/CardContent.svelte'
@@ -15,7 +14,7 @@
 	import { categoryApi } from '$lib/api/modules/categories';
 	import { hzToast } from '$lib/components/ui/toast';
 	import type { Category, CategoryKind } from '$lib/types';
-	import { Plus, Pencil, Trash2, GripVertical, ChevronDown } from '@lucide/svelte';
+	import { Plus, Pencil, Trash2, ChevronDown } from '@lucide/svelte';
 
 	let kind = $state<CategoryKind>('expense');
 	let showDialog = $state(false);
@@ -24,6 +23,11 @@
 	let catIcon = $state('📁');
 	let catParentId = $state<number | ''>('');
 	let loading = $state(false);
+	let expanded = $state<Record<number, boolean>>({});
+
+	function toggleExpand(id: number) {
+		expanded[id] = !expanded[id];
+	}
 
 	let allCategories = $derived(
 		kind === 'expense'
@@ -135,7 +139,7 @@
 		</Button>
 	</div>
 
-	<!-- 分类列表 -->
+	<!-- 分类列表：紧凑换行排列 + 点击展开层级 -->
 	<Card>
 		<CardContent class="p-4">
 			{#if topCategories.length === 0}
@@ -143,49 +147,63 @@
 					<p class="text-sm">暂无分类</p>
 				</div>
 			{:else}
-				<div class="space-y-3">
+				<div class="flex flex-wrap gap-2">
 					{#each topCategories as cat (cat.id)}
-						<div class="border rounded-lg overflow-hidden bg-card">
-							<!-- 顶级分类行 -->
-							<button
-								class="w-full flex items-center gap-3 p-3 hover:bg-accent/50 transition text-left group"
-								onclick={() => openEdit(cat)}
-							>
-								<span class="text-xl">{cat.icon || '📁'}</span>
-								<span class="text-sm font-medium truncate flex-1">{cat.name}</span>
-								{#if cat.is_system}
-									<Badge variant="outline" class="text-[9px]">系统</Badge>
+						{@const children = childrenMap.get(cat.id) || []}
+						<!-- 顶层分类：按内容宽度的卡片，不再占满整行 -->
+						<div class="group rounded-lg border bg-card overflow-hidden">
+							<div class="flex items-center">
+								<button
+									class="flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition text-left min-w-0"
+									onclick={() => (children.length ? toggleExpand(cat.id) : openEdit(cat))}
+								>
+									<span class="text-lg leading-none">{cat.icon || '📁'}</span>
+									<span class="text-sm font-medium">{cat.name}</span>
+									{#if cat.is_system}
+										<Badge variant="outline" class="text-[9px]">系统</Badge>
+									{/if}
+									{#if children.length}
+										<ChevronDown
+											size={14}
+											class="text-muted-foreground transition-transform duration-200 {expanded[cat.id] ? 'rotate-180' : ''}"
+										/>
+									{/if}
+								</button>
+								{#if !cat.is_system}
+									<button
+										class="p-2 text-muted-foreground hover:bg-accent/50 opacity-0 group-hover:opacity-100 shrink-0"
+										onclick={(e) => { e.stopPropagation(); openEdit(cat); }}
+										title="编辑"
+									>
+										<Pencil size={13} />
+									</button>
 								{/if}
-								<ChevronDown size={14} class="text-muted-foreground transition-transform duration-200 group-hover:rotate-180" />
-							</button>
+							</div>
 
-							<!-- 子分类 -->
-							{#if childrenMap.get(cat.id)?.length}
-								<div class="pl-8 border-t bg-muted/30 divide-y divide-muted">
-									{#each childrenMap.get(cat.id) as child (child.id)}
-										<button
-											class="w-full flex items-center gap-3 px-3 py-2 hover:bg-accent/50 transition text-left"
-											onclick={() => openEdit(child)}
-										>
-											<span class="text-lg">{child.icon || '📁'}</span>
-											<span class="text-sm truncate flex-1">{child.name}</span>
+							<!-- 子分类：展开后内嵌显示，缩进 + 更小尺寸以区分层级 -->
+							{#if children.length && expanded[cat.id]}
+								<div class="flex flex-wrap gap-1.5 px-3 pb-2 pt-1 border-t bg-muted/30">
+									{#each children as child (child.id)}
+										<div class="group/chip flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md border bg-background hover:bg-accent/40 transition">
+											<span class="text-sm leading-none">{child.icon || '📁'}</span>
+											<span class="text-xs">{child.name}</span>
 											{#if !child.is_system}
-												<div class="hidden group-hover:flex gap-1">
+												<div class="hidden group-hover/chip:flex items-center gap-0.5 ml-0.5">
 													<button
-														class="p-1 rounded hover:bg-accent"
+														class="p-0.5 rounded hover:bg-accent"
 														onclick={(e) => { e.stopPropagation(); openEdit(child); }}
 													>
-														<Pencil size={12} />
+														<Pencil size={11} />
 													</button>
 													<button
-														class="p-1 rounded hover:bg-destructive/10 text-destructive"
+														class="p-0.5 rounded hover:bg-destructive/10 text-destructive"
 														onclick={(e) => { e.stopPropagation(); handleDelete(child); }}
 													>
-														<Trash2 size={12} />
+														<Trash2 size={11} />
 													</button>
 												</div>
 											{/if}
-										</button>
+										</div>
 									{/each}
 								</div>
 							{/if}
