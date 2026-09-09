@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Card from '$lib/components/ui/Card.svelte';
+	import Dialog from '$lib/components/ui/Dialog.svelte';
 	import Tabs from '$lib/components/ui/Tabs.svelte';
 	import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
@@ -29,6 +29,10 @@
 	let endDate = $state('');
 	let categoryId = $state<number | ''>('');
 	let accountId = $state<number | ''>('');
+
+	// Preview state
+	let previewTx = $state<Transaction | null>(null);
+	let previewOpen = $state(false);
 
 	async function loadData() {
 		const bid = appStore.currentBookId;
@@ -61,6 +65,11 @@
 		loadData();
 	}
 
+	function showPreview(tx: Transaction) {
+		previewTx = tx;
+		previewOpen = true;
+	}
+
 	const hasFilters = $derived(keyword || startDate || endDate || categoryId !== '' || accountId !== '');
 
 	onMount(loadData);
@@ -78,6 +87,20 @@
 		}, 300);
 		return () => clearTimeout(timer);
 	});
+
+	function getCategoryName(tx: Transaction): string {
+		return tx.category_name || '未分类';
+	}
+
+	function getTypeLabel(type: string): string {
+		switch (type) {
+			case 'income': return '收入';
+			case 'expense': return '支出';
+			case 'transfer': return '转账';
+			case 'refund': return '退款';
+			default: return type;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -232,7 +255,7 @@
 						{#each dayGroup.transactions as tx (tx.id)}
 							<button
 								class="w-full flex items-center gap-3 p-3 hover:bg-accent/50 transition text-left"
-								onclick={() => goto(`/transactions/edit/${tx.id}`)}
+								onclick={() => showPreview(tx)}
 							>
 								<div class="w-10 h-10 rounded-lg bg-muted grid place-items-center text-sm font-semibold">
 									{(tx.description || '¥')[0]}
@@ -257,3 +280,62 @@
 		</div>
 	{/if}
 </div>
+
+<!-- 预览弹窗 -->
+{#if previewTx}
+	<Dialog bind:open={previewOpen}>
+		<div class="space-y-4">
+			<div class="text-center">
+				<div class="text-3xl font-bold tabular-nums {previewTx.type === 'income' ? 'text-[var(--color-income)]' : previewTx.type === 'expense' ? 'text-[var(--color-expense)]' : ''}">
+					{previewTx.type === 'income' ? '+' : previewTx.type === 'expense' ? '-' : ''}
+					{formatMoney(previewTx.amount)}
+				</div>
+				<div class="text-sm text-muted-foreground mt-1">
+					{getTypeLabel(previewTx.type)}
+				</div>
+			</div>
+
+			<div class="space-y-3 text-sm">
+				<div class="flex justify-between">
+					<span class="text-muted-foreground">描述</span>
+					<span>{previewTx.description || previewTx.merchant || '—'}</span>
+				</div>
+				{#if previewTx.merchant}
+					<div class="flex justify-between">
+						<span class="text-muted-foreground">商户</span>
+						<span>{previewTx.merchant}</span>
+					</div>
+				{/if}
+				<div class="flex justify-between">
+					<span class="text-muted-foreground">日期</span>
+					<span>{previewTx.tx_date?.split('T')[0] || previewTx.tx_date}</span>
+				</div>
+				<div class="flex justify-between">
+					<span class="text-muted-foreground">分类</span>
+					<span>{getCategoryName(previewTx)}</span>
+				</div>
+				{#if previewTx.account_name}
+					<div class="flex justify-between">
+						<span class="text-muted-foreground">账户</span>
+						<span>{previewTx.account_name}</span>
+					</div>
+				{/if}
+				{#if previewTx.remark}
+					<div class="flex justify-between">
+						<span class="text-muted-foreground">备注</span>
+						<span>{previewTx.remark}</span>
+					</div>
+				{/if}
+			</div>
+
+			<div class="flex gap-2 pt-2">
+				<Button class="flex-1" onclick={() => goto(`/transactions/edit/${previewTx.id}`)}>
+					编辑
+				</Button>
+				<Button class="flex-1" variant="outline" onclick={() => { previewOpen = false; }}>
+					关闭
+				</Button>
+			</div>
+		</div>
+	</Dialog>
+{/if}
