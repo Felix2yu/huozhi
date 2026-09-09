@@ -16,13 +16,12 @@ RUN go build -trimpath -ldflags="-s -w" \
     -o /out/huozhi-server ./cmd/huozhi-server
 
 
-# ===== Stage 2: 构建 Frontend (React + Vite) =====
+# ===== Stage 2: 构建 Frontend (SvelteKit + Vite + PWA) =====
 FROM node:26-alpine AS fe-builder
 LABEL stage=fe-builder
 WORKDIR /src/frontend
 
 COPY frontend/package.json frontend/package-lock.json* ./
-COPY frontend/scripts scripts
 RUN npm install --no-audit --no-fund --registry=https://registry.npmmirror.com || \
     npm install --no-audit --no-fund
 
@@ -39,7 +38,7 @@ RUN npm run build
 #   /app/data/           唯一数据卷：SQLite 数据库、上传附件、JWT 密钥
 FROM alpine:3.24 AS runtime
 LABEL org.opencontainers.image.authors="huozhi"
-LABEL description="Huozhi Personal Finance App (Go + React 单进程)"
+LABEL description="Huozhi Personal Finance App (Go + SvelteKit 单进程)"
 
 ENV TZ=Asia/Shanghai \
     GIN_MODE=release \
@@ -58,8 +57,8 @@ WORKDIR /app
 COPY --from=go-builder /out/huozhi-server /app/huozhi-server
 RUN chmod +x /app/huozhi-server
 
-# 拷贝前端产物
-COPY --from=fe-builder /src/frontend/dist /app/static
+# 拷贝前端产物（SvelteKit adapter-static 输出到 build/）
+COPY --from=fe-builder /src/frontend/build /app/static
 
 # 后端配置（默认 sqlite，可通过环境变量切 postgres）
 COPY backend/config.example.yaml /app/config.yaml

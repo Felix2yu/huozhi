@@ -354,9 +354,9 @@ func GetAPIKeyInfo(c *gin.Context) {
 	}
 
 	OK(c, gin.H{
-		"api_key":         user.APIKey,
+		"api_key":         func() string { if user.APIKey != nil { return *user.APIKey }; return "" }(),
 		"api_key_enabled": user.APIKeyEnabled,
-		"has_api_key":     user.APIKey != "",
+		"has_api_key":     user.APIKey != nil,
 	})
 }
 
@@ -371,8 +371,9 @@ func ToggleAPIKey(c *gin.Context) {
 	}
 
 	// 如果没有API key，先生成一个
-	if user.APIKey == "" {
-		user.APIKey = middleware.GenerateAPIKey()
+	if user.APIKey == nil {
+		key := middleware.GenerateAPIKey()
+		user.APIKey = &key
 	}
 
 	// 切换启用状态

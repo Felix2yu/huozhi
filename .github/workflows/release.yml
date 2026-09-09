@@ -21,11 +21,11 @@ jobs:
       - name: Build frontend
         run: npm run build
         working-directory: frontend
-      - name: Upload frontend dist
+      - name: Upload frontend build
         uses: actions/upload-artifact@v7
         with:
-          name: frontend-dist
-          path: frontend/dist
+          name: frontend-build
+          path: frontend/build
   build:
     needs: frontend
     runs-on: ${{ matrix.os }}

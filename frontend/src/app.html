@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+		<meta name="text-scale" content="scale" />
+		<meta name="theme-color" content="#10B981" />
+		<meta name="description" content="货殖 - 一个简洁纯粹的个人记账系统" />
+
+		<!-- PWA manifest -->
+		<link rel="manifest" href="/manifest.webmanifest" />
+
+		<!-- 图标 -->
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="apple-touch-icon" href="/icon-192.svg" />
+
+		<!-- iOS PWA 增强：添加到主屏后的沉浸式体验 -->
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+		<meta name="apple-mobile-web-app-title" content="货殖" />
+		<meta name="mobile-web-app-capable" content="yes" />
+
+		<!-- 主题颜色切换（JS 注入，避免闪烁） -->
+		<script>
+			(function () {
+				try {
+					const stored = localStorage.getItem('hz_theme');
+					let theme = stored || 'system';
+					if (theme === 'system') {
+						theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+					}
+					if (theme === 'dark') {
+						document.documentElement.classList.add('dark');
+					}
+				} catch (e) {}
+			})();
+		</script>
+
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>

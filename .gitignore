@@ -46,3 +46,17 @@ data/
 
 # WorkBuddy project data
 .workbuddy/
+
+# SvelteKit
+frontend/build/
+frontend/.svelte-kit/
+frontend/vitest.config.js
+frontend/vitest.config.d.ts
+frontend/svelte.config.cjs
+
+# 本地数据
+backend/data/*.db
+backend/data/*.db-journal
+
+# React 前端备份（暂存用，不提交）
+frontend-react-backup/

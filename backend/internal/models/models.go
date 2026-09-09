@@ -32,7 +32,7 @@ type User struct {
 	IsVIP        bool      `gorm:"default:false" json:"is_vip"`
 	LastLoginAt  time.Time `json:"last_login_at"`
 	Status       int       `gorm:"default:1" json:"status"` // 1正常 0禁用
-	APIKey       string    `gorm:"size:64;uniqueIndex" json:"-"` // 外部API访问密钥
+	APIKey       *string   `gorm:"size:64;uniqueIndex" json:"-"` // 外部API访问密钥（NULL=未生成，避免SQLite唯一索引空字符串冲突）
 	APIKeyEnabled bool     `gorm:"default:false" json:"api_key_enabled"` // API密钥是否启用
 }
 
