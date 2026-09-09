@@ -2,11 +2,11 @@
 	import { onMount } from 'svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Card from '$lib/components/ui/Card.svelte'
-import CardContent from '$lib/components/ui/CardContent.svelte'
-import CardHeader from '$lib/components/ui/CardHeader.svelte'
-import CardTitle from '$lib/components/ui/CardTitle.svelte';
+	import CardContent from '$lib/components/ui/CardContent.svelte'
+	import CardHeader from '$lib/components/ui/CardHeader.svelte'
+	import CardTitle from '$lib/components/ui/CardTitle.svelte';
 	import Tabs from '$lib/components/ui/Tabs.svelte'
-import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
+	import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
 	import Dialog from '$lib/components/ui/Dialog.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
 	import Label from '$lib/components/ui/Label.svelte';
@@ -22,6 +22,7 @@ import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
 	let editingCategory = $state<Category | null>(null);
 	let catName = $state('');
 	let catIcon = $state('📁');
+	let catParentId = $state<number | ''>('');
 	let loading = $state(false);
 
 	let currentList = $derived(
@@ -32,10 +33,15 @@ import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
 				: appStore.categories.system
 	);
 
+	let parentOptions = $derived(
+		currentList.filter((c) => c.parent_id === 0 && c.id !== (editingCategory?.id || 0))
+	);
+
 	function openNew() {
 		editingCategory = null;
 		catName = '';
 		catIcon = '📁';
+		catParentId = '';
 		showDialog = true;
 	}
 
@@ -43,6 +49,7 @@ import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
 		editingCategory = cat;
 		catName = cat.name;
 		catIcon = cat.icon || '📁';
+		catParentId = cat.parent_id || '';
 		showDialog = true;
 	}
 
@@ -56,7 +63,8 @@ import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
 			if (editingCategory) {
 				await categoryApi.update(editingCategory.id, {
 					name: catName,
-					icon: catIcon
+					icon: catIcon,
+					parent_id: catParentId || 0
 				});
 				hzToast.success('更新成功');
 			} else {
@@ -64,6 +72,7 @@ import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
 					name: catName,
 					icon: catIcon,
 					kind,
+					parent_id: catParentId || 0,
 					book_id: appStore.currentBookId
 				});
 				hzToast.success('创建成功');
@@ -116,7 +125,6 @@ import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
 					<div class="relative group">
 						<button
 							class="w-full flex flex-col items-center gap-2 p-3 rounded-lg border hover:bg-accent transition"
-
 						>
 							<span class="text-2xl">{cat.icon || '📁'}</span>
 							<span class="text-xs text-center truncate w-full">{cat.name}</span>
@@ -170,13 +178,25 @@ import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
 					{#each iconOptions as icon}
 						<button
 							class="w-8 h-8 text-lg rounded hover:bg-accent transition"
-
 							onclick={() => (catIcon = icon)}
 						>
 							{icon}
 						</button>
 					{/each}
 				</div>
+			</div>
+
+			<div class="space-y-2">
+				<Label>父分类</Label>
+				<select
+					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+					bind:value={catParentId}
+				>
+					<option value="">顶级分类</option>
+					{#each parentOptions as p}
+						<option value={p.id}>{p.icon || '📁'} {p.name}</option>
+					{/each}
+				</select>
 			</div>
 
 			<div class="flex gap-2 justify-end pt-2">
