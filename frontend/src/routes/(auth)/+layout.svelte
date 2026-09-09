@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { cn } from '$lib/utils/cn';
@@ -11,6 +11,8 @@
 	import { http, replayQueue, subscribeQueue, queueCount } from '$lib/api/http';
 	import { accountApi, txApi } from '$lib/api/modules';
 	import { getMonthRange, formatMoney } from '$lib/utils/format';
+	import { connectWs, disconnectWs, onSync } from '$lib/ws';
+	import type { WsMessage } from '$lib/ws';
 	import {
 		LayoutDashboard,
 		Receipt,
@@ -62,9 +64,41 @@
 				if (r.ok > 0) hzToast.success(`已同步 ${r.ok} 条离线请求`);
 			});
 		}
+
+		// 连接 WebSocket 实时同步
+		connectWs();
+	}
+
+	let unsubSync: (() => void) | null = null;
+
+	function handleSync(msg: WsMessage) {
+		if (msg.type === 'sync' && msg.table) {
+			// 根据变更的表刷新对应数据
+			switch (msg.table) {
+				case 'transactions':
+				case 'accounts':
+				case 'categories':
+				case 'tags':
+				case 'budgets':
+				case 'books':
+				case 'recurring':
+				case 'installments':
+				case 'reimbursements':
+				case 'saving_plans':
+					appStore.loadDictionaries();
+					break;
+			}
+		} else if (msg.type === 'alert') {
+			hzToast.info(msg.data?.message || '有新通知');
+		}
 	}
 
 	onMount(init);
+
+	onDestroy(() => {
+		disconnectWs();
+		unsubSync?.();
+	});
 
 	// ========= 移动端侧边栏 =========
 	let sidebarOpen = $state(false);
