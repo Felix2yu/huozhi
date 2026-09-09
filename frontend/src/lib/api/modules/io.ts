@@ -1,10 +1,30 @@
 import { http } from '../http';
 
 export const ioApi = {
-	template: () => window.open('/api/io/template'),
-	exportCSV: (params?: any) => {
+	template: async () => {
+		const res = await fetch('/api/io/template', {
+			headers: { Authorization: `Bearer ${http.getToken()}` || '' }
+		});
+		const blob = await res.blob();
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = 'template.csv';
+		a.click();
+		URL.revokeObjectURL(url);
+	},
+	exportCSV: async (params?: any) => {
 		const q = new URLSearchParams(params as any).toString();
-		window.open('/api/io/export?' + q);
+		const res = await fetch('/api/io/export?' + q, {
+			headers: { Authorization: `Bearer ${http.getToken()}` || '' }
+		});
+		const blob = await res.blob();
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = 'export.csv';
+		a.click();
+		URL.revokeObjectURL(url);
 	},
 	import: async (source: string, book_id: number, file: File) => {
 		const fd = new FormData();

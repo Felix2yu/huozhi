@@ -1,29 +1,40 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import Card from '$lib/components/ui/Card.svelte'
-import CardContent from '$lib/components/ui/CardContent.svelte'
-import CardHeader from '$lib/components/ui/CardHeader.svelte'
-import CardTitle from '$lib/components/ui/CardTitle.svelte';
+	import CardContent from '$lib/components/ui/CardContent.svelte'
+	import CardHeader from '$lib/components/ui/CardHeader.svelte'
+	import CardTitle from '$lib/components/ui/CardTitle.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
 	import { ioApi } from '$lib/api/modules/io';
 	import { appStore } from '$lib/stores/app';
 	import { hzToast } from '$lib/components/ui/toast';
+	import { http } from '$lib/api/http';
 	import dayjs from 'dayjs';
 	import { Download, FileText } from '@lucide/svelte';
 
 	let selectedMonth = $state(dayjs().format('YYYY-MM'));
 
-	function exportCSV() {
+	async function exportCSV() {
 		const [year, month] = selectedMonth.split('-');
-		ioApi.exportCSV({
+		await ioApi.exportCSV({
 			book_id: appStore.currentBookId,
 			start_date: `${year}-${month}-01`,
 			end_date: dayjs(`${year}-${month}`).endOf('month').format('YYYY-MM-DD')
 		});
+		hzToast.success('CSV 已下载');
 	}
 
-	function viewBill() {
-		window.open(`/api/io/bill?month=${selectedMonth}&book_id=${appStore.currentBookId}`);
+	async function viewBill() {
+		try {
+			const data = await http.get(`/io/bill?month=${selectedMonth}&book_id=${appStore.currentBookId}`);
+			const w = window.open('', '_blank');
+			if (w) {
+				w.document.write(`<pre style="font-family:monospace;padding:20px;">${JSON.stringify(data, null, 2)}</pre>`);
+			}
+		} catch (e) {
+			hzToast.error('获取账单失败');
+		}
 	}
 </script>
 
