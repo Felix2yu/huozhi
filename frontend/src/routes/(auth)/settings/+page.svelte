@@ -112,6 +112,7 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 			if (res.ok) {
 				hzToast.success(`成功导入 ${res.count || 0} 笔交易`);
 				importFile = null;
+				await appStore.loadDictionaries();
 			} else {
 				hzToast.error(res.message || '导入失败');
 			}
