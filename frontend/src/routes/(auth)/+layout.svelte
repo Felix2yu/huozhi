@@ -44,20 +44,26 @@
 	let checking = $state(true);
 
 	async function init() {
-		const ok = await appStore.checkAuth();
-		if (!ok) {
-			const path = $page?.url?.pathname || '/dashboard';
-			goto(`/login?redirect=${encodeURIComponent(path)}`);
-			return;
-		}
 		try {
+			const ok = await appStore.checkAuth();
+			if (!ok) {
+				const path = $page?.url?.pathname || '/dashboard';
+				goto(`/login?redirect=${encodeURIComponent(path)}`);
+				return;
+			}
 			await appStore.loadBooks();
 			await appStore.loadDictionaries();
 		} catch (e) {
-			console.warn('加载基础数据失败', e);
+			console.warn('初始化失败', e);
+			// 认证失败（token 失效 / 接口异常）时跳登录，避免卡在加载屏
+			if (!appStore.isAuth) goto('/login');
 		} finally {
+			// 关键：无论成功 / 失败 / 未登录，都必须结束加载态，
+			// 否则 checking 永远为 true，整页停留在「正在加载货殖...」且点击无反应
 			checking = false;
 		}
+
+		if (!appStore.isAuth) return;
 
 		// 尝试重放离线队列
 		if (queueCount() > 0) {
