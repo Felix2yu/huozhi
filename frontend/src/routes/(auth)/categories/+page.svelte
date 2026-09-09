@@ -39,7 +39,7 @@
 	);
 
 	// 子分类按 parent_id 分组
-	let childrenMap = $derived(() => {
+	let childrenMap = $derived.by(() => {
 		const map = new Map<number, Category[]>();
 		for (const cat of allCategories) {
 			if (cat.parent_id !== 0) {
