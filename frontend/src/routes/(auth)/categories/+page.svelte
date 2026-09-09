@@ -139,7 +139,7 @@
 		</Button>
 	</div>
 
-	<!-- 分类列表：紧凑换行排列 + 点击展开层级 -->
+	<!-- 分类列表：等宽网格 + 点击展开子分类专区 -->
 	<Card>
 		<CardContent class="p-4">
 			{#if topCategories.length === 0}
@@ -147,69 +147,76 @@
 					<p class="text-sm">暂无分类</p>
 				</div>
 			{:else}
-				<div class="flex flex-wrap gap-2">
+				<!-- 顶层分类：等宽网格，所有卡片大小一致 -->
+				<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
 					{#each topCategories as cat (cat.id)}
 						{@const children = childrenMap.get(cat.id) || []}
-						<!-- 顶层分类：按内容宽度的卡片，不再占满整行 -->
-						<div class="group rounded-lg border bg-card overflow-hidden">
-							<div class="flex items-center">
-								<button
-									class="flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition text-left min-w-0"
-									onclick={() => (children.length ? toggleExpand(cat.id) : openEdit(cat))}
-								>
-									<span class="text-lg leading-none">{cat.icon || '📁'}</span>
-									<span class="text-sm font-medium">{cat.name}</span>
-									{#if cat.is_system}
-										<Badge variant="outline" class="text-[9px]">系统</Badge>
-									{/if}
-									{#if children.length}
-										<ChevronDown
-											size={14}
-											class="text-muted-foreground transition-transform duration-200 {expanded[cat.id] ? 'rotate-180' : ''}"
-										/>
-									{/if}
-								</button>
+						<div class="group relative rounded-lg border bg-card hover:bg-accent/40 transition">
+							<button
+								class="w-full flex items-center gap-2 px-3 py-2 text-left min-w-0"
+								onclick={() => (children.length ? toggleExpand(cat.id) : openEdit(cat))}
+							>
+								<span class="text-lg leading-none shrink-0">{cat.icon || '📁'}</span>
+								<span class="text-sm font-medium truncate flex-1">{cat.name}</span>
+								{#if cat.is_system}
+									<Badge variant="outline" class="text-[9px] shrink-0">系统</Badge>
+								{/if}
 								{#if !cat.is_system}
 									<button
-										class="p-2 text-muted-foreground hover:bg-accent/50 opacity-0 group-hover:opacity-100 shrink-0"
+										class="p-1 rounded text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-accent transition shrink-0"
 										onclick={(e) => { e.stopPropagation(); openEdit(cat); }}
 										title="编辑"
 									>
-										<Pencil size={13} />
+										<Pencil size={12} />
 									</button>
 								{/if}
-							</div>
-
-							<!-- 子分类：展开后内嵌显示，缩进 + 更小尺寸以区分层级 -->
-							{#if children.length && expanded[cat.id]}
-								<div class="flex flex-wrap gap-1.5 px-3 pb-2 pt-1 border-t bg-muted/30">
-									{#each children as child (child.id)}
-										<div class="group/chip flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md border bg-background hover:bg-accent/40 transition">
-											<span class="text-sm leading-none">{child.icon || '📁'}</span>
-											<span class="text-xs">{child.name}</span>
-											{#if !child.is_system}
-												<div class="hidden group-hover/chip:flex items-center gap-0.5 ml-0.5">
-													<button
-														class="p-0.5 rounded hover:bg-accent"
-														onclick={(e) => { e.stopPropagation(); openEdit(child); }}
-													>
-														<Pencil size={11} />
-													</button>
-													<button
-														class="p-0.5 rounded hover:bg-destructive/10 text-destructive"
-														onclick={(e) => { e.stopPropagation(); handleDelete(child); }}
-													>
-														<Trash2 size={11} />
-													</button>
-												</div>
-											{/if}
-										</div>
-									{/each}
-								</div>
-							{/if}
+								{#if children.length}
+									<ChevronDown
+										size={14}
+										class="text-muted-foreground transition-transform duration-200 shrink-0 {expanded[cat.id] ? 'rotate-180' : ''}"
+									/>
+								{/if}
+							</button>
 						</div>
 					{/each}
 				</div>
+
+				<!-- 展开的子分类专区：跟随父分类下方，同样等宽网格 -->
+				{#each topCategories as cat (cat.id)}
+					{@const children = childrenMap.get(cat.id) || []}
+					{#if children.length && expanded[cat.id]}
+						<div class="mt-2 pl-3 border-l-2 border-muted rounded-r-md">
+							<div class="text-[11px] text-muted-foreground mb-1.5 flex items-center gap-1">
+								<span>{cat.icon || '📁'}</span>
+								<span>{cat.name} · 子类</span>
+							</div>
+							<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
+								{#each children as child (child.id)}
+									<div class="group/chip flex items-center gap-1.5 px-2 py-1.5 rounded-md border bg-muted/30 hover:bg-accent/40 transition min-w-0">
+										<span class="text-sm leading-none shrink-0">{child.icon || '📁'}</span>
+										<span class="text-xs truncate flex-1">{child.name}</span>
+										{#if !child.is_system}
+											<div class="hidden group-hover/chip:flex items-center gap-0.5 shrink-0">
+												<button
+													class="p-0.5 rounded hover:bg-accent"
+													onclick={(e) => { e.stopPropagation(); openEdit(child); }}
+												>
+													<Pencil size={11} />
+												</button>
+												<button
+													class="p-0.5 rounded hover:bg-destructive/10 text-destructive"
+													onclick={(e) => { e.stopPropagation(); handleDelete(child); }}
+												>
+													<Trash2 size={11} />
+												</button>
+											</div>
+										{/if}
+									</div>
+								{/each}
+							</div>
+						</div>
+					{/if}
+				{/each}
 			{/if}
 		</CardContent>
 	</Card>
