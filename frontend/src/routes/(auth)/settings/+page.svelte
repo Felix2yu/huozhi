@@ -14,12 +14,19 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 	import { http } from '$lib/api/http';
 	import { hzToast } from '$lib/components/ui/toast';
 	import { onMount } from 'svelte';
-	import { User, Palette, LogOut, CloudOff, Moon, Sun, Monitor, CreditCard, Key, Copy, Eye, EyeOff } from '@lucide/svelte';
+	import { User, Palette, LogOut, CloudOff, Moon, Sun, Monitor, CreditCard, Key, Copy, Eye, EyeOff, Lock } from '@lucide/svelte';
 
 	let nickname = $state('');
 	let email = $state('');
 	let theme = $state(themeStore.value);
 	let loading = $state(false);
+
+	// 修改密码
+	let showChangePwd = $state(false);
+	let oldPwd = $state('');
+	let newPwd = $state('');
+	let confirmPwd = $state('');
+	let pwdLoading = $state(false);
 
 	// API Key 状态
 	let apiKeyInfo = $state<{ api_key: string; api_key_enabled: boolean; has_api_key: boolean } | null>(null);
@@ -69,12 +76,33 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 		}
 	}
 
-	onMount(() => {
-		if (appStore.user) {
-			nickname = appStore.user.nickname;
-			email = appStore.user.email || '';
+	async function handleChangePassword() {
+		if (!oldPwd || !newPwd) {
+			hzToast.warning('请填写完整');
+			return;
 		}
-	});
+		if (newPwd !== confirmPwd) {
+			hzToast.warning('两次密码不一致');
+			return;
+		}
+		if (newPwd.length < 6) {
+			hzToast.warning('密码至少6位');
+			return;
+		}
+		pwdLoading = true;
+		try {
+			await authApi.changePwd({ old_password: oldPwd, new_password: newPwd });
+			hzToast.success('密码修改成功');
+			showChangePwd = false;
+			oldPwd = '';
+			newPwd = '';
+			confirmPwd = '';
+		} catch (e: any) {
+			hzToast.error(e.message || '修改失败');
+		} finally {
+			pwdLoading = false;
+		}
+	}
 
 	async function handleSaveProfile() {
 		loading = true;
@@ -151,8 +179,7 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 				<div class="grid grid-cols-3 gap-2">
 					<button
 						class="flex flex-col items-center gap-2 p-4 rounded-lg border transition"
-
-
+						class:border-primary={theme === 'light'}
 						onclick={() => handleThemeChange('light')}
 					>
 						<Sun size={20} />
@@ -160,8 +187,7 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 					</button>
 					<button
 						class="flex flex-col items-center gap-2 p-4 rounded-lg border transition"
-
-
+						class:border-primary={theme === 'dark'}
 						onclick={() => handleThemeChange('dark')}
 					>
 						<Moon size={20} />
@@ -169,14 +195,55 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 					</button>
 					<button
 						class="flex flex-col items-center gap-2 p-4 rounded-lg border transition"
-
-
+						class:border-primary={theme === 'system'}
 						onclick={() => handleThemeChange('system')}
 					>
 						<Monitor size={20} />
 						<span class="text-xs">跟随系统</span>
 					</button>
 				</div>
+			</CardContent>
+		</Card>
+	</section>
+
+	<!-- 安全 -->
+	<section>
+		<div class="flex items-center gap-2 mb-3">
+			<Lock size={16} />
+			<h2 class="text-sm font-medium">安全</h2>
+		</div>
+		<Card>
+			<CardContent class="p-4">
+				{#if showChangePwd}
+					<div class="space-y-3">
+						<div class="space-y-2">
+							<Label>当前密码</Label>
+							<Input type="password" bind:value={oldPwd} />
+						</div>
+						<div class="space-y-2">
+							<Label>新密码</Label>
+							<Input type="password" bind:value={newPwd} />
+						</div>
+						<div class="space-y-2">
+							<Label>确认新密码</Label>
+							<Input type="password" bind:value={confirmPwd} />
+						</div>
+						<div class="flex gap-2">
+							<Button size="sm" onclick={handleChangePassword} disabled={pwdLoading}>
+								{pwdLoading ? '保存中...' : '保存'}
+							</Button>
+							<Button size="sm" variant="outline" onclick={() => (showChangePwd = false)}>取消</Button>
+						</div>
+					</div>
+				{:else}
+					<button
+						class="w-full flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition"
+						onclick={() => (showChangePwd = true)}
+					>
+						<span>修改密码</span>
+						<span class="text-muted-foreground text-sm">→</span>
+					</button>
+				{/if}
 			</CardContent>
 		</Card>
 	</section>
