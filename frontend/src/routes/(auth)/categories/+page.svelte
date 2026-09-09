@@ -15,7 +15,7 @@
 	import { categoryApi } from '$lib/api/modules/categories';
 	import { hzToast } from '$lib/components/ui/toast';
 	import type { Category, CategoryKind } from '$lib/types';
-	import { Plus, Pencil, Trash2, GripVertical } from '@lucide/svelte';
+	import { Plus, Pencil, Trash2, GripVertical, ChevronDown } from '@lucide/svelte';
 
 	let kind = $state<CategoryKind>('expense');
 	let showDialog = $state(false);
@@ -25,7 +25,7 @@
 	let catParentId = $state<number | ''>('');
 	let loading = $state(false);
 
-	let currentList = $derived(
+	let allCategories = $derived(
 		kind === 'expense'
 			? appStore.categories.expense
 			: kind === 'income'
@@ -33,8 +33,26 @@
 				: appStore.categories.system
 	);
 
+	// 顶级分类（parent_id === 0）
+	let topCategories = $derived(
+		allCategories.filter((c) => c.parent_id === 0)
+	);
+
+	// 子分类按 parent_id 分组
+	let childrenMap = $derived(() => {
+		const map = new Map<number, Category[]>();
+		for (const cat of allCategories) {
+			if (cat.parent_id !== 0) {
+				const arr = map.get(cat.parent_id) || [];
+				arr.push(cat);
+				map.set(cat.parent_id, arr);
+			}
+		}
+		return map;
+	});
+
 	let parentOptions = $derived(
-		currentList.filter((c) => c.parent_id === 0 && c.id !== (editingCategory?.id || 0))
+		topCategories.filter((c) => c.id !== (editingCategory?.id || 0))
 	);
 
 	function openNew() {
@@ -120,41 +138,59 @@
 	<!-- 分类列表 -->
 	<Card>
 		<CardContent class="p-4">
-			<div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
-				{#each currentList as cat (cat.id)}
-					<div class="relative group">
-						<button
-							class="w-full flex flex-col items-center gap-2 p-3 rounded-lg border hover:bg-accent transition"
-						>
-							<span class="text-2xl">{cat.icon || '📁'}</span>
-							<span class="text-xs text-center truncate w-full">{cat.name}</span>
-							{#if cat.is_system}
-								<Badge variant="outline" class="absolute top-1 right-1 text-[9px]">系统</Badge>
-							{/if}
-						</button>
-						{#if !cat.is_system}
-							<div class="absolute inset-0 hidden group-hover:flex items-center justify-center gap-1 bg-background/80 rounded-lg">
-								<button
-									class="p-1.5 rounded hover:bg-accent"
-									onclick={() => openEdit(cat)}
-								>
-									<Pencil size={14} />
-								</button>
-								<button
-									class="p-1.5 rounded hover:bg-destructive/10 text-destructive"
-									onclick={() => handleDelete(cat)}
-								>
-									<Trash2 size={14} />
-								</button>
-							</div>
-						{/if}
-					</div>
-				{/each}
-			</div>
-
-			{#if currentList.length === 0}
+			{#if topCategories.length === 0}
 				<div class="py-12 text-center text-muted-foreground">
 					<p class="text-sm">暂无分类</p>
+				</div>
+			{:else}
+				<div class="space-y-3">
+					{#each topCategories as cat (cat.id)}
+						<div class="border rounded-lg overflow-hidden bg-card">
+							<!-- 顶级分类行 -->
+							<button
+								class="w-full flex items-center gap-3 p-3 hover:bg-accent/50 transition text-left group"
+								onclick={() => openEdit(cat)}
+							>
+								<span class="text-xl">{cat.icon || '📁'}</span>
+								<span class="text-sm font-medium truncate flex-1">{cat.name}</span>
+								{#if cat.is_system}
+									<Badge variant="outline" class="text-[9px]">系统</Badge>
+								{/if}
+								<ChevronDown size={14} class="text-muted-foreground transition-transform duration-200 group-hover:rotate-180" />
+							</button>
+
+							<!-- 子分类 -->
+							{#if childrenMap.get(cat.id)?.length}
+								<div class="pl-8 border-t bg-muted/30 divide-y divide-muted">
+									{#each childrenMap.get(cat.id) as child (child.id)}
+										<button
+											class="w-full flex items-center gap-3 px-3 py-2 hover:bg-accent/50 transition text-left"
+											onclick={() => openEdit(child)}
+										>
+											<span class="text-lg">{child.icon || '📁'}</span>
+											<span class="text-sm truncate flex-1">{child.name}</span>
+											{#if !child.is_system}
+												<div class="hidden group-hover:flex gap-1">
+													<button
+														class="p-1 rounded hover:bg-accent"
+														onclick={(e) => { e.stopPropagation(); openEdit(child); }}
+													>
+														<Pencil size={12} />
+													</button>
+													<button
+														class="p-1 rounded hover:bg-destructive/10 text-destructive"
+														onclick={(e) => { e.stopPropagation(); handleDelete(child); }}
+													>
+														<Trash2 size={12} />
+													</button>
+												</div>
+											{/if}
+										</button>
+									{/each}
+								</div>
+							{/if}
+						</div>
+					{/each}
 				</div>
 			{/if}
 		</CardContent>
