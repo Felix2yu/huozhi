@@ -20,6 +20,10 @@ function close() {
 	onOpenChange?.(false);
 }
 
+function onKeydown(e: KeyboardEvent) {
+	if (e.key === 'Escape') close();
+}
+
 const panelClasses = $derived(cn(
 	'fixed z-50 bg-background shadow-lg transition-transform duration-200',
 	side === 'right' && 'right-0 top-0 h-full w-full max-w-md border-l',
@@ -48,12 +52,15 @@ $effect(() => {
 });
 </script>
 
+<svelte:window on:keydown={onKeydown} />
+
 {#if open}
-	<button
-		type="button"
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div
 		class="fixed inset-0 z-40 bg-black/50"
 		onclick={close}
-	></button>
+	></div>
 	<div class={panelClasses} role="dialog" aria-modal="true">
 		{@render children?.({ close })}
 	</div>

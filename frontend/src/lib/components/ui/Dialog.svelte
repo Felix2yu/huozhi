@@ -19,6 +19,10 @@ function close() {
 	onOpenChange?.(false);
 }
 
+function onKeydown(e: KeyboardEvent) {
+	if (e.key === 'Escape') close();
+}
+
 $effect(() => {
 	if (open) {
 		document.body.style.overflow = 'hidden';
@@ -31,9 +35,12 @@ $effect(() => {
 });
 </script>
 
+<svelte:window on:keydown={onKeydown} />
+
 {#if open}
-	<button
-		type="button"
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div
 		class="fixed inset-0 z-50 flex items-center justify-center"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) close();
@@ -74,5 +81,5 @@ $effect(() => {
 			</button>
 			{@render children?.({ close })}
 		</div>
-	</button>
+	</div>
 {/if}
