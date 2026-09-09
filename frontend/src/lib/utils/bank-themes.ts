@@ -1,4 +1,6 @@
 // 银行主题色映射
+import type { AccountType } from '$lib/types';
+
 export interface BankTheme {
 	color: string;
 }
@@ -119,4 +121,87 @@ function adjustBrightness(hex: string, percent: number): string {
 	const G = Math.max(0, Math.min(255, ((num >> 8) & 0x00FF) + amt));
 	const B = Math.max(0, Math.min(255, (num & 0x0000FF) + amt));
 	return `#${(0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1)}`;
+}
+
+// ============ 品牌简称 / 识别（用于账户头像、名称自动填充） ============
+
+interface BankMeta {
+	names: string[]; // 匹配关键词（含别名/英文），顺序：最具体在前
+	short: string; // 头像显示的 1 字简称
+}
+
+// 覆盖主流银行 + 支付宝 + 微信 + 常见互联网/消费金融机构
+const BANK_META: BankMeta[] = [
+	{ names: ['招商银行', '招行', 'CMB'], short: '招' },
+	{ names: ['工商银行', '工行', 'ICBC'], short: '工' },
+	{ names: ['建设银行', '建行', 'CCB'], short: '建' },
+	{ names: ['农业银行', '农行', 'ABC'], short: '农' },
+	{ names: ['中国银行', '中行', 'BOC'], short: '中' },
+	{ names: ['交通银行', '交行', 'BOCOM'], short: '交' },
+	{ names: ['邮储银行', '邮政储蓄', 'PSBC'], short: '邮' },
+	{ names: ['中信银行', '中信', 'CITIC'], short: '信' },
+	{ names: ['浦发银行', '浦发', 'SPDB'], short: '浦' },
+	{ names: ['民生银行', '民生', 'CMBC'], short: '民' },
+	{ names: ['兴业银行', '兴业', 'CIB'], short: '兴' },
+	{ names: ['光大银行', '光大', 'CEB'], short: '光' },
+	{ names: ['平安银行', '平安', 'PAB'], short: '平' },
+	{ names: ['华夏银行', '华夏', 'HXB'], short: '华' },
+	{ names: ['广发银行', '广发', 'CGB'], short: '广' },
+	{ names: ['浙商银行'], short: '浙' },
+	{ names: ['渤海银行'], short: '渤' },
+	{ names: ['北京银行'], short: '京' },
+	{ names: ['上海银行'], short: '沪' },
+	{ names: ['南京银行'], short: '宁' },
+	{ names: ['宁波银行'], short: '甬' },
+	{ names: ['杭州银行'], short: '杭' },
+	{ names: ['微众银行', '微众', 'WeBank'], short: '微' },
+	{ names: ['网商银行', '网商', 'MYbank'], short: '网' },
+	{ names: ['花旗银行', '花旗', 'Citi'], short: '花' },
+	{ names: ['汇丰银行', '汇丰', 'HSBC'], short: '汇' },
+	{ names: ['渣打银行', '渣打', 'Standard Chartered'], short: '渣' },
+	{ names: ['支付宝'], short: '支' },
+	{ names: ['微信', '微信支付', '财付通'], short: '微' },
+	{ names: ['花呗', '借呗', '蚂蚁'], short: '蚂' },
+	{ names: ['京东', '京东金融'], short: '京' },
+	{ names: ['美团', '美团支付'], short: '美' },
+	{ names: ['云闪付', '银联', 'UnionPay'], short: '银' },
+	{ names: ['Apple', '苹果'], short: '' }
+];
+
+export interface BankBrand {
+	short: string; // 头像简称，空串时由调用方兜底
+	color: string; // 品牌色
+}
+
+// 根据银行名/账户名识别品牌（颜色复用 bank-themes 的主题色）
+export function getBankBrand(text?: string): BankBrand {
+	const t = (text || '').trim();
+	if (!t) return { short: '?', color: defaultTheme.color };
+	for (const b of BANK_META) {
+		if (b.names.some((n) => t.includes(n))) {
+			const color = getBankTheme(b.names[0]).color;
+			return { short: b.short || t.slice(0, 1), color };
+		}
+	}
+	// 兜底：用首字 + 主题色（能识别则取色，否则灰色）
+	return { short: t.slice(0, 1), color: getBankTheme(t).color };
+}
+
+// 从账户名称推断银行/机构名称（例如「招商银行信用卡」→「招商银行」）
+export function detectBankName(text?: string): string {
+	const t = (text || '').trim();
+	if (!t) return '';
+	for (const b of BANK_META) {
+		if (b.names.some((n) => t.includes(n))) return b.names[0];
+	}
+	return '';
+}
+
+// 从账户名称推断账户类型（仅对明显的虚拟/信用/银行卡生效，其余留空让用户选）
+export function detectAccountType(text?: string): AccountType | '' {
+	const t = (text || '').trim();
+	if (/支付宝|微信|财付通|京东|美团|云闪付|Apple|苹果|网商|微众/.test(t)) return 'virtual';
+	if (/信用卡/.test(t)) return 'credit';
+	if (/储蓄卡|借记卡|银行卡|银行/.test(t)) return 'bank';
+	return '';
 }

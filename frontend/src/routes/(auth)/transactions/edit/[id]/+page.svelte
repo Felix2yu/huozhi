@@ -12,6 +12,7 @@
 	import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
 	import Dialog from '$lib/components/ui/Dialog.svelte';
 	import Label from '$lib/components/ui/Label.svelte';
+	import AccountSelect from '$lib/components/AccountSelect.svelte';
 	import { txApi } from '$lib/api/modules/transactions';
 	import { appStore } from '$lib/stores/app';
 	import { hzToast } from '$lib/components/ui/toast';
@@ -202,29 +203,13 @@
 			<!-- 账户 -->
 			<div class="space-y-2">
 				<Label>{type === 'transfer' ? '从账户' : '账户'}</Label>
-				<select
-					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-					bind:value={accountId}
-					onchange={(e) => (accountId = Number((e.target as HTMLSelectElement).value))}
-				>
-					{#each appStore.accounts as acc}
-						<option value={acc.id}>{acc.name}</option>
-					{/each}
-				</select>
+				<AccountSelect bind:value={accountId} placeholder="选择账户" />
 			</div>
 
 			{#if type === 'transfer'}
 				<div class="space-y-2">
 					<Label>到账户</Label>
-					<select
-						class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-						bind:value={toAccountId}
-						onchange={(e) => (toAccountId = Number((e.target as HTMLSelectElement).value))}
-					>
-						{#each appStore.accounts as acc}
-							<option value={acc.id}>{acc.name}</option>
-						{/each}
-					</select>
+					<AccountSelect bind:value={toAccountId} exclude={accountId} placeholder="选择对方账户" />
 				</div>
 			{/if}
 

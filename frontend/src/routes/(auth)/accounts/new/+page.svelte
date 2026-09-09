@@ -10,15 +10,18 @@
 	import { accountApi } from '$lib/api/modules/accounts';
 	import { appStore } from '$lib/stores/app';
 	import { hzToast } from '$lib/components/ui/toast';
+	import { detectBankName, detectAccountType } from '$lib/utils/bank-themes';
+	import AccountIcon from '$lib/components/AccountIcon.svelte';
 	import type { AccountType } from '$lib/types';
 	import { Save, X } from '@lucide/svelte';
 
 	let name = $state('');
 	let type = $state<AccountType>('bank');
+	let typeTouched = $state(false);
 	let balance = $state('');
 	let initialAmount = $state('');
 	let bankName = $state('');
-	let cardNo4 = $state('');
+	let fullCardNo = $state('');
 	let creditLimit = $state('');
 	let billDay = $state('');
 	let repayDay = $state('');
@@ -39,6 +42,18 @@
 
 	const isCredit = $derived(type === 'credit');
 
+	// 输入名称时，自动从名称推断银行/机构名（仅在用户尚未手动填写时），并适度推断类型
+	function onNameInput() {
+		if (!bankName.trim()) {
+			const bn = detectBankName(name);
+			if (bn) bankName = bn;
+		}
+		if (!typeTouched) {
+			const t = detectAccountType(name);
+			if (t === 'virtual' || t === 'credit') type = t;
+		}
+	}
+
 	async function handleSave() {
 		if (!name.trim()) {
 			hzToast.warning('请输入账户名称');
@@ -57,7 +72,7 @@
 				book_id: appStore.currentBookId
 			};
 			if (bankName.trim()) data.bank_name = bankName.trim();
-			if (cardNo4.trim()) data.card_no4 = cardNo4.trim();
+			if (fullCardNo.trim()) data.full_card_no = fullCardNo.replace(/\s/g, '');
 			if (isCredit && creditLimit) data.credit_limit = parseFloat(creditLimit);
 			if (isCredit && billDay) data.bill_day = parseInt(billDay);
 			if (isCredit && repayDay) data.repay_day = parseInt(repayDay);
@@ -88,7 +103,15 @@
 			<!-- 账户名称 -->
 			<div class="space-y-2">
 				<Label>账户名称</Label>
-				<Input placeholder="例如: 工商银行、微信钱包" bind:value={name} />
+				<div class="flex items-center gap-3">
+					<AccountIcon bankName={bankName} name={name} type={type} size={44} />
+					<Input
+						placeholder="例如: 招商银行信用卡、微信钱包"
+						bind:value={name}
+						oninput={onNameInput}
+					/>
+				</div>
+				<p class="text-xs text-muted-foreground">输入名称后会自动识别银行/机构（如「招商银行信用卡」→ 招商银行）</p>
 			</div>
 
 			<!-- 账户类型 -->
@@ -97,6 +120,7 @@
 				<select
 					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
 					bind:value={type}
+					onchange={() => (typeTouched = true)}
 				>
 					{#each accountTypes as t}
 						<option value={t.value}>{t.label}</option>
@@ -140,10 +164,15 @@
 				<Input placeholder="例如: 工商银行、支付宝" bind:value={bankName} />
 			</div>
 
-			<!-- 卡号后四位 -->
+			<!-- 银行卡号 -->
 			<div class="space-y-2">
-				<Label>卡号后四位</Label>
-				<Input placeholder="可选" maxlength={4} bind:value={cardNo4} />
+				<Label>银行卡号</Label>
+				<Input
+					placeholder="选填，仅本地展示末四位，完整卡号加密存储"
+					inputmode="numeric"
+					maxlength={23}
+					bind:value={fullCardNo}
+				/>
 			</div>
 
 			<!-- 信用卡专属字段 -->

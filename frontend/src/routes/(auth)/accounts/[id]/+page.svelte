@@ -12,8 +12,10 @@
 	import { accountApi } from '$lib/api/modules/accounts';
 	import { appStore } from '$lib/stores/app';
 	import { hzToast } from '$lib/components/ui/toast';
+	import { detectBankName, detectAccountType } from '$lib/utils/bank-themes';
+	import AccountIcon from '$lib/components/AccountIcon.svelte';
 	import type { Account, AccountType } from '$lib/types';
-	import { Save, X, Trash2 } from '@lucide/svelte';
+	import { Save, X, Archive } from '@lucide/svelte';
 
 	let accountId = $derived(Number(($page?.params as any)?.id));
 	let account = $state<Account | null>(null);
@@ -22,10 +24,11 @@
 
 	let name = $state('');
 	let type = $state<AccountType>('bank');
+	let typeTouched = $state(false);
 	let balance = $state('');
 	let initialAmount = $state('');
 	let bankName = $state('');
-	let cardNo4 = $state('');
+	let fullCardNo = $state('');
 	let creditLimit = $state('');
 	let billDay = $state('');
 	let repayDay = $state('');
@@ -53,13 +56,19 @@
 			balance = String(account.balance);
 			initialAmount = String(account.initial_amount);
 			bankName = account.bank_name || '';
-			cardNo4 = account.card_no4 || '';
 			creditLimit = account.credit_limit ? String(account.credit_limit) : '';
 			billDay = account.bill_day ? String(account.bill_day) : '';
 			repayDay = account.repay_day ? String(account.repay_day) : '';
 			includeInTotal = account.include_in_total;
 			includeInBudget = account.include_in_budget;
 			remark = account.remark || '';
+			// 尝试拉取完整卡号用于编辑预填（无则忽略）
+			try {
+				const fc: any = await accountApi.getFullCardNo(accountId);
+				fullCardNo = fc.full_card_no || '';
+			} catch {
+				fullCardNo = '';
+			}
 		} catch {
 			hzToast.error('加载账户失败');
 			goto('/accounts');
@@ -67,6 +76,17 @@
 			loading = false;
 		}
 	});
+
+	function onNameInput() {
+		if (!bankName.trim()) {
+			const bn = detectBankName(name);
+			if (bn) bankName = bn;
+		}
+		if (!typeTouched) {
+			const t = detectAccountType(name);
+			if (t === 'virtual' || t === 'credit') type = t;
+		}
+	}
 
 	async function handleSave() {
 		if (!name.trim()) {
@@ -76,16 +96,16 @@
 
 		saving = true;
 		try {
-			const data: any = {
-				name: name.trim(),
-				type,
-				balance: parseFloat(balance) || 0,
-				initial_amount: parseFloat(initialAmount) || 0,
-				include_in_total: includeInTotal,
-				include_in_budget: includeInBudget
-			};
+			// 基于已加载的完整账户对象覆盖，避免更新接口把未编辑的字段（图标/颜色/分组等）清空
+			const data: any = { ...(account || {}) };
+			data.name = name.trim();
+			data.type = type;
+			data.balance = parseFloat(balance) || 0;
+			data.initial_amount = parseFloat(initialAmount) || 0;
+			data.include_in_total = includeInTotal;
+			data.include_in_budget = includeInBudget;
 			if (bankName.trim()) data.bank_name = bankName.trim();
-			if (cardNo4.trim()) data.card_no4 = cardNo4.trim();
+			if (fullCardNo.trim()) data.full_card_no = fullCardNo.replace(/\s/g, '');
 			if (isCredit && creditLimit) data.credit_limit = parseFloat(creditLimit);
 			if (isCredit && billDay) data.bill_day = parseInt(billDay);
 			if (isCredit && repayDay) data.repay_day = parseInt(repayDay);
@@ -102,16 +122,16 @@
 		}
 	}
 
-	async function handleDelete() {
-		if (!confirm('确定要删除该账户吗？此操作不可撤销。')) return;
+	async function handleArchive() {
+		if (!confirm('归档后该账户将不再出现在「添加账单」的账户选择中，可随时在账户列表恢复。确定归档？')) return;
 
 		try {
 			await accountApi.remove(accountId);
-			hzToast.success('账户已删除');
+			hzToast.success('账户已归档');
 			await appStore.loadDictionaries();
 			goto('/accounts');
 		} catch (e: any) {
-			hzToast.error(e.message || '删除失败');
+			hzToast.error(e.message || '归档失败');
 		}
 	}
 </script>
@@ -132,7 +152,15 @@
 				<!-- 账户名称 -->
 				<div class="space-y-2">
 					<Label>账户名称</Label>
-					<Input placeholder="例如: 工商银行、微信钱包" bind:value={name} />
+					<div class="flex items-center gap-3">
+						<AccountIcon bankName={bankName} name={name} type={type} size={44} />
+						<Input
+							placeholder="例如: 招商银行信用卡、微信钱包"
+							bind:value={name}
+							oninput={onNameInput}
+						/>
+					</div>
+					<p class="text-xs text-muted-foreground">输入名称后会自动识别银行/机构（如「招商银行信用卡」→ 招商银行）</p>
 				</div>
 
 				<!-- 账户类型 -->
@@ -141,6 +169,7 @@
 					<select
 						class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
 						bind:value={type}
+						onchange={() => (typeTouched = true)}
 					>
 						{#each accountTypes as t}
 							<option value={t.value}>{t.label}</option>
@@ -184,10 +213,15 @@
 					<Input placeholder="例如: 工商银行、支付宝" bind:value={bankName} />
 				</div>
 
-				<!-- 卡号后四位 -->
+				<!-- 银行卡号 -->
 				<div class="space-y-2">
-					<Label>卡号后四位</Label>
-					<Input placeholder="可选" maxlength={4} bind:value={cardNo4} />
+					<Label>银行卡号</Label>
+					<Input
+						placeholder="选填，仅本地展示末四位，完整卡号加密存储"
+						inputmode="numeric"
+						maxlength={23}
+						bind:value={fullCardNo}
+					/>
 				</div>
 
 				<!-- 信用卡专属字段 -->
@@ -256,10 +290,10 @@
 
 		<!-- 删除按钮 -->
 		<div class="mt-4">
-			<Button variant="destructive" class="w-full" onclick={handleDelete}>
-				<Trash2 size={16} />
-				删除账户
-			</Button>
+				<Button variant="destructive" class="w-full" onclick={handleArchive}>
+					<Archive size={16} />
+					归档账户
+				</Button>
 		</div>
 	{/if}
 </div>

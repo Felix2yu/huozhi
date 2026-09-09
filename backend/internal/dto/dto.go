@@ -195,6 +195,7 @@ type CreateAccountRequest struct {
 	IncludeInTotal  bool    `json:"include_in_total"`
 	IncludeInBudget bool    `json:"include_in_budget"`
 	IsHidden        bool    `json:"is_hidden"`
+	IsArchived      bool    `json:"is_archived"`
 	GroupID         uint    `json:"group_id"`
 	Sort            int     `json:"sort"`
 	Remark          string  `json:"remark" binding:"omitempty,max=500"`

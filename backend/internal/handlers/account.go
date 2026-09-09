@@ -213,6 +213,7 @@ func UpdateAccount(c *gin.Context) {
 		"include_in_total":  req.IncludeInTotal,
 		"include_in_budget": req.IncludeInBudget,
 		"is_hidden":         req.IsHidden,
+		"is_archived":       req.IsArchived,
 		"group_id":          req.GroupID,
 		"sort":              req.Sort,
 		"remark":            req.Remark,

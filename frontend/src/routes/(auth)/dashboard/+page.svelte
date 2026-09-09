@@ -7,6 +7,7 @@ import CardContent from '$lib/components/ui/CardContent.svelte'
 import CardHeader from '$lib/components/ui/CardHeader.svelte'
 import CardTitle from '$lib/components/ui/CardTitle.svelte';
 	import { appStore } from '$lib/stores/app';
+	import AccountIcon from '$lib/components/AccountIcon.svelte';
 	import { accountApi, txApi, statsApi } from '$lib/api/modules';
 	import { formatMoney, getMonthRange, formatRelativeDate } from '$lib/utils/format';
 	import type { CreditRepayItem, Transaction, AssetOverview } from '$lib/types';
@@ -204,17 +205,7 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 				{#each creditItems.slice(0, 3) as item (item.id)}
 					<Card class={item.overdue ? 'border-destructive/50' : ''}>
 						<CardContent class="py-3 px-4 flex items-center gap-3">
-							<div
-								class="w-10 h-10 rounded-lg grid place-items-center"
-
-
-							>
-								<CreditCard
-
-
-									size={20}
-								/>
-							</div>
+						<AccountIcon bankName={item.bank_name} size={40} />
 							<div class="flex-1 min-w-0">
 								<div class="text-sm font-medium truncate">
 									{item.bank_name} · •••• {item.card_no4}
