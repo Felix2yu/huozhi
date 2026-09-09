@@ -7,18 +7,67 @@ import CardHeader from '$lib/components/ui/CardHeader.svelte'
 import CardTitle from '$lib/components/ui/CardTitle.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
 	import Label from '$lib/components/ui/Label.svelte';
+	import Badge from '$lib/components/ui/Badge.svelte';
 	import { appStore } from '$lib/stores/app';
 	import { themeStore } from '$lib/stores/theme';
 	import { authApi } from '$lib/api/modules/auth';
 	import { http } from '$lib/api/http';
 	import { hzToast } from '$lib/components/ui/toast';
 	import { onMount } from 'svelte';
-	import { User, Palette, LogOut, CloudOff, Moon, Sun, Monitor, CreditCard } from '@lucide/svelte';
+	import { User, Palette, LogOut, CloudOff, Moon, Sun, Monitor, CreditCard, Key, Copy, Eye, EyeOff } from '@lucide/svelte';
 
 	let nickname = $state('');
 	let email = $state('');
 	let theme = $state(themeStore.value);
 	let loading = $state(false);
+
+	// API Key 状态
+	let apiKeyInfo = $state<{ api_key: string; api_key_enabled: boolean; has_api_key: boolean } | null>(null);
+	let apiKeyLoading = $state(true);
+	let showApiKey = $state(false);
+	let toggleLoading = $state(false);
+
+	onMount(async () => {
+		if (appStore.user) {
+			nickname = appStore.user.nickname;
+			email = appStore.user.email || '';
+		}
+		try {
+			apiKeyInfo = await http.get('/api-key');
+		} catch {}
+		apiKeyLoading = false;
+	});
+
+	async function handleGenerateApiKey() {
+		try {
+			const res = await http.post<{ api_key: string; api_key_enabled: boolean }>('/api-key/generate');
+			apiKeyInfo = { ...apiKeyInfo, ...res, has_api_key: true };
+			showApiKey = true;
+			hzToast.success('API密钥已生成');
+		} catch (e: any) {
+			hzToast.error(e.message || '生成失败');
+		}
+	}
+
+	async function handleToggleApiKey() {
+		toggleLoading = true;
+		try {
+			const res = await http.post<{ api_key_enabled: boolean }>('/api-key/toggle');
+			if (apiKeyInfo) apiKeyInfo.api_key_enabled = res.api_key_enabled;
+			hzToast.success(res.api_key_enabled ? 'API密钥已启用' : 'API密钥已禁用');
+		} catch (e: any) {
+			hzToast.error(e.message || '操作失败');
+		} finally {
+			toggleLoading = false;
+		}
+	}
+
+	function copyApiKey() {
+		if (apiKeyInfo?.api_key) {
+			navigator.clipboard.writeText(apiKeyInfo.api_key);
+			hzToast.success('已复制到剪贴板');
+		}
+	}
 
 	onMount(() => {
 		if (appStore.user) {
@@ -197,6 +246,63 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 						</Button>
 					</div>
 				</div>
+			</CardContent>
+		</Card>
+	</section>
+
+	<!-- API密钥 -->
+	<section>
+		<div class="flex items-center gap-2 mb-3">
+			<Key size={16} />
+			<h2 class="text-sm font-medium">API密钥</h2>
+		</div>
+		<Card>
+			<CardContent class="p-4 space-y-4">
+				{#if apiKeyLoading}
+					<div class="text-sm text-muted-foreground animate-pulse">加载中...</div>
+				{:else if !apiKeyInfo?.has_api_key}
+					<p class="text-sm text-muted-foreground">尚未生成API密钥，生成后可通过密钥访问公开账单接口。</p>
+					<Button size="sm" onclick={handleGenerateApiKey}>
+						<Key size={14} />
+						生成API密钥
+					</Button>
+				{:else}
+					<div class="space-y-3">
+						<div class="flex items-center gap-2">
+							<span class="text-sm">状态:</span>
+							<Badge variant={apiKeyInfo.api_key_enabled ? 'default' : 'secondary'}>
+								{apiKeyInfo.api_key_enabled ? '已启用' : '已禁用'}
+							</Badge>
+						</div>
+						<div class="space-y-2">
+							<Label>API密钥</Label>
+							<div class="flex items-center gap-2">
+								<Input
+									readonly
+									value={showApiKey ? (apiKeyInfo.api_key || '') : '••••••••••••••••'}
+									class="font-mono text-xs"
+								/>
+								<Button size="icon" variant="outline" onclick={() => (showApiKey = !showApiKey)}>
+									{#if showApiKey}<EyeOff size={14} />{:else}<Eye size={14} />{/if}
+								</Button>
+								<Button size="icon" variant="outline" onclick={copyApiKey}>
+									<Copy size={14} />
+								</Button>
+							</div>
+						</div>
+						<div class="flex gap-2">
+							<Button size="sm" variant="outline" onclick={handleToggleApiKey} disabled={toggleLoading}>
+								{apiKeyInfo.api_key_enabled ? '禁用' : '启用'}
+							</Button>
+							<Button size="sm" variant="outline" onclick={handleGenerateApiKey}>
+								重新生成
+							</Button>
+						</div>
+						<div class="text-xs text-muted-foreground">
+							<p>使用方式: <code class="bg-muted px-1 py-0.5 rounded">Authorization: Bearer {apiKeyInfo.api_key_enabled ? '[API_KEY]' : '[已禁用]'}</code></p>
+						</div>
+					</div>
+				{/if}
 			</CardContent>
 		</Card>
 	</section>
