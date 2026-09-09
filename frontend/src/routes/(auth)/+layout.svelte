@@ -55,8 +55,9 @@
 			await appStore.loadDictionaries();
 		} catch (e) {
 			console.warn('加载基础数据失败', e);
+		} finally {
+			checking = false;
 		}
-		checking = false;
 
 		// 尝试重放离线队列
 		if (queueCount() > 0) {

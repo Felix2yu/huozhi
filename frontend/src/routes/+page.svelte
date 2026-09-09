@@ -4,10 +4,15 @@
 	import { appStore } from '$lib/stores/app';
 
 	onMount(async () => {
-		const ok = await appStore.checkAuth();
-		if (ok) {
-			goto('/dashboard', { replaceState: true });
-		} else {
+		try {
+			const ok = await appStore.checkAuth();
+			if (ok) {
+				goto('/dashboard', { replaceState: true });
+			} else {
+				goto('/login', { replaceState: true });
+			}
+		} catch (e) {
+			console.error('Auth check failed', e);
 			goto('/login', { replaceState: true });
 		}
 	});
