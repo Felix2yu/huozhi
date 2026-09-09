@@ -6,11 +6,15 @@ const BOOK_ID_KEY = 'hz_book_id';
 
 // ===== 状态 =====
 let user = $state<User | null>(null);
-let token = $state<string | null>(
-	typeof localStorage !== 'undefined' ? localStorage.getItem('hz_token') : null
-);
-let isAuth = $state<boolean>(!!token);
+let token = $state<string | null>(null);
+let isAuth = $state<boolean>(false);
 let loading = $state<boolean>(false);
+
+// 初始化 token
+if (typeof localStorage !== 'undefined') {
+	token = localStorage.getItem('hz_token');
+	isAuth = !!token;
+}
 
 let books = $state<Book[]>([]);
 let currentBookId = $state<number>(

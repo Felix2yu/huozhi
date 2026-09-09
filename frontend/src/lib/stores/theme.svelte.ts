@@ -37,7 +37,9 @@ if (typeof document !== 'undefined') {
 	if (theme === 'system') {
 		window
 			.matchMedia('(prefers-color-scheme: dark)')
-			.addEventListener('change', () => applyTheme(theme));
+			.addEventListener('change', () => {
+				applyTheme(theme);
+			});
 	}
 }
 

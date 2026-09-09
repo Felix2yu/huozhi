@@ -128,7 +128,7 @@
 			<Filter size={14} />
 			筛选
 			{#if hasFilters}
-				<span class="w-1.5 h-1.5 rounded-full bg-primary" />
+				<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
 			{/if}
 		</Button>
 	</div>

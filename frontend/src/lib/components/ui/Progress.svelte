@@ -24,5 +24,5 @@ const indicatorStyle = $derived(`transform: translateX(-${100 - clamped}%);`);
 	<div
 		class="h-full w-full flex-1 bg-primary transition-transform"
 		style={indicatorStyle}
-	/>
+	></div>
 </div>

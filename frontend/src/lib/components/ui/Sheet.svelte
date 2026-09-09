@@ -49,10 +49,11 @@ $effect(() => {
 </script>
 
 {#if open}
-	<div
+	<button
+		type="button"
 		class="fixed inset-0 z-40 bg-black/50"
 		onclick={close}
-	/>
+	></button>
 	<div class={panelClasses} role="dialog" aria-modal="true">
 		{@render children?.({ close })}
 	</div>

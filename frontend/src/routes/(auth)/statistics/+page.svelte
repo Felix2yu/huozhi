@@ -155,12 +155,12 @@
 										<span class="ml-1 text-[11px]">({item.percent.toFixed(1)}%)</span>
 									</div>
 								</div>
-								<div class="h-1.5 rounded-full bg-muted overflow-hidden">
-									<div
-										class="h-full bg-[var(--color-primary)] rounded-full"
-										style={`width: ${item.percent}%`}
-									/>
-								</div>
+							<div class="h-1.5 rounded-full bg-muted overflow-hidden">
+								<div
+									class="h-full bg-[var(--color-primary)] rounded-full"
+									style={`width: ${item.percent}%`}
+								></div>
+							</div>
 							</div>
 						{/each}
 						{#if data.by_category_expense.length === 0}

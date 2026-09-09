@@ -257,7 +257,11 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 					</div>
 				{:else}
 					{#each recentTxs as tx (tx.id)}
-						<div class="flex items-center gap-3 p-3 hover:bg-accent/50 transition cursor-pointer" onclick={() => goto(`/transactions/edit/${tx.id}`)}>
+						<button
+							type="button"
+							class="flex items-center gap-3 p-3 hover:bg-accent/50 transition cursor-pointer text-left w-full"
+							onclick={() => goto(`/transactions/edit/${tx.id}`)}
+						>
 							<div
 								class="w-9 h-9 rounded-lg grid place-items-center text-sm font-semibold"
 
@@ -286,7 +290,7 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 								{tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}
 								{formatMoney(tx.amount).replace('¥', '')}
 							</div>
-						</div>
+						</button>
 					{/each}
 				{/if}
 			</CardContent>

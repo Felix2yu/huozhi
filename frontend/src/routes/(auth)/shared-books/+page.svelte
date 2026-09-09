@@ -197,8 +197,7 @@
 			<div class="flex flex-wrap gap-1">
 				{#each iconOptions as icon}
 					<button
-						class="w-8 h-8 text-lg rounded hover:bg-accent transition"
-						class:bg-primary/10={bookIcon === icon}
+						class="w-8 h-8 text-lg rounded hover:bg-accent transition {bookIcon === icon ? 'bg-primary/10' : ''}"
 						onclick={() => (bookIcon = icon)}
 					>
 						{icon}

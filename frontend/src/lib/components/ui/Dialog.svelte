@@ -32,14 +32,15 @@ $effect(() => {
 </script>
 
 {#if open}
-	<div
+	<button
+		type="button"
 		class="fixed inset-0 z-50 flex items-center justify-center"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) close();
 		}}
 	>
 		<!-- Backdrop -->
-		<div class="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+		<div class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
 
 		<!-- Content -->
 		<div
@@ -73,5 +74,5 @@ $effect(() => {
 			</button>
 			{@render children?.({ close })}
 		</div>
-	</div>
+	</button>
 {/if}
