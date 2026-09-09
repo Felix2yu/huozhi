@@ -11,10 +11,11 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 	import { appStore } from '$lib/stores/app';
 	import { themeStore } from '$lib/stores/theme';
 	import { authApi } from '$lib/api/modules/auth';
+	import { ioApi } from '$lib/api/modules/io';
 	import { http } from '$lib/api/http';
 	import { hzToast } from '$lib/components/ui/toast';
 	import { onMount } from 'svelte';
-	import { User, Palette, LogOut, CloudOff, Moon, Sun, Monitor, CreditCard, Key, Copy, Eye, EyeOff, Lock } from '@lucide/svelte';
+	import { User, Palette, LogOut, CloudOff, Moon, Sun, Monitor, CreditCard, Key, Copy, Eye, EyeOff, Lock, Download, Upload } from '@lucide/svelte';
 
 	let nickname = $state('');
 	let email = $state('');
@@ -73,6 +74,51 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 		if (apiKeyInfo?.api_key) {
 			navigator.clipboard.writeText(apiKeyInfo.api_key);
 			hzToast.success('已复制到剪贴板');
+		}
+	}
+
+	function handleExport() {
+		ioApi.exportCSV({ book_id: appStore.currentBookId });
+		hzToast.success('导出已开始');
+	}
+
+	function handleDownloadTemplate() {
+		ioApi.template();
+	}
+
+	let importFile = $state<File | null>(null);
+	let importLoading = $state(false);
+	let importSource = $state<'qianji' | 'alipay' | 'wechat'>('qianji');
+
+	function triggerImport() {
+		const input = document.createElement('input');
+		input.type = 'file';
+		input.accept = '.csv,.xlsx,.xls';
+		input.onchange = (e) => {
+			const file = (e.target as HTMLInputElement).files?.[0];
+			if (file) {
+				importFile = file;
+				doImport();
+			}
+		};
+		input.click();
+	}
+
+	async function doImport() {
+		if (!importFile) return;
+		importLoading = true;
+		try {
+			const res = await ioApi.import(importSource, appStore.currentBookId, importFile);
+			if (res.ok) {
+				hzToast.success(`成功导入 ${res.count || 0} 笔交易`);
+				importFile = null;
+			} else {
+				hzToast.error(res.message || '导入失败');
+			}
+		} catch (e: any) {
+			hzToast.error(e.message || '导入失败');
+		} finally {
+			importLoading = false;
 		}
 	}
 
@@ -258,17 +304,39 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 			<CardContent class="p-4 space-y-2">
 				<button
 					class="w-full flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition"
-					onclick={() => alert('功能开发中')}
+					onclick={handleExport}
 				>
-					<span>导出账单</span>
+					<span class="flex items-center gap-2">
+						<Download size={16} />
+						导出账单 (CSV)
+					</span>
 					<span class="text-muted-foreground text-sm">→</span>
 				</button>
+				<div class="flex items-center gap-2">
+					<select
+						class="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+						bind:value={importSource}
+					>
+						<option value="qianji">钱迹</option>
+						<option value="alipay">支付宝</option>
+						<option value="wechat">微信</option>
+					</select>
+					<button
+						class="flex-1 flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition"
+						onclick={triggerImport}
+					>
+						<span class="flex items-center gap-2">
+							<Upload size={16} />
+							{importLoading ? '导入中...' : '导入数据'}
+						</span>
+						<span class="text-muted-foreground text-sm">→</span>
+					</button>
+				</div>
 				<button
-					class="w-full flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition"
-					onclick={() => alert('功能开发中')}
+					class="w-full flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition text-sm text-muted-foreground"
+					onclick={handleDownloadTemplate}
 				>
-					<span>导入数据</span>
-					<span class="text-muted-foreground text-sm">→</span>
+					<span>下载导入模板</span>
 				</button>
 			</CardContent>
 		</Card>
