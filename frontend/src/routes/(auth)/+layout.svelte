@@ -67,6 +67,7 @@
 
 		// 连接 WebSocket 实时同步
 		connectWs();
+		unsubSync = onSync(handleSync);
 	}
 
 	let unsubSync: (() => void) | null = null;
