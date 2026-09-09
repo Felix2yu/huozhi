@@ -71,10 +71,9 @@
 						<div class="absolute -bottom-16 -left-16 w-48 h-48 rounded-full opacity-10"
 							style="background: rgba(255,255,255,0.4);"></div>
 
-						<!-- 银行 logo + 名称 -->
+						<!-- 银行名 -->
 						<div class="relative flex items-center justify-between">
 							<span class="font-semibold text-lg">{card.bank_name || card.name}</span>
-							<span class="text-2xl">{theme.logo}</span>
 						</div>
 
 						<!-- 卡号 -->
@@ -133,10 +132,9 @@
 						<div class="absolute -bottom-16 -left-16 w-48 h-48 rounded-full opacity-10"
 							style="background: rgba(255,255,255,0.4);"></div>
 
-						<!-- 银行 logo + 名称 -->
+						<!-- 银行名 -->
 						<div class="relative flex items-center justify-between">
 							<span class="font-semibold text-lg">{card.bank_name || card.name}</span>
-							<span class="text-2xl">{theme.logo}</span>
 						</div>
 
 						<!-- 卡号 -->
@@ -190,10 +188,10 @@
 					{#each repayItems as item (item.id)}
 						{@const theme = getBankTheme(item.bank_name)}
 						<div class="flex items-center gap-4 p-4">
-							<div class="w-12 h-12 rounded-xl grid place-items-center text-white text-xl"
-								style="background: {theme.color};">
-								{theme.logo}
-							</div>
+						<div class="w-12 h-12 rounded-xl grid place-items-center font-bold text-lg"
+							style="background: {theme.color};">
+							{(card.bank_name || card.name || '?')[0]}
+						</div>
 							<div class="flex-1 min-w-0">
 								<div class="font-medium truncate">
 									{item.bank_name} · {formatCardNumber({ card_no4: item.card_no4 })}
