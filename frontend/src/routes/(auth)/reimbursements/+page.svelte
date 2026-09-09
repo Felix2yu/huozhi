@@ -118,7 +118,7 @@
 	{#if loading}
 		<div class="space-y-2">
 			{#each [1, 2, 3] as i}
-				<div class="h-16 rounded-lg animate-pulse bg-muted" />
+				<div class="h-16 rounded-lg animate-pulse bg-muted" ></div>
 			{/each}
 		</div>
 	{:else if list.length === 0}

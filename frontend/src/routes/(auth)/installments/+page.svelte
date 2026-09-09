@@ -119,7 +119,7 @@
 	{#if loading}
 		<div class="grid gap-3 md:grid-cols-2">
 			{#each [1, 2] as i}
-				<div class="h-32 rounded-xl animate-pulse bg-muted" />
+				<div class="h-32 rounded-xl animate-pulse bg-muted" ></div>
 			{/each}
 		</div>
 	{:else if list.length === 0}

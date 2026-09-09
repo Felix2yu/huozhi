@@ -38,8 +38,8 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 		</CardHeader>
 		<CardContent class="space-y-4">
 			<div class="space-y-2">
-				<label class="text-sm font-medium">选择月份</label>
-				<Input type="month" bind:value={selectedMonth} />
+				<label for="export-month" class="text-sm font-medium">选择月份</label>
+				<Input id="export-month" type="month" bind:value={selectedMonth} />
 			</div>
 			<div class="flex gap-2">
 				<Button class="flex-1" onclick={viewBill}>

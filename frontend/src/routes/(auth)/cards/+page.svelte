@@ -54,21 +54,22 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 		{:else}
 			<div class="grid gap-4 md:grid-cols-2">
 				{#each creditCards as card (card.id)}
-					<div
-						class="relative h-56 rounded-2xl p-5 text-white overflow-hidden cursor-pointer transition-transform hover:scale-[1.02]"
+					<button
+						type="button"
+						class="relative h-56 rounded-2xl p-5 text-white overflow-hidden cursor-pointer transition-transform hover:scale-[1.02] text-left"
 						style="background: linear-gradient(135deg, hsl(160 84% 35%), hsl(160 60% 25%));"
 						onclick={() => goto(`/accounts/${card.id}`)}
 					>
 						<!-- 装饰 -->
 						<div class="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-20"
-							style="background: rgba(255,255,255,0.3);" />
+							style="background: rgba(255,255,255,0.3);"></div>
 						<div class="absolute -bottom-16 -left-16 w-48 h-48 rounded-full opacity-10"
-							style="background: rgba(255,255,255,0.4);" />
+							style="background: rgba(255,255,255,0.4);"></div>
 
 						<!-- 银行名 -->
 						<div class="relative flex items-center justify-between">
 							<span class="font-semibold text-lg">{card.bank_name || card.name}</span>
-							<div class="w-10 h-6 rounded bg-white/30" />
+							<div class="w-10 h-6 rounded bg-white/30"></div>
 						</div>
 
 						<!-- 卡号 -->
@@ -95,7 +96,7 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 							<div>欠款</div>
 							<div class="font-medium text-sm">{formatMoney(card.balance)}</div>
 						</div>
-					</div>
+					</button>
 				{/each}
 			</div>
 		{/if}

@@ -119,7 +119,7 @@
 			<TabsTrigger value="income">收入</TabsTrigger>
 			<TabsTrigger value="transfer">转账</TabsTrigger>
 		</Tabs>
-		<div class="flex-1" />
+		<div class="flex-1" ></div>
 		<Button
 			size="sm"
 			variant={showFilters ? 'default' : 'outline'}
@@ -200,7 +200,7 @@
 	{#if loading}
 		<div class="space-y-2">
 			{#each [1, 2, 3, 4] as i}
-				<div class="h-16 rounded-lg animate-pulse bg-muted" />
+				<div class="h-16 rounded-lg animate-pulse bg-muted" ></div>
 			{/each}
 		</div>
 	{:else if grouped.length === 0}

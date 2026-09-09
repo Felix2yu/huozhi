@@ -65,7 +65,7 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 {#if loading}
 	<div class="space-y-4">
 		{#each [1, 2, 3] as i}
-			<div class="h-28 rounded-xl animate-pulse bg-muted" />
+			<div class="h-28 rounded-xl animate-pulse bg-muted" ></div>
 		{/each}
 	</div>
 {:else}
