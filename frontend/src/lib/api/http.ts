@@ -23,6 +23,10 @@ export interface QueueItem {
 const QUEUE_KEY = 'hz_offline_queue_v1';
 const TOKEN_KEY = 'hz_token';
 
+// 认证检查专用短超时（5秒），避免卡住页面
+const AUTH_TIMEOUT = 5000;
+const DEFAULT_TIMEOUT = 30000;
+
 function getToken(): string | null {
 	if (typeof localStorage === 'undefined') return null;
 	return localStorage.getItem(TOKEN_KEY);
@@ -137,7 +141,11 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-	const { params, timeout = 30000, headers, ...rest } = options;
+	const { params, timeout = DEFAULT_TIMEOUT, headers, ...rest } = options;
+
+	// 认证端点使用短超时，避免卡死页面
+	const isAuthEndpoint = path === '/auth/me' || path === '/api/auth/me';
+	const effectiveTimeout = isAuthEndpoint ? AUTH_TIMEOUT : timeout;
 
 	// 构建 URL
 	let url = path.startsWith('/api') ? path : `/api${path}`;
@@ -162,7 +170,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
 	// 超时控制
 	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeout);
+	const timer = setTimeout(() => controller.abort(), effectiveTimeout);
 
 	try {
 		const res = await fetch(url, {
@@ -172,12 +180,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 		});
 		clearTimeout(timer);
 
-		// 401
+		// 401 - 不做硬跳转，抛出错误让上层处理
 		if (res.status === 401) {
 			removeToken();
-			if (typeof window !== 'undefined' && !location.pathname.startsWith('/login')) {
-				location.href = `/login?redirect=${encodeURIComponent(location.pathname)}`;
-			}
 			throw new ApiError(401, '登录已过期', res.status);
 		}
 
