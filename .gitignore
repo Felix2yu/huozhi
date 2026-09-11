@@ -60,3 +60,9 @@ backend/data/*.db-journal
 
 # React 前端备份（暂存用，不提交）
 frontend-react-backup/
+
+# Trae IDE（含本地计划文档，不提交）
+.trae/
+
+# 验证产物
+outputs/
