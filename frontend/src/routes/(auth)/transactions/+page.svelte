@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Card from '$lib/components/ui/Card.svelte';
@@ -36,11 +35,11 @@
 	let previewOpen = $state(false);
 
 	async function loadData() {
-		const bid = appStore.currentBookId;
-		if (!bid) return;
 		loading = true;
 		try {
-			const params: any = { book_id: bid };
+			// book_id 传 0 表示「全部账本」，后端会按用户聚合所有账本。
+			// 这里绝不能提前 return，否则 loading 会永远停在 true，页面卡死在骨架屏。
+			const params: any = { book_id: appStore.currentBookId || 0 };
 			if (type !== 'all') params.type = type;
 			if (keyword.trim()) params.keyword = keyword.trim();
 			if (startDate) params.start_date = startDate;
@@ -73,19 +72,19 @@
 
 	const hasFilters = $derived(keyword || startDate || endDate || categoryId !== '' || accountId !== '');
 
-	onMount(loadData);
-
+	// 唯一的取数入口：账本切换（含切到「全部账本」=0）与任一筛选条件变化都会重新拉取，
+	// 关键词输入走 300ms 防抖。合并为一个 effect，避免挂载时重复请求。
 	$effect(() => {
-		if (appStore.currentBookId) {
-			loadData();
-		}
-	});
+		// 显式读取，建立响应式依赖
+		void appStore.currentBookId;
+		void type;
+		void keyword;
+		void startDate;
+		void endDate;
+		void categoryId;
+		void accountId;
 
-	$effect(() => {
-		// Debounce search
-		const timer = setTimeout(() => {
-			if (keyword !== undefined) loadData();
-		}, 300);
+		const timer = setTimeout(loadData, 300);
 		return () => clearTimeout(timer);
 	});
 
@@ -222,14 +221,14 @@
 
 	<!-- 交易列表 -->
 	{#if loading}
-		<div class="space-y-2">
+		<div class="space-y-2" data-testid="tx-skeleton">
 			{#each [1, 2, 3, 4] as i}
 				<div class="h-16 rounded-lg animate-pulse bg-muted" ></div>
 			{/each}
 		</div>
 	{:else if grouped.length === 0}
 		<Card>
-			<div class="py-16 text-center">
+			<div class="py-16 text-center" data-testid="tx-empty">
 				<div class="text-4xl mb-4 opacity-50">📋</div>
 				<p class="text-muted-foreground mb-4">还没有交易记录</p>
 				<Button onclick={() => goto('/transactions/add')}>
@@ -239,7 +238,7 @@
 			</div>
 		</Card>
 	{:else}
-		<div class="space-y-4">
+		<div class="space-y-4" data-testid="tx-list">
 			{#each grouped as dayGroup (dayGroup.date)}
 				<div>
 					<div class="flex items-center justify-between mb-2 px-1">

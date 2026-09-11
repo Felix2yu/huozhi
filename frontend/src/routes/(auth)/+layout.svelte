@@ -163,8 +163,9 @@
 
 	$effect(() => {
 		if (checking) return;
-		const bid = appStore.currentBookId;
-		if (!bid) return;
+		// book_id 传 0 表示「全部账本」，后端会按用户聚合所有账本。
+		// 不能因为 bid 为 0 就提前 return，否则切到「全部账本」后迷你统计永远不更新。
+		const bid = appStore.currentBookId || 0;
 
 		(async () => {
 			try {

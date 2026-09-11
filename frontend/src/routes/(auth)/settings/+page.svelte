@@ -108,7 +108,7 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 		if (!importFile) return;
 		importLoading = true;
 		try {
-			const res = await ioApi.import(importSource, appStore.currentBookId, importFile);
+			const res = await ioApi.import(importSource, appStore.effectiveBookId(), importFile);
 			if (res.ok) {
 				hzToast.success(`成功导入 ${res.count || 0} 笔交易`);
 				importFile = null;

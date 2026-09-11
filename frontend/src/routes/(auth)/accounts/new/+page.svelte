@@ -69,7 +69,7 @@
 				initial_amount: parseFloat(initialAmount) || 0,
 				include_in_total: includeInTotal,
 				include_in_budget: includeInBudget,
-				book_id: appStore.currentBookId
+				book_id: appStore.effectiveBookId()
 			};
 			if (bankName.trim()) data.bank_name = bankName.trim();
 			if (fullCardNo.trim()) data.full_card_no = fullCardNo.replace(/\s/g, '');

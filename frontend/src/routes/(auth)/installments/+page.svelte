@@ -80,7 +80,7 @@
 				category_id: categoryId,
 				account_id: accountId,
 				first_repay_date: firstRepayDate,
-				book_id: appStore.currentBookId
+				book_id: appStore.effectiveBookId()
 			});
 			hzToast.success('分期已创建');
 			showDialog = false;

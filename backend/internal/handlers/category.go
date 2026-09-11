@@ -7,6 +7,7 @@ import (
 	"huozhi/internal/models"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 )
 
 // ========== 分类 Category ==========
@@ -111,8 +112,15 @@ func UpdateCategory(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var reqUri dto.IDRequest
 	c.ShouldBindUri(&reqUri)
+	// 先解析原始 JSON，用于区分「未传入字段」与「显式传了零值」，
+	// 作为 update mask，避免部分更新时把未传字段清零。
+	raw := map[string]interface{}{}
+	if err := c.ShouldBindBodyWith(&raw, binding.JSON); err != nil {
+		Bad(c, "参数错误")
+		return
+	}
 	var req dto.UpdateCategoryRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindBodyWith(&req, binding.JSON); err != nil {
 		Bad(c, err.Error())
 		return
 	}
@@ -123,13 +131,36 @@ func UpdateCategory(c *gin.Context) {
 		Fail(c, 3001, "系统分类不可修改")
 		return
 	}
-	updates := map[string]interface{}{
-		"name":      req.Name,
-		"parent_id": req.ParentID,
-		"icon":      req.Icon,
-		"color":     req.Color,
-		"sort":      req.Sort,
-		"need_tag":  req.NeedTag,
+	if req.ParentID != 0 && req.ParentID == old.ID {
+		Bad(c, "参数错误: 父分类不能是自身")
+		return
+	}
+	// 依据原始 JSON 中出现的键，仅更新显式传入的字段
+	updates := map[string]interface{}{}
+	if _, ok := raw["name"]; ok {
+		updates["name"] = req.Name
+	}
+	if _, ok := raw["parent_id"]; ok {
+		updates["parent_id"] = req.ParentID
+	}
+	if _, ok := raw["icon"]; ok {
+		updates["icon"] = req.Icon
+	}
+	if _, ok := raw["color"]; ok {
+		updates["color"] = req.Color
+	}
+	if _, ok := raw["sort"]; ok {
+		updates["sort"] = req.Sort
+	}
+	if _, ok := raw["kind"]; ok {
+		updates["kind"] = models.CategoryKind(req.Kind)
+	}
+	if _, ok := raw["need_tag"]; ok && req.NeedTag != nil {
+		updates["need_tag"] = *req.NeedTag
+	}
+	if len(updates) == 0 {
+		Bad(c, "参数错误：未提供任何更新字段")
+		return
 	}
 	database.DB.Model(&old).Updates(updates)
 	var cat models.Category

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Card from '$lib/components/ui/Card.svelte'
@@ -29,15 +28,15 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 	let creditItems = $state<CreditRepayItem[]>([]);
 	let loading = $state(true);
 
-	onMount(async () => {
-		const bid = appStore.currentBookId;
-		if (!bid) return;
+	async function loadData() {
+		loading = true;
 		try {
 			const { start, end } = getMonthRange();
 			const [assets, txs, credits] = await Promise.allSettled([
 				statsApi.assets(),
 				txApi.list({
-					book_id: bid,
+					// book_id 传 0 表示「全部账本」，后端会按用户聚合所有账本
+					book_id: appStore.currentBookId || 0,
 					start_date: start,
 					end_date: end,
 					page_size: 5,
@@ -54,8 +53,15 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 		} catch (e) {
 			console.warn(e);
 		} finally {
+			// 无论成功还是失败都必须结束加载态，否则页面会永久停在骨架屏
 			loading = false;
 		}
+	}
+
+	// 账本切换（含切到「全部账本」=0）时重新加载
+	$effect(() => {
+		void appStore.currentBookId;
+		loadData();
 	});
 </script>
 

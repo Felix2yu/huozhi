@@ -10,9 +10,9 @@ import CardHeader from '$lib/components/ui/CardHeader.svelte'
 import CardTitle from '$lib/components/ui/CardTitle.svelte';
 	import Tabs from '$lib/components/ui/Tabs.svelte'
 import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
-	import Dialog from '$lib/components/ui/Dialog.svelte';
 	import Label from '$lib/components/ui/Label.svelte';
 	import AccountSelect from '$lib/components/AccountSelect.svelte';
+	import CategoryPicker from '$lib/components/CategoryPicker.svelte';
 	import { txApi } from '$lib/api/modules/transactions';
 	import { appStore } from '$lib/stores/app';
 	import { hzToast } from '$lib/components/ui/toast';
@@ -34,8 +34,6 @@ import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
 	let loading = $state(false);
 	let aiLoading = $state(false);
 
-	let showCategoryPicker = $state(false);
-
 	let categories = $derived.by(() => {
 		if (type === 'expense') return appStore.categories.expense;
 		if (type === 'income') return appStore.categories.income;
@@ -50,9 +48,9 @@ import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
 				toAccountId = appStore.accounts[1].id;
 			}
 		}
-		// 设置默认分类
-		const firstCat = categories[0];
-		if (firstCat) categoryId = firstCat.id;
+		// 设置默认分类（优先选叶子分类，避免默认选中一级容器）
+		const firstLeaf = categories.find((c) => c.parent_id) || categories[0];
+		if (firstLeaf) categoryId = firstLeaf.id;
 
 		// 如果是编辑模式，加载交易
 		if (isEdit && currentId) {
@@ -74,9 +72,9 @@ import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
 
 	$effect(() => {
 		if (!isEdit) {
-			const firstCat = categories[0];
-			if (firstCat && !categories.find((c) => c.id === categoryId)) {
-				categoryId = firstCat.id;
+			const firstLeaf = categories.find((c) => c.parent_id) || categories[0];
+			if (firstLeaf && !categories.find((c) => c.id === categoryId)) {
+				categoryId = firstLeaf.id;
 			}
 		}
 	});
@@ -109,7 +107,7 @@ import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
 				account_id: accountId,
 				tx_date: txDate,
 				description: description || '',
-				book_id: appStore.currentBookId
+				book_id: appStore.effectiveBookId()
 			};
 			if (type === 'transfer') {
 				data.to_account_id = toAccountId;
@@ -185,22 +183,11 @@ import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
 				</div>
 			</div>
 
-			<!-- 分类 / 选择器 -->
+			<!-- 分类 / 选择器（一级平铺 + 点击展开二级） -->
 			{#if type !== 'transfer'}
 				<div class="space-y-2">
 					<Label>分类</Label>
-					<button
-						class="w-full flex items-center gap-2 h-10 rounded-md border px-3 text-left hover:bg-accent transition"
-						onclick={() => (showCategoryPicker = true)}
-					>
-						<span class="w-6 h-6 rounded bg-muted grid place-items-center text-xs">
-							{categories.find((c) => c.id === categoryId)?.icon || '📁'}
-						</span>
-						<span class="flex-1 text-sm">
-							{categories.find((c) => c.id === categoryId)?.name || '选择分类'}
-						</span>
-						<span class="text-muted-foreground text-sm">点击选择</span>
-					</button>
+					<CategoryPicker bind:value={categoryId} kind={type === 'income' ? 'income' : 'expense'} />
 				</div>
 			{/if}
 
@@ -259,27 +246,4 @@ import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
 			</div>
 		</CardContent>
 	</Card>
-
-	<!-- 分类选择器 -->
-	<Dialog bind:open={showCategoryPicker}>
-		<div class="flex items-center justify-between mb-4">
-			<h3 class="text-lg font-semibold">选择分类</h3>
-		</div>
-		<div class="grid grid-cols-4 gap-2 max-h-64 overflow-y-auto">
-			{#each categories as cat (cat.id)}
-				<button
-					class="flex flex-col items-center gap-1 p-3 rounded-lg border hover:bg-accent transition"
-
-
-					onclick={() => {
-						categoryId = cat.id;
-						showCategoryPicker = false;
-					}}
-				>
-					<span class="text-2xl">{cat.icon || '📁'}</span>
-					<span class="text-xs truncate w-full text-center">{cat.name}</span>
-				</button>
-			{/each}
-		</div>
-	</Dialog>
 </div>

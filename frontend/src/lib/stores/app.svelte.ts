@@ -105,6 +105,22 @@ function setCurrentBook(id: number) {
 	loadDictionaries(id);
 }
 
+/**
+ * 写入操作应使用的「具体账本」。
+ *
+ * currentBookId === 0 表示「全部账本」——它只对读取有意义（后端会按用户聚合所有账本）。
+ * 新建 / 修改记录必须落到某个具体账本，否则后端 `book_id` 的 required 校验会直接
+ * 返回「参数错误」，或者把数据写进 book_id=0 的孤儿账本（在任何单一账本里都看不到）。
+ */
+function effectiveBookId(): number {
+	if (currentBookId) return currentBookId;
+	const fallback =
+		books.find((b) => b.is_default) ||
+		books.find((b) => !b.is_archived) ||
+		books[0];
+	return fallback?.id ?? 0;
+}
+
 async function loadDictionaries(bookId?: number): Promise<void> {
 	const bid = bookId !== undefined ? bookId : currentBookId;
 	try {
@@ -178,5 +194,6 @@ export const appStore = {
 	checkAuth,
 	loadBooks,
 	setCurrentBook,
+	effectiveBookId,
 	loadDictionaries
 };

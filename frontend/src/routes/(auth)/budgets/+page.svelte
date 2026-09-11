@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Card from '$lib/components/ui/Card.svelte';
 	import CardContent from '$lib/components/ui/CardContent.svelte';
@@ -30,14 +29,19 @@
 	async function loadData() {
 		loading = true;
 		try {
-			budgets = await budgetApi.list({ book_id: appStore.currentBookId });
-		} catch {}
-		loading = false;
+			// book_id 传 0 表示「全部账本」，后端会按用户聚合所有账本
+			budgets = await budgetApi.list({ book_id: appStore.currentBookId || 0 });
+		} catch {
+		} finally {
+			// 必须结束加载态，否则页面会永久停在骨架屏
+			loading = false;
+		}
 	}
 
-	onMount(loadData);
+	// 账本切换（含切到「全部账本」=0）时重新加载
 	$effect(() => {
-		if (appStore.currentBookId) loadData();
+		void appStore.currentBookId;
+		loadData();
 	});
 
 	const overBudgetCount = $derived(budgets.filter((b) => b.is_over_budget).length);
@@ -78,7 +82,7 @@
 				amount: amt,
 				period_type: periodType,
 				alert_rate: parseInt(alertRate) / 100,
-				book_id: appStore.currentBookId
+				book_id: appStore.effectiveBookId()
 			};
 
 			if (editingBudget) {

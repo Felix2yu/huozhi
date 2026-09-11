@@ -222,7 +222,18 @@ type CreateCategoryRequest struct {
 	NeedTag    bool   `json:"need_tag"`
 }
 
-type UpdateCategoryRequest = CreateCategoryRequest
+// UpdateCategoryRequest 为独立的更新结构：所有字段均可选，
+// 未提供的字段不会被覆盖为类型零值（例如更新名称时无需重复传 kind）。
+type UpdateCategoryRequest struct {
+	BookID   uint   `json:"book_id"`
+	ParentID uint   `json:"parent_id"`
+	Name     string `json:"name" binding:"omitempty,max=50"`
+	Kind     string `json:"kind" binding:"omitempty,oneof=expense income system"`
+	Icon     string `json:"icon" binding:"omitempty,max=50"`
+	Color    string `json:"color" binding:"omitempty,max=20"`
+	Sort     int    `json:"sort"`
+	NeedTag  *bool  `json:"need_tag"`
+}
 
 // ====== 交易 ======
 

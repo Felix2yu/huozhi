@@ -508,7 +508,9 @@ func ListBudgets(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	bookID := c.Query("book_id")
 	q := database.DB.Where("user_id = ?", uid)
-	if bookID != "" {
+	// book_id=0 表示「全部账本」：与流水/分类/账户列表保持一致，不加账本过滤。
+	// 否则传 0 会变成 `book_id = 0` 的字面过滤，预算列表恒为空。
+	if bookID != "" && bookID != "0" {
 		q = q.Where("book_id = ?", bookID)
 	}
 	var list []models.Budget

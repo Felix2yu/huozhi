@@ -89,7 +89,7 @@
 				start_date: startDate,
 				target_date: targetDate,
 				account_id: accountId,
-				book_id: appStore.currentBookId
+				book_id: appStore.effectiveBookId()
 			};
 
 			if (editingPlan) {

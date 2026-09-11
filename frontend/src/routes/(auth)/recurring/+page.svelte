@@ -76,7 +76,7 @@
 				recurring_type: recurringType,
 				interval: parseInt(interval),
 				start_date: startDate,
-				book_id: appStore.currentBookId
+				book_id: appStore.effectiveBookId()
 			});
 			hzToast.success('周期任务已创建');
 			showDialog = false;

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import Card from '$lib/components/ui/Card.svelte';
 	import CardContent from '$lib/components/ui/CardContent.svelte';
 	import Tabs from '$lib/components/ui/Tabs.svelte';
@@ -64,9 +63,10 @@
 		loading = false;
 	}
 
-	onMount(loadData);
+	// 账本切换（含切到「全部账本」=0）时重新加载；book_id=0 由后端聚合全部账本
 	$effect(() => {
-		if (appStore.currentBookId) loadData();
+		void appStore.currentBookId;
+		loadData();
 	});
 </script>
 

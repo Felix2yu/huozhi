@@ -72,7 +72,7 @@
 				total_amount: total,
 				received_amount: parseFloat(receivedAmount) || 0,
 				remark: remark.trim(),
-				book_id: appStore.currentBookId
+				book_id: appStore.effectiveBookId()
 			};
 
 			if (editingItem) {
