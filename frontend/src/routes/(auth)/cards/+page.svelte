@@ -8,9 +8,16 @@
 	import { accountApi } from '$lib/api/modules/accounts';
 	import { appStore } from '$lib/stores/app';
 	import { formatMoney } from '$lib/utils/format';
-	import { getBankTheme, getCardGradient } from '$lib/utils/bank-themes';
+	import { getBankTheme, getCardGradient, getBankIcon } from '$lib/utils/bank-themes';
 	import type { Account, CreditRepayItem } from '$lib/types';
 	import { Plus, CreditCard, Wallet } from '@lucide/svelte';
+
+	// 使用 Vite 的 import.meta.glob 批量导入所有 SVG 文件
+	const bankIcons = import.meta.glob('$lib/assets/bank-icons/*.svg', {
+		eager: true,
+		query: '?url',
+		import: 'default'
+	});
 
 	let creditCards = $state<Account[]>([]);
 	let bankCards = $state<Account[]>([]);
@@ -37,6 +44,15 @@
 			return `•••• ${card.card_no4}`;
 		}
 		return '•••• ••••';
+	}
+
+	function getBankIconPath(bankName: string | undefined): string | null {
+		const iconId = getBankIcon(bankName);
+		if (iconId) {
+			const key = `/src/lib/assets/bank-icons/${iconId}.svg`;
+			return bankIcons[key] || null;
+		}
+		return null;
 	}
 </script>
 
@@ -71,9 +87,18 @@
 						<div class="absolute -bottom-16 -left-16 w-48 h-48 rounded-full opacity-10"
 							style="background: rgba(255,255,255,0.4);"></div>
 
-						<!-- 银行名 -->
+						<!-- 银行名和Logo -->
 						<div class="relative flex items-center justify-between">
-							<span class="font-semibold text-lg">{card.bank_name || card.name}</span>
+							<div class="flex items-center gap-2">
+								{#if getBankIconPath(card.bank_name)}
+									<img
+										src={getBankIconPath(card.bank_name)}
+										alt={card.bank_name}
+										class="w-8 h-8"
+									/>
+								{/if}
+								<span class="font-semibold text-lg">{card.bank_name || card.name}</span>
+							</div>
 						</div>
 
 						<!-- 卡号 -->
@@ -132,9 +157,18 @@
 						<div class="absolute -bottom-16 -left-16 w-48 h-48 rounded-full opacity-10"
 							style="background: rgba(255,255,255,0.4);"></div>
 
-						<!-- 银行名 -->
+						<!-- 银行名和Logo -->
 						<div class="relative flex items-center justify-between">
-							<span class="font-semibold text-lg">{card.bank_name || card.name}</span>
+							<div class="flex items-center gap-2">
+								{#if getBankIconPath(card.bank_name)}
+									<img
+										src={getBankIconPath(card.bank_name)}
+										alt={card.bank_name}
+										class="w-8 h-8"
+									/>
+								{/if}
+								<span class="font-semibold text-lg">{card.bank_name || card.name}</span>
+							</div>
 						</div>
 
 						<!-- 卡号 -->
@@ -188,10 +222,17 @@
 					{#each repayItems as item (item.id)}
 						{@const theme = getBankTheme(item.bank_name)}
 						<div class="flex items-center gap-4 p-4">
-						<div class="w-12 h-12 rounded-xl grid place-items-center font-bold text-lg"
+						<div class="w-12 h-12 rounded-xl grid place-items-center font-bold text-lg overflow-hidden"
 							style="background: {theme.color};">
-							<!-- C4：此处原写 card.xxx，但作用域内只有 item，必然抛 ReferenceError -->
-							{(item.bank_name || item.name || '?')[0]}
+							{#if getBankIconPath(item.bank_name)}
+								<img
+									src={getBankIconPath(item.bank_name)}
+									alt={item.bank_name}
+									class="w-10 h-10"
+								/>
+							{:else}
+								{(item.bank_name || item.name || '?')[0]}
+							{/if}
 						</div>
 							<div class="flex-1 min-w-0">
 								<div class="font-medium truncate">

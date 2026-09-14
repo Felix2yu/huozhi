@@ -3,57 +3,58 @@ import type { AccountType } from '$lib/types';
 
 export interface BankTheme {
 	color: string;
+	icon?: string;
 }
 
 const bankThemes: Record<string, BankTheme> = {
 	// 国有大行
-	'中国工商银行': { color: '#C41230' },
-	'工商银行': { color: '#C41230' },
-	'ICBC': { color: '#C41230' },
-	'中国农业银行': { color: '#009944' },
-	'农业银行': { color: '#009944' },
-	'ABC': { color: '#009944' },
-	'中国银行': { color: '#C10A27' },
-	'中行': { color: '#C10A27' },
-	'BOC': { color: '#C10A27' },
-	'中国建设银行': { color: '#004EA2' },
-	'建设银行': { color: '#004EA2' },
-	'CCB': { color: '#004EA2' },
-	'交通银行': { color: '#1B3F8B' },
-	'交行': { color: '#1B3F8B' },
-	'BOCOM': { color: '#1B3F8B' },
-	'中国邮政储蓄银行': { color: '#007B3E' },
-	'邮储银行': { color: '#007B3E' },
-	'PSBC': { color: '#007B3E' },
+	'中国工商银行': { color: '#C41230', icon: 'icbc' },
+	'工商银行': { color: '#C41230', icon: 'icbc' },
+	'ICBC': { color: '#C41230', icon: 'icbc' },
+	'中国农业银行': { color: '#009944', icon: 'abchina' },
+	'农业银行': { color: '#009944', icon: 'abchina' },
+	'ABC': { color: '#009944', icon: 'abchina' },
+	'中国银行': { color: '#C10A27', icon: 'boc' },
+	'中行': { color: '#C10A27', icon: 'boc' },
+	'BOC': { color: '#C10A27', icon: 'boc' },
+	'中国建设银行': { color: '#004EA2', icon: 'ccb' },
+	'建设银行': { color: '#004EA2', icon: 'ccb' },
+	'CCB': { color: '#004EA2', icon: 'ccb' },
+	'交通银行': { color: '#1B3F8B', icon: 'bankcomm' },
+	'交行': { color: '#1B3F8B', icon: 'bankcomm' },
+	'BOCOM': { color: '#1B3F8B', icon: 'bankcomm' },
+	'中国邮政储蓄银行': { color: '#007B3E', icon: 'psbc' },
+	'邮储银行': { color: '#007B3E', icon: 'psbc' },
+	'PSBC': { color: '#007B3E', icon: 'psbc' },
 
 	// 股份制银行
-	'招商银行': { color: '#E60012' },
-	'招行': { color: '#E60012' },
-	'CMB': { color: '#E60012' },
-	'中信银行': { color: '#E4002B' },
-	'中信': { color: '#E4002B' },
-	'CITIC': { color: '#E4002B' },
-	'浦发银行': { color: '#0066CC' },
-	'浦发': { color: '#0066CC' },
-	'SPDB': { color: '#0066CC' },
-	'民生银行': { color: '#00A0E9' },
-	'民生': { color: '#00A0E9' },
-	'CMBC': { color: '#00A0E9' },
-	'兴业银行': { color: '#003DA5' },
-	'兴业': { color: '#003DA5' },
-	'CIB': { color: '#003DA5' },
-	'光大银行': { color: '#7D2027' },
-	'光大': { color: '#7D2027' },
-	'CEB': { color: '#7D2027' },
-	'平安银行': { color: '#FF6600' },
-	'平安': { color: '#FF6600' },
-	'PAB': { color: '#FF6600' },
-	'华夏银行': { color: '#C10A27' },
-	'华夏': { color: '#C10A27' },
-	'HXB': { color: '#C10A27' },
-	'广发银行': { color: '#D4232E' },
-	'广发': { color: '#D4232E' },
-	'CGB': { color: '#D4232E' },
+	'招商银行': { color: '#E60012', icon: 'cmbchina' },
+	'招行': { color: '#E60012', icon: 'cmbchina' },
+	'CMB': { color: '#E60012', icon: 'cmbchina' },
+	'中信银行': { color: '#E4002B', icon: 'citicbank' },
+	'中信': { color: '#E4002B', icon: 'citicbank' },
+	'CITIC': { color: '#E4002B', icon: 'citicbank' },
+	'浦发银行': { color: '#0066CC', icon: 'spdb' },
+	'浦发': { color: '#0066CC', icon: 'spdb' },
+	'SPDB': { color: '#0066CC', icon: 'spdb' },
+	'民生银行': { color: '#00A0E9', icon: 'cmbc' },
+	'民生': { color: '#00A0E9', icon: 'cmbc' },
+	'CMBC': { color: '#00A0E9', icon: 'cmbc' },
+	'兴业银行': { color: '#003DA5', icon: 'cib' },
+	'兴业': { color: '#003DA5', icon: 'cib' },
+	'CIB': { color: '#003DA5', icon: 'cib' },
+	'光大银行': { color: '#7D2027', icon: 'cebbank' },
+	'光大': { color: '#7D2027', icon: 'cebbank' },
+	'CEB': { color: '#7D2027', icon: 'cebbank' },
+	'平安银行': { color: '#FF6600', icon: 'pingan' },
+	'平安': { color: '#FF6600', icon: 'pingan' },
+	'PAB': { color: '#FF6600', icon: 'pingan' },
+	'华夏银行': { color: '#C10A27', icon: 'hxb' },
+	'华夏': { color: '#C10A27', icon: 'hxb' },
+	'HXB': { color: '#C10A27', icon: 'hxb' },
+	'广发银行': { color: '#D4232E', icon: 'cgbchina' },
+	'广发': { color: '#D4232E', icon: 'cgbchina' },
+	'CGB': { color: '#D4232E', icon: 'cgbchina' },
 
 	// 互联网银行
 	'微众银行': { color: '#07C160' },
@@ -74,13 +75,64 @@ const bankThemes: Record<string, BankTheme> = {
 	'渣打': { color: '#007A33' },
 	'Standard Chartered': { color: '#007A33' },
 
+	// 支付机构
+	'支付宝': { color: '#1677FF', icon: 'alipay' },
+	'余额宝': { color: '#1677FF', icon: 'yuebao' },
+	'余利宝': { color: '#1677FF', icon: 'yulibao' },
+	'小荷包': { color: '#1677FF', icon: 'xiaohebao' },
+	'微信': { color: '#07C160', icon: 'wechat-pay' },
+	'微信支付': { color: '#07C160', icon: 'wechat-pay' },
+	'微信零钱通': { color: '#10B981', icon: 'wechat-lingqiantong' },
+	'微信分付': { color: '#07C160', icon: 'wechat-fenfu' },
+	'财付通': { color: '#07C160', icon: 'wechat-pay' },
+	'京东': { color: '#E4393C', icon: 'jd-pay' },
+	'京东金融': { color: '#E4393C', icon: 'jd-jinrong' },
+	'京东白条': { color: '#E4393C', icon: 'jd-baitiao' },
+	'美团': { color: '#FFD100', icon: 'meituan' },
+	'美团月付': { color: '#FFD100', icon: 'meituan' },
+	'花呗': { color: '#1677FF', icon: 'huabei' },
+	'借呗': { color: '#1677FF', icon: 'jiebei' },
+	'抖音': { color: '#000000', icon: 'douyin' },
+	'抖音月付': { color: '#000000', icon: 'douyin' },
+	'云闪付': { color: '#E21836', icon: 'unionpay' },
+	'银联': { color: '#E21836', icon: 'unionpay' },
+	'UnionPay': { color: '#E21836', icon: 'unionpay' },
+	'QQ钱包': { color: '#E21836', icon: 'qq-wallet' },
+	'Paypal': { color: '#003087', icon: 'paypal' },
+	'PayPal': { color: '#003087', icon: 'paypal' },
+	'华为钱包': { color: '#000000', icon: 'huawei-pay' },
+	'多多钱包': { color: '#E4393C', icon: 'duoduo-pay' },
+	'数字人民币': { color: '#1677FF', icon: 'digital-rmb' },
+	'公积金': { color: '#009944', icon: 'gongjijin' },
+	'医保': { color: '#009944', icon: 'medical-insurance' },
+
+	// 充值账户
+	'话费': { color: '#10B981', icon: 'huafie' },
+	'水电': { color: '#3B82F6', icon: 'shuidian' },
+	'饭卡': { color: '#F59E0B', icon: 'fanka' },
+	'押金': { color: '#6B7280', icon: 'yajin' },
+	'公交卡': { color: '#10B981', icon: 'gongjiao' },
+	'会员卡': { color: '#8B5CF6', icon: 'huiyuan' },
+	'加油卡': { color: '#EF4444', icon: 'jiayouka' },
+	'石化钱包': { color: '#DC2626', icon: 'shihua' },
+	'Apple': { color: '#000000', icon: 'apple' },
+	'苹果账户': { color: '#000000', icon: 'apple' },
+
+	// 投资理财
+	'股票': { color: '#EF4444', icon: 'stocks' },
+	'基金': { color: '#3B82F6', icon: 'funds' },
+	'黄金': { color: '#F59E0B', icon: 'gold' },
+	'外汇': { color: '#10B981', icon: 'forex' },
+	'期货': { color: '#8B5CF6', icon: 'futures' },
+	'债券': { color: '#06B6D4', icon: 'bonds' },
+	'固定收益': { color: '#10B981', icon: 'fixed-income' },
+	'加密货币': { color: '#F59E0B', icon: 'crypto' },
+
 	// 信用卡品牌
 	'VISA': { color: '#1A1F71' },
 	'Visa': { color: '#1A1F71' },
 	'Mastercard': { color: '#EB001B' },
 	'万事达': { color: '#EB001B' },
-	'银联': { color: '#E21836' },
-	'UnionPay': { color: '#E21836' },
 	'American Express': { color: '#006FCF' },
 	'运通': { color: '#006FCF' },
 	'JCB': { color: '#0B4EA2' },
@@ -159,13 +211,46 @@ const BANK_META: BankMeta[] = [
 	{ names: ['花旗银行', '花旗', 'Citi'], short: '花' },
 	{ names: ['汇丰银行', '汇丰', 'HSBC'], short: '汇' },
 	{ names: ['渣打银行', '渣打', 'Standard Chartered'], short: '渣' },
+	// 支付机构
 	{ names: ['支付宝'], short: '支' },
+	{ names: ['余额宝'], short: '余' },
+	{ names: ['余利宝'], short: '余' },
+	{ names: ['小荷包'], short: '荷' },
 	{ names: ['微信', '微信支付', '财付通'], short: '微' },
+	{ names: ['微信零钱通'], short: '微' },
+	{ names: ['微信分付'], short: '微' },
 	{ names: ['花呗', '借呗', '蚂蚁'], short: '蚂' },
 	{ names: ['京东', '京东金融'], short: '京' },
-	{ names: ['美团', '美团支付'], short: '美' },
+	{ names: ['京东白条'], short: '京' },
+	{ names: ['美团', '美团支付', '美团月付'], short: '美' },
+	{ names: ['抖音', '抖音月付'], short: '抖' },
 	{ names: ['云闪付', '银联', 'UnionPay'], short: '银' },
-	{ names: ['Apple', '苹果'], short: '' }
+	{ names: ['QQ钱包', 'QQ'], short: 'Q' },
+	{ names: ['Paypal', 'PayPal'], short: 'P' },
+	{ names: ['华为钱包', '华为'], short: '华' },
+	{ names: ['多多钱包'], short: '多' },
+	{ names: ['数字人民币'], short: '数' },
+	{ names: ['公积金'], short: '公' },
+	{ names: ['医保'], short: '医' },
+	// 充值账户
+	{ names: ['话费'], short: '话' },
+	{ names: ['水电'], short: '水' },
+	{ names: ['饭卡'], short: '饭' },
+	{ names: ['押金'], short: '押' },
+	{ names: ['公交卡'], short: '公' },
+	{ names: ['会员卡'], short: '会' },
+	{ names: ['加油卡'], short: '油' },
+	{ names: ['石化钱包', '石化'], short: '石' },
+	{ names: ['Apple', '苹果', '苹果账户'], short: '' },
+	// 投资理财
+	{ names: ['股票'], short: '股' },
+	{ names: ['基金'], short: '基' },
+	{ names: ['黄金'], short: '金' },
+	{ names: ['外汇'], short: '汇' },
+	{ names: ['期货'], short: '期' },
+	{ names: ['债券'], short: '债' },
+	{ names: ['固定收益'], short: '固' },
+	{ names: ['加密货币'], short: '币' },
 ];
 
 export interface BankBrand {
@@ -200,8 +285,16 @@ export function detectBankName(text?: string): string {
 // 从账户名称推断账户类型（仅对明显的虚拟/信用/银行卡生效，其余留空让用户选）
 export function detectAccountType(text?: string): AccountType | '' {
 	const t = (text || '').trim();
-	if (/支付宝|微信|财付通|京东|美团|云闪付|Apple|苹果|网商|微众/.test(t)) return 'virtual';
-	if (/信用卡/.test(t)) return 'credit';
+	if (/支付宝|微信|财付通|京东|美团|云闪付|Apple|苹果|网商|微众|花呗|借呗|抖音|QQ|Paypal|PayPal|华为|多多|数字人民币|公积金|医保/.test(t)) return 'virtual';
+	if (/信用卡|花呗|借呗|京东白条|美团月付|抖音月付|微信分付/.test(t)) return 'credit';
 	if (/储蓄卡|借记卡|银行卡|银行/.test(t)) return 'bank';
+	if (/话费|水电|饭卡|押金|公交卡|会员卡|加油卡|石化|充值/.test(t)) return 'prepaid';
+	if (/股票|基金|黄金|外汇|期货|债券|固定收益|加密货币/.test(t)) return 'investment';
 	return '';
+}
+
+// 获取银行/支付机构的Logo文件名（不含扩展名）
+export function getBankIcon(bankName?: string): string | null {
+	const theme = getBankTheme(bankName);
+	return theme.icon || null;
 }
