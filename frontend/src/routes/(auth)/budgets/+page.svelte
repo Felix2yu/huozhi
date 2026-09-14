@@ -12,10 +12,11 @@
 	import { hzToast } from '$lib/components/ui/toast';
 	import { formatMoney } from '$lib/utils/format';
 	import type { BudgetView } from '$lib/types';
-	import { Plus, Target, AlertTriangle, Pencil, Trash2 } from '@lucide/svelte';
+	import { Plus, Target, AlertTriangle, Pencil, Trash2, RefreshCw } from '@lucide/svelte';
 
 	let budgets = $state<BudgetView[]>([]);
 	let loading = $state(true);
+	let recalcAllLoading = $state(false);
 
 	// Dialog state
 	let showDialog = $state(false);
@@ -24,6 +25,10 @@
 	let amount = $state('');
 	let periodType = $state<'monthly' | 'yearly'>('monthly');
 	let alertRate = $state('80');
+	let rollOver = $state(false);
+	// 起止日期留空时由后端按周期类型自动推导（C2：此前前端完全不传，后端 required 校验必然 400）
+	let startDate = $state('');
+	let endDate = $state('');
 	let saving = $state(false);
 
 	async function loadData() {
@@ -52,15 +57,22 @@
 		amount = '';
 		periodType = 'monthly';
 		alertRate = '80';
+		rollOver = false;
+		startDate = '';
+		endDate = '';
 		showDialog = true;
 	}
 
 	function openEdit(budget: BudgetView) {
 		editingBudget = budget;
 		categoryId = budget.category_id;
-		amount = String(budget.amount);
+		// 后端金额以「分」为单位，编辑回填时要换算回元
+		amount = String((budget.amount ?? 0) / 100);
 		periodType = budget.period_type as 'monthly' | 'yearly';
 		alertRate = String(Math.round(budget.alert_rate * 100));
+		rollOver = !!budget.roll_over;
+		startDate = (budget.start_date || '').slice(0, 10);
+		endDate = (budget.end_date || '').slice(0, 10);
 		showDialog = true;
 	}
 
@@ -70,20 +82,22 @@
 			hzToast.warning('请输入有效金额');
 			return;
 		}
-		if (!categoryId) {
-			hzToast.warning('请选择分类');
-			return;
-		}
+		// 允许 category_id = 0（总预算）—— 弹窗里本来就有「全部分类」选项，
+		// 旧代码却又强制要求选分类，导致总预算永远建不了。
 
 		saving = true;
 		try {
-			const data = {
+			const data: Record<string, unknown> = {
 				category_id: categoryId,
 				amount: amt,
 				period_type: periodType,
 				alert_rate: parseInt(alertRate) / 100,
+				roll_over: rollOver,
 				book_id: appStore.effectiveBookId()
 			};
+			// 日期可不传：后端会按 period_type + 用户账期起始日自动推导区间
+			if (startDate) data.start_date = startDate;
+			if (endDate) data.end_date = endDate;
 
 			if (editingBudget) {
 				await budgetApi.update(editingBudget.id, data);
@@ -98,6 +112,25 @@
 			hzToast.error(e.message || '保存失败');
 		} finally {
 			saving = false;
+		}
+	}
+
+	// B2：手动重算已用金额（对账用）
+	async function handleRecalc(budget?: BudgetView) {
+		try {
+			if (budget) {
+				await budgetApi.recalc(budget.id);
+				hzToast.success('已按流水重算');
+			} else {
+				recalcAllLoading = true;
+				await budgetApi.recalcAll();
+				hzToast.success('全部预算已重算');
+			}
+			await loadData();
+		} catch (e: any) {
+			hzToast.error(e.message || '重算失败');
+		} finally {
+			recalcAllLoading = false;
 		}
 	}
 
@@ -132,11 +165,24 @@
 	{/if}
 
 	<div class="flex items-center justify-between">
-		<h2 class="text-sm font-medium">月度预算</h2>
-		<Button size="sm" onclick={openNew}>
-			<Plus size={16} />
-			新增预算
-		</Button>
+		<h2 class="text-sm font-medium">
+			预算（周期到期后系统会自动生成下一期）
+		</h2>
+		<div class="flex items-center gap-2">
+			<Button
+				size="sm"
+				variant="outline"
+				onclick={() => handleRecalc()}
+				disabled={recalcAllLoading || budgets.length === 0}
+			>
+				<RefreshCw size={14} class={recalcAllLoading ? 'animate-spin' : ''} />
+				全部重算
+			</Button>
+			<Button size="sm" onclick={openNew}>
+				<Plus size={16} />
+				新增预算
+			</Button>
+		</div>
 	</div>
 
 	{#if loading}
@@ -188,7 +234,9 @@
 							</div>
 						</div>
 
-						<Progress value={Math.min(budget.usage_rate, 100)} />
+						<!-- C18：后端 usage_rate 是 0~1 的比率，此前直接当百分比用，
+						     进度条几乎永远贴着 0 -->
+						<Progress value={Math.min((budget.usage_rate ?? 0) * 100, 100)} />
 
 						<div class="flex items-end justify-between mt-3">
 							<div class="text-sm">
@@ -200,6 +248,19 @@
 							<div class="text-xs text-muted-foreground">
 								剩余 {formatMoney(Math.max(0, budget.remaining))}
 							</div>
+						</div>
+
+						<div class="flex items-center justify-between mt-2 pt-2 border-t text-xs text-muted-foreground">
+							<span>
+								{(budget.start_date || '').slice(0, 10)} ~ {(budget.end_date || '').slice(0, 10)}
+							</span>
+							<button
+								class="inline-flex items-center gap-1 hover:text-foreground"
+								onclick={() => handleRecalc(budget)}
+								title="按当前流水重新计算已用金额"
+							>
+								<RefreshCw size={12} /> 重算
+							</button>
 						</div>
 					</CardContent>
 				</Card>
@@ -238,6 +299,20 @@
 
 		<div class="grid grid-cols-2 gap-4">
 			<div class="space-y-2">
+				<Label>起始日期（可留空）</Label>
+				<Input type="date" bind:value={startDate} />
+			</div>
+			<div class="space-y-2">
+				<Label>结束日期（可留空）</Label>
+				<Input type="date" bind:value={endDate} />
+			</div>
+		</div>
+		<p class="text-xs text-muted-foreground -mt-2">
+			留空时按所选周期自动填充（月度按账期起始日、年度按 1 月 1 日）
+		</p>
+
+		<div class="grid grid-cols-2 gap-4">
+			<div class="space-y-2">
 				<Label>周期</Label>
 				<select
 					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -252,6 +327,11 @@
 				<Input type="number" min={1} max={100} bind:value={alertRate} />
 			</div>
 		</div>
+
+		<label class="flex items-center gap-2 text-sm">
+			<input type="checkbox" bind:checked={rollOver} class="rounded border-input" />
+			结余滚入下一期
+		</label>
 
 		<div class="flex gap-2 justify-end pt-2">
 			<Button variant="outline" onclick={() => (showDialog = false)}>取消</Button>

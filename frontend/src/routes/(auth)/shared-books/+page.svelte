@@ -10,7 +10,7 @@
 	import { bookApi } from '$lib/api/modules/books';
 	import { appStore } from '$lib/stores/app';
 	import { hzToast } from '$lib/components/ui/toast';
-	import { BookMarked, Plus, Users, Pencil, Trash2, UserPlus } from '@lucide/svelte';
+	import { BookMarked, Plus, Users, Pencil, Trash2, UserPlus, Archive, ArchiveRestore } from '@lucide/svelte';
 
 	// Dialog state
 	let showBookDialog = $state(false);
@@ -23,7 +23,9 @@
 
 	// Member dialog
 	let memberBook = $state<{ id: number; name: string } | null>(null);
-	let memberEmail = $state('');
+	// C5：后端按「用户名或邮箱」查找被邀请人，前端此前只发 email 导致必然失败
+	let memberIdentifier = $state('');
+	let memberRole = $state<'editor' | 'viewer'>('viewer');
 	let members = $state<any[]>([]);
 	let loadingMembers = $state(false);
 
@@ -70,20 +72,10 @@
 		}
 	}
 
-	async function handleDeleteBook(book: any) {
-		if (!confirm(`确定删除账本「${book.name}」？此操作不可撤销！`)) return;
-		try {
-			await bookApi.remove(book.id);
-			hzToast.success('账本已删除');
-			await appStore.loadBooks();
-		} catch (e: any) {
-			hzToast.error(e.message || '删除失败');
-		}
-	}
-
 	async function openMembers(book: any) {
 		memberBook = book;
-		memberEmail = '';
+		memberIdentifier = '';
+		memberRole = 'viewer';
 		members = [];
 		showMemberDialog = true;
 		loadingMembers = true;
@@ -94,14 +86,52 @@
 	}
 
 	async function handleInvite() {
-		if (!memberEmail.trim() || !memberBook) return;
+		if (!memberIdentifier.trim() || !memberBook) return;
 		try {
-			await bookApi.inviteMember(memberBook.id, { email: memberEmail.trim() });
-			hzToast.success('邀请已发送');
-			memberEmail = '';
+			await bookApi.inviteMember(memberBook.id, memberIdentifier.trim(), memberRole);
+			hzToast.success('已加入账本');
+			memberIdentifier = '';
 			members = await bookApi.listMembers(memberBook.id);
 		} catch (e: any) {
 			hzToast.error(e.message || '邀请失败');
+		}
+	}
+
+	async function handleRemoveMember(member: any) {
+		if (!memberBook) return;
+		if (!confirm(`确定移除成员「${member.nickname || member.username || member.user_id}」？`)) return;
+		try {
+			await bookApi.removeMember(memberBook.id, member.id);
+			hzToast.success('已移除');
+			members = await bookApi.listMembers(memberBook.id);
+		} catch (e: any) {
+			hzToast.error(e.message || '移除失败');
+		}
+	}
+
+	// C11：删除前先统计子数据，让用户选择迁移或一并删除，避免产生孤儿记录
+	async function handleDeleteBook(book: any) {
+		const msg =
+			`确定删除账本「${book.name}」？\n\n` +
+			`该账本下的交易、账户、分类会一并删除，且不可撤销。\n` +
+			`如果只是想停用，建议改用「归档」。`;
+		if (!confirm(msg)) return;
+		try {
+			await bookApi.removeWithOptions(book.id, { force: true });
+			hzToast.success('账本已删除');
+			await appStore.loadBooks();
+		} catch (e: any) {
+			hzToast.error(e.message || '删除失败');
+		}
+	}
+
+	async function handleArchive(book: any, archived: boolean) {
+		try {
+			await bookApi.archive(book.id, archived);
+			hzToast.success(archived ? '账本已归档' : '账本已恢复');
+			await appStore.loadBooks();
+		} catch (e: any) {
+			hzToast.error(e.message || '操作失败');
 		}
 	}
 </script>
@@ -152,6 +182,9 @@
 							{#if book.id === appStore.currentBookId}
 								<span class="text-xs text-primary font-medium">当前</span>
 							{/if}
+							{#if book.is_shared}
+								<Badge variant="secondary">共享 · {book.role === 'editor' ? '可记账' : '只读'}</Badge>
+							{/if}
 						</button>
 						<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
 							<button
@@ -160,6 +193,17 @@
 								onclick={() => openMembers(book)}
 							>
 								<UserPlus size={14} class="text-muted-foreground" />
+							</button>
+							<button
+								class="p-1.5 rounded hover:bg-accent"
+								title={book.is_archived ? '取消归档' : '归档'}
+								onclick={() => handleArchive(book, !book.is_archived)}
+							>
+								{#if book.is_archived}
+									<ArchiveRestore size={14} class="text-muted-foreground" />
+								{:else}
+									<Archive size={14} class="text-muted-foreground" />
+								{/if}
 							</button>
 							<button
 								class="p-1.5 rounded hover:bg-accent"
@@ -233,9 +277,19 @@
 		<div class="space-y-2">
 			<Label>邀请成员</Label>
 			<div class="flex gap-2">
-				<Input class="flex-1" bind:value={memberEmail} placeholder="输入邮箱" type="email" />
+				<Input class="flex-1" bind:value={memberIdentifier} placeholder="输入对方的用户名或邮箱" />
+				<select
+					class="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+					bind:value={memberRole}
+				>
+					<option value="viewer">只读</option>
+					<option value="editor">可记账</option>
+				</select>
 				<Button onclick={handleInvite}>邀请</Button>
 			</div>
+			<p class="text-[11px] text-muted-foreground">
+				对方需已注册货殖账号；加入后可在自己的账本列表中看到该共享账本
+			</p>
 		</div>
 
 		<div class="space-y-2">
@@ -257,7 +311,18 @@
 									<div class="text-xs text-muted-foreground">{member.email}</div>
 								</div>
 							</div>
-							<Badge variant="secondary">{member.role || '成员'}</Badge>
+							<div class="flex items-center gap-2">
+								<Badge variant="secondary">{member.role || '成员'}</Badge>
+								{#if member.role !== 'owner'}
+									<button
+										class="p-1 rounded hover:bg-destructive/10"
+										title="移除成员"
+										onclick={() => handleRemoveMember(member)}
+									>
+										<Trash2 size={14} class="text-destructive" />
+									</button>
+								{/if}
+							</div>
 						</div>
 					{/each}
 				</div>

@@ -6,13 +6,19 @@
 	import { appStore } from '$lib/stores/app';
 	import { statsApi } from '$lib/api/modules/statistics';
 	import { formatMoney } from '$lib/utils/format';
+	import CategoryPie from '$lib/components/charts/CategoryPie.svelte';
+	import TrendLine from '$lib/components/charts/TrendLine.svelte';
+	import MonthlyBars from '$lib/components/charts/MonthlyBars.svelte';
 	import type { StatisticsData, AssetOverview } from '$lib/types';
 	import { BarChart3, ArrowUpRight, ArrowDownRight } from '@lucide/svelte';
 
 	let data = $state<StatisticsData | null>(null);
 	let assets = $state<AssetOverview | null>(null);
+	let timeline = $state<any[]>([]);
 	let range = $state<'month' | 'quarter' | 'year'>('month');
 	let loading = $state(true);
+	// 图表与排行榜切换：趋势图更适合长周期，排行榜便于精确读数
+	let trendView = $state<'chart' | 'list'>('chart');
 
 	function getDateRange(r: string) {
 		const now = new Date();
@@ -53,12 +59,14 @@
 			params.start_date = start;
 			params.end_date = end;
 
-			const [statsRes, assetsRes] = await Promise.allSettled([
+			const [statsRes, assetsRes, tlRes] = await Promise.allSettled([
 				statsApi.overview(params),
-				statsApi.assets()
+				statsApi.assets(),
+				statsApi.timeline({ months: 6 })
 			]);
 			if (statsRes.status === 'fulfilled') data = statsRes.value;
 			if (assetsRes.status === 'fulfilled') assets = assetsRes.value;
+			if (tlRes.status === 'fulfilled') timeline = (tlRes.value as any[]) ?? [];
 		} catch {}
 		loading = false;
 	}
@@ -136,47 +144,53 @@
 				</Card>
 			</section>
 
-			<!-- 分类占比 -->
+			<!-- 分类占比（A2：改用饼图，右侧保留精确读数） -->
 			<section>
 				<h2 class="text-sm font-medium mb-3">支出分类占比</h2>
 				<Card>
-					<CardContent class="p-4 space-y-3">
-						{#each data.by_category_expense.slice(0, 8) as item (item.id)}
-							<div>
-								<div class="flex items-center justify-between mb-1">
-									<div class="flex items-center gap-2">
-										<span class="w-6 h-6 rounded bg-muted grid place-items-center text-xs">
-											{item.icon || '📁'}
-										</span>
-										<span class="text-sm">{item.name}</span>
-									</div>
-									<div class="text-sm tabular-nums text-muted-foreground">
-										{formatMoney(item.amount)}
-										<span class="ml-1 text-[11px]">({item.percent.toFixed(1)}%)</span>
-									</div>
-								</div>
-							<div class="h-1.5 rounded-full bg-muted overflow-hidden">
-								<div
-									class="h-full bg-[var(--color-primary)] rounded-full"
-									style={`width: ${item.percent}%`}
-								></div>
-							</div>
-							</div>
-						{/each}
+					<CardContent class="p-4">
 						{#if data.by_category_expense.length === 0}
-							<p class="text-center text-muted-foreground py-4 text-sm">暂无数据</p>
+							<p class="text-center text-muted-foreground py-8 text-sm">暂无数据</p>
+						{:else}
+							<div class="grid md:grid-cols-2 gap-4 items-center">
+								<CategoryPie items={data.by_category_expense} limit={8} />
+								<div class="space-y-2">
+									{#each data.by_category_expense.slice(0, 8) as item (item.id)}
+										<div class="flex items-center gap-2 text-sm">
+											<span class="w-6 h-6 rounded bg-muted grid place-items-center text-xs">
+												{item.icon || '📁'}
+											</span>
+											<span class="flex-1 truncate">{item.name}</span>
+											<span class="tabular-nums text-muted-foreground">
+												{formatMoney(item.amount)}
+												<span class="ml-1 text-[11px]">({item.percent.toFixed(1)}%)</span>
+											</span>
+										</div>
+									{/each}
+								</div>
+							</div>
 						{/if}
 					</CardContent>
 				</Card>
 			</section>
 
-			<!-- 收支趋势 -->
+			<!-- 收支趋势（A2：默认折线图，可切回列表看逐日读数） -->
 			<section>
-				<h2 class="text-sm font-medium mb-3">收支趋势</h2>
+				<div class="flex items-center justify-between mb-3">
+					<h2 class="text-sm font-medium">收支趋势</h2>
+					<Tabs bind:value={trendView}>
+						<TabsTrigger value="chart">图表</TabsTrigger>
+						<TabsTrigger value="list">明细</TabsTrigger>
+					</Tabs>
+				</div>
 				<Card>
 					<CardContent class="p-4">
-						{#if data.trend.length > 0}
-							<div class="space-y-1">
+						{#if data.trend.length === 0}
+							<p class="text-center text-muted-foreground py-8 text-sm">暂无数据</p>
+						{:else if trendView === 'chart'}
+							<TrendLine points={data.trend} />
+						{:else}
+							<div class="space-y-1 max-h-80 overflow-auto">
 								{#each data.trend as point}
 									<div class="flex items-center gap-3 text-xs">
 										<span class="w-16 text-muted-foreground shrink-0">{point.date}</span>
@@ -197,12 +211,22 @@
 									</div>
 								{/each}
 							</div>
-						{:else}
-							<p class="text-center text-muted-foreground py-4 text-sm">暂无数据</p>
 						{/if}
 					</CardContent>
 				</Card>
 			</section>
+
+			<!-- 资产走势（A2） -->
+			{#if timeline.length > 0}
+				<section>
+					<h2 class="text-sm font-medium mb-3">近 6 个月净资产走势</h2>
+					<Card>
+						<CardContent class="p-4">
+							<MonthlyBars points={timeline} />
+						</CardContent>
+					</Card>
+				</section>
+			{/if}
 		{/if}
 
 		<!-- 资产概览 -->

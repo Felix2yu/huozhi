@@ -7,12 +7,13 @@
 	import Dialog from '$lib/components/ui/Dialog.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
 	import Label from '$lib/components/ui/Label.svelte';
+	import AccountSelect from '$lib/components/AccountSelect.svelte';
 	import { savingApi } from '$lib/api/modules/savings';
 	import { appStore } from '$lib/stores/app';
 	import { hzToast } from '$lib/components/ui/toast';
-	import { formatMoney } from '$lib/utils/format';
+	import { formatMoney, formatDate } from '$lib/utils/format';
 	import type { SavingPlan } from '$lib/types';
-	import { Plus, PiggyBank, Pencil, Trash2, Coins } from '@lucide/svelte';
+	import { Plus, PiggyBank, Pencil, Trash2, Coins, Wallet } from '@lucide/svelte';
 
 	let plans = $state<SavingPlan[]>([]);
 	let loading = $state(true);
@@ -30,6 +31,12 @@
 	let targetDate = $state('');
 	let accountId = $state<number>(0);
 	let saving = $state(false);
+
+	// B6：存入资金必须指定来源账户与日期。后端 AddSavingRecordRequest 的
+	// record_date 是 required，此前前端只发 { amount } → 必然 400；
+	// 且不传 account_id 时后端只能退化成「取第一个非负债账户」，存入哪张卡由系统猜。
+	let recordDate = $state(formatDate(new Date(), 'YYYY-MM-DD'));
+	let recordAccountId = $state<number>(0);
 
 	async function loadData() {
 		loading = true;
@@ -66,6 +73,9 @@
 	function openRecord(plan: SavingPlan) {
 		recordPlan = plan;
 		recordAmount = '';
+		recordDate = formatDate(new Date(), 'YYYY-MM-DD');
+		// 默认取计划绑定的账户，没有则取第一个资产账户
+		recordAccountId = plan.account_id || appStore.accounts[0]?.id || 0;
 		showRecordDialog = true;
 	}
 
@@ -114,11 +124,19 @@
 			hzToast.warning('请输入有效金额');
 			return;
 		}
+		if (!recordAccountId) {
+			hzToast.warning('请选择资金来源账户');
+			return;
+		}
 
 		saving = true;
 		try {
-			await savingApi.addRecord(recordPlan.id, { amount: amt });
-			hzToast.success('存钱记录已添加');
+			await savingApi.addRecord(recordPlan.id, {
+				amount: amt,
+				record_date: recordDate,
+				account_id: recordAccountId
+			});
+			hzToast.success('已存入并从账户扣减');
 			showRecordDialog = false;
 			await loadData();
 		} catch (e: any) {
@@ -286,6 +304,21 @@
 				<Input class="pl-8" type="number" step="0.01" placeholder="0.00" bind:value={recordAmount} />
 			</div>
 		</div>
+		<!-- B6：来源账户 + 日期，存入会真实扣减该账户余额 -->
+		<div class="grid grid-cols-2 gap-4">
+			<div class="space-y-2">
+				<Label>资金来源</Label>
+				<AccountSelect bind:value={recordAccountId} placeholder="选择账户" />
+			</div>
+			<div class="space-y-2">
+				<Label>存入日期</Label>
+				<Input type="date" bind:value={recordDate} />
+			</div>
+		</div>
+		<p class="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+			<Wallet size={12} class="mt-0.5 shrink-0" />
+			确认后将从所选账户扣减相应金额，并生成一笔转入存款的支出记录。
+		</p>
 		<div class="flex gap-2 justify-end pt-2">
 			<Button variant="outline" onclick={() => (showRecordDialog = false)}>取消</Button>
 			<Button onclick={handleAddRecord} disabled={saving}>

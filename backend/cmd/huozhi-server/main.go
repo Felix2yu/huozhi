@@ -104,6 +104,12 @@ func main() {
 	// 周期记账调度器
 	go recurringRunner()
 
+	// 预算周期自动滚动（B1）
+	go handlers.BudgetRolloverRunner()
+
+	// 分期还款自动生成（B4）
+	go handlers.InstallmentRunner()
+
 	// 资产快照（每日凌晨）
 	go dailySnapshot()
 
@@ -223,8 +229,17 @@ func processRecurring(r *models.Recurring) {
 	for _, tagID := range lock.TagIDs {
 		db.Create(&models.TransactionTag{TransactionID: tx.ID, TagID: tagID})
 	}
-	// 更新余额
-	updateRecurBalances(db, &tx)
+	// C7：此前这里维护了一份 updateRecurBalances 副本，缺少负债账户方向处理、
+	// 也不更新预算，导致周期记账与手工记账口径不一致。改为直接复用 handlers 的
+	// 余额引擎与预算引擎，消除双份实现。
+	var fromAcc, toAcc models.Account
+	db.First(&fromAcc, tx.AccountID)
+	if tx.ToAccountID > 0 {
+		db.First(&toAcc, tx.ToAccountID)
+	}
+	handlers.UpdateAccountBalances(db, &tx, &fromAcc, &toAcc, true)
+	handlers.ApplyBudgetUsed(db, tx.UserID, tx.BookID, tx.CategoryID, tx.TxDate,
+		tx.Amount, tx.Type, tx.IncludeInBudget, 1)
 
 	// 更新任务状态
 	// 注意：gorm.Expr 与时间字段不能放在同一个 map 中 Update，否则时间字段会被丢弃，
@@ -246,27 +261,6 @@ func processRecurring(r *models.Recurring) {
 	db.Commit()
 	log.Printf("[Cron] 周期记账执行 ok recurring_id=%d tx_id=%d amount=%s type=%s next=%v",
 		lock.ID, tx.ID, lock.Amount, lock.Type, next)
-}
-
-func updateRecurBalances(db *gorm.DB, tx *models.Transaction) {
-	if !tx.IncludeInBalance {
-		return
-	}
-	switch tx.Type {
-	case models.TxExpense, models.TxReimburse:
-		db.Model(&models.Account{}).Where("id = ?", tx.AccountID).
-			Update("balance", gorm.Expr("balance - ?", tx.Amount))
-	case models.TxIncome:
-		db.Model(&models.Account{}).Where("id = ?", tx.AccountID).
-			Update("balance", gorm.Expr("balance + ?", tx.Amount))
-	case models.TxTransfer:
-		db.Model(&models.Account{}).Where("id = ?", tx.AccountID).
-			Update("balance", gorm.Expr("balance - ?", tx.Amount))
-		if tx.ToAccountID > 0 {
-			db.Model(&models.Account{}).Where("id = ?", tx.ToAccountID).
-				Update("balance", gorm.Expr("balance + ?", tx.Amount))
-		}
-	}
 }
 
 // orphanCleanupRunner 定期清理「已上传但未被任何交易/头像引用」的孤儿附件。
@@ -343,7 +337,12 @@ func saveDailyAssetSnapshot() {
 			UserID: u.ID, SnapDate: today,
 			TotalAsset: asset, TotalDebt: debt, NetAsset: asset - debt,
 		}
-		database.DB.Where("user_id = ? AND DATE(snap_date) = DATE(?)", u.ID, today).Delete(&models.AssetSnapshot{})
+		// DATE() 是 SQLite 专有函数，PostgreSQL 下不可用；改用当日区间范围删除/插入，
+		// 跨方言通用，且 AssetSnapshot 已有 (user_id, snap_date) 唯一索引保护幂等。
+		dayStart := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, today.Location())
+		dayEnd := dayStart.AddDate(0, 0, 1)
+		database.DB.Where("user_id = ? AND snap_date >= ? AND snap_date < ?", u.ID, dayStart, dayEnd).
+			Delete(&models.AssetSnapshot{})
 		database.DB.Create(&snap)
 	}
 	log.Printf("[Cron] 资产快照生成完成 user_count=%d", len(users))

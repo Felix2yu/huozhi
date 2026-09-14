@@ -190,7 +190,8 @@
 						<div class="flex items-center gap-4 p-4">
 						<div class="w-12 h-12 rounded-xl grid place-items-center font-bold text-lg"
 							style="background: {theme.color};">
-							{(card.bank_name || card.name || '?')[0]}
+							<!-- C4：此处原写 card.xxx，但作用域内只有 item，必然抛 ReferenceError -->
+							{(item.bank_name || item.name || '?')[0]}
 						</div>
 							<div class="flex-1 min-w-0">
 								<div class="font-medium truncate">
@@ -201,7 +202,15 @@
 								</div>
 							</div>
 							<Badge variant={item.overdue ? 'destructive' : 'outline'}>
-								{item.overdue ? '逾期' : '还剩'} {item.days_left} 天
+								<!-- C17：后端已把逾期天数改为正数，文案需随之调整，
+								     否则会出现「还剩 -3 天」 -->
+								{#if item.overdue}
+									已逾期 {Math.abs(item.days_left)} 天
+								{:else if item.days_left === 0}
+									今天还款
+								{:else}
+									还剩 {item.days_left} 天
+								{/if}
 							</Badge>
 						</div>
 					{/each}

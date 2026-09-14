@@ -162,14 +162,30 @@ type CreateBookRequest struct {
 	Description string `json:"description" binding:"omitempty,max=500"`
 	Currency    string `json:"currency" binding:"omitempty,max=10"`
 	IsDefault   bool   `json:"is_default"`
+	IsArchived  bool   `json:"is_archived"` // 归档：停用但保留数据，列表默认不展示
 	Sort        int    `json:"sort"`
 }
 
 type UpdateBookRequest = CreateBookRequest
 
+// InviteMemberRequest 邀请成员。identifier 同时接受用户名或邮箱 —— 此前前端传 email
+// 而后端只认 username，导致 `WHERE username = ''` 匹配不到，邀请 100% 失败（C5）。
 type InviteMemberRequest struct {
-	Username string `json:"username" binding:"required"`
-	Role     string `json:"role" binding:"required,oneof=editor viewer"`
+	Username   string `json:"username"`
+	Email      string `json:"email"`
+	Identifier string `json:"identifier"` // 用户名或邮箱（推荐）
+	Role       string `json:"role" binding:"omitempty,oneof=editor viewer"`
+}
+
+// Who 返回最终用于查找被邀请人的标识
+func (r *InviteMemberRequest) Who() string {
+	if r.Identifier != "" {
+		return r.Identifier
+	}
+	if r.Username != "" {
+		return r.Username
+	}
+	return r.Email
 }
 
 // ====== 账户 ======
@@ -190,7 +206,6 @@ type CreateAccountRequest struct {
 	RepayDay        int     `json:"repay_day" binding:"omitempty,min=1,max=31"`
 	ExpireMonth     int     `json:"expire_month" binding:"omitempty,min=1,max=12"`
 	ExpireYear      int     `json:"expire_year" binding:"omitempty,min=0,max=99"`
-	CVV             string  `json:"cvv" binding:"omitempty,max=10"` // CVV2/CVC2，后端加密存
 	APR             float64 `json:"apr"`
 	IncludeInTotal  bool    `json:"include_in_total"`
 	IncludeInBudget bool    `json:"include_in_budget"`
@@ -255,12 +270,32 @@ type CreateTransactionRequest struct {
 	Images           []string  `json:"images"`
 	Merchant         string    `json:"merchant" binding:"omitempty,max=200"`
 	Location         string    `json:"location" binding:"omitempty,max=255"`
-	IncludeInBalance bool      `json:"include_in_balance"`
-	IncludeInBudget  bool      `json:"include_in_budget"`
+	// IncludeInBalance / IncludeInBudget 用指针：未传（nil）时由后端按业务默认值兜底
+	// （均为 true）。此前用 bool，客户端不传即落 false，导致预算进度恒为 0、
+	// 且后端又把 false 强制改回 true，API 语义自相矛盾。
+	IncludeInBalance *bool     `json:"include_in_balance"`
+	IncludeInBudget  *bool     `json:"include_in_budget"`
 	RecurringID      uint      `json:"recurring_id"`
 	InstallmentID    uint      `json:"installment_id"`
+	InstallmentIndex int       `json:"installment_index"`
 	Remark           string    `json:"remark" binding:"omitempty,max=1000"`
 	ReimburseStatus  string    `json:"reimburse_status" binding:"omitempty,oneof=none pending done"`
+}
+
+// BalanceFlag 取「是否计入余额」的最终值：显式传值尊重客户端，未传（nil）默认 true
+func (r *CreateTransactionRequest) BalanceFlag() bool {
+	if r.IncludeInBalance == nil {
+		return true
+	}
+	return *r.IncludeInBalance
+}
+
+// BudgetFlag 取「是否计入预算」的最终值：显式传值尊重客户端，未传（nil）默认 true
+func (r *CreateTransactionRequest) BudgetFlag() bool {
+	if r.IncludeInBudget == nil {
+		return true
+	}
+	return *r.IncludeInBudget
 }
 
 type UpdateTransactionRequest = CreateTransactionRequest
@@ -295,12 +330,26 @@ type CreateTagRequest struct {
 type CreateBudgetRequest struct {
 	BookID     uint      `json:"book_id" binding:"required"`
 	PeriodType string    `json:"period_type" binding:"required,oneof=monthly yearly custom"`
-	CategoryID uint      `json:"category_id"`
+	CategoryID uint      `json:"category_id"` // 0 = 总预算
 	Amount     float64   `json:"amount" binding:"required,gt=0"`
-	StartDate  FlexDate `json:"start_date" binding:"required"`
-	EndDate    FlexDate `json:"end_date" binding:"required"`
-	AlertRate  float64   `json:"alert_rate" binding:"omitempty,min=0,max=1"`
-	RollOver   bool      `json:"roll_over"`
+	// start_date / end_date 不再强制必填：前端只让用户选周期类型时，
+	// 后端按 period_type 从 start_date（缺省为今天所属周期首日）推导区间。
+	StartDate  FlexDate `json:"start_date"`
+	EndDate    FlexDate `json:"end_date"`
+	AlertRate  float64  `json:"alert_rate" binding:"omitempty,min=0,max=1"`
+	RollOver   bool     `json:"roll_over"`
+}
+
+// UpdateBudgetRequest 独立的更新结构：金额以「元」为单位传入（与创建接口一致），
+// 未传的字段不覆盖旧值，避免整包覆盖把 period_type / 日期清空。
+type UpdateBudgetRequest struct {
+	PeriodType string    `json:"period_type" binding:"omitempty,oneof=monthly yearly custom"`
+	CategoryID *uint     `json:"category_id"`
+	Amount     *float64  `json:"amount" binding:"omitempty,gt=0"`
+	StartDate  FlexDate  `json:"start_date"`
+	EndDate    FlexDate  `json:"end_date"`
+	AlertRate  *float64  `json:"alert_rate" binding:"omitempty,min=0,max=1"`
+	RollOver   *bool     `json:"roll_over"`
 }
 
 // ====== 存钱计划 ======
@@ -317,10 +366,18 @@ type CreateSavingPlanRequest struct {
 	TargetDate    FlexDate `json:"target_date" binding:"required"`
 }
 
+// VerifyPasswordRequest 敏感操作的二次验证（C15）
+type VerifyPasswordRequest struct {
+	Password string `json:"password" binding:"required"`
+}
+
 type AddSavingRecordRequest struct {
 	Amount      float64   `json:"amount" binding:"required,gt=0"`
 	RecordDate  FlexDate `json:"record_date" binding:"required"`
 	TransactionID uint    `json:"transaction_id"`
+	// AccountID 资金来源账户（B6）。不传时取用户第一个非负债账户。
+	// 存钱会真实扣减该账户余额并生成交易，使计划进度与资产一致。
+	AccountID   uint      `json:"account_id"`
 	Note        string    `json:"note" binding:"omitempty,max=500"`
 }
 
@@ -373,6 +430,10 @@ type UpdateReimbursementRequest struct {
 	Status         string  `json:"status" binding:"required,oneof=pending received partial"`
 	ReceivedAmount float64 `json:"received_amount"`
 	Remark         string  `json:"remark" binding:"omitempty,max=1000"`
+	// AccountID 收款账户（B5）。报销到账时按 received_amount 生成一条收入交易，
+	// 否则钱在资产里凭空消失、净资产失真。
+	AccountID      uint    `json:"account_id"`
+	ReceivedDate   FlexDate `json:"received_date"`
 }
 
 // ====== 统计 ======

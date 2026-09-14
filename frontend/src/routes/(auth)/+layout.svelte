@@ -122,30 +122,59 @@
 		}
 	});
 
-	// ========= 导航项 =========
-	const navItems = [
-		{ to: '/dashboard', label: '首页总览', icon: LayoutDashboard },
-		{ to: '/transactions', label: '账单流水', icon: Receipt },
-		{ to: '/accounts', label: '账户资产', icon: Wallet },
-		{ to: '/cards', label: '我的银行卡', icon: CreditCard },
-		{ to: '/categories', label: '分类管理', icon: PieChart },
-		{ to: '/budgets', label: '预算管理', icon: Target },
-		{ to: '/statistics', label: '统计分析', icon: BarChart3 },
-		{ to: '/tags', label: '标签中心', icon: Tags },
-		{ to: '/savings', label: '存钱计划', icon: TrendingUp },
-		{ to: '/recurring', label: '周期记账', icon: Repeat },
-		{ to: '/installments', label: '分期管理', icon: CreditCard },
-		{ to: '/reimbursements', label: '报销管理', icon: FileText },
-		{ to: '/shared-books', label: '共享账本', icon: Users },
-		{ to: '/settings', label: '系统设置', icon: Settings }
+	// ========= 导航项（A4：按信息架构分组，取代 14 项平铺） =========
+	const navGroups = [
+		{
+			title: '记账',
+			items: [
+				{ to: '/dashboard', label: '首页总览', icon: LayoutDashboard },
+				{ to: '/transactions', label: '账单流水', icon: Receipt },
+				{ to: '/categories', label: '分类管理', icon: PieChart }
+			]
+		},
+		{
+			title: '资产',
+			items: [
+				{ to: '/accounts', label: '账户资产', icon: Wallet },
+				{ to: '/cards', label: '我的银行卡', icon: CreditCard },
+				{ to: '/savings', label: '存钱计划', icon: TrendingUp },
+				{ to: '/installments', label: '分期管理', icon: CreditCard }
+			]
+		},
+		{
+			title: '规则',
+			items: [
+				{ to: '/budgets', label: '预算管理', icon: Target },
+				{ to: '/recurring', label: '周期记账', icon: Repeat },
+				{ to: '/reimbursements', label: '报销管理', icon: FileText },
+				{ to: '/tags', label: '标签中心', icon: Tags }
+			]
+		},
+		{
+			title: '分析与协作',
+			items: [
+				{ to: '/statistics', label: '统计分析', icon: BarChart3 },
+				{ to: '/bill-export', label: '账单导出', icon: FileText },
+				{ to: '/shared-books', label: '共享账本', icon: Users }
+			]
+		},
+		{
+			title: '系统',
+			items: [{ to: '/settings', label: '系统设置', icon: Settings }]
+		}
 	];
 
+	// 兼容旧引用（pageTitle 等处使用）
+	const navItems = navGroups.flatMap((g) => g.items);
+
+	// A3：底部原来只覆盖 5/14 功能。改为 4 个高频入口 + 1 个「更多」抽屉，
+	// 把使用频次最高的「统计」提上来，其余 9 个功能从抽屉一键直达。
 	const mobileTabs = [
 		{ to: '/dashboard', label: '首页', icon: Home },
 		{ to: '/transactions', label: '账单', icon: Receipt },
 		{ to: '/transactions/add', label: '', icon: Plus },
-		{ to: '/accounts', label: '资产', icon: Wallet },
-		{ to: '/settings', label: '我的', icon: Settings }
+		{ to: '/statistics', label: '统计', icon: BarChart3 },
+		{ to: '', label: '更多', icon: Menu, more: true }
 	];
 
 	let currentPath = $derived($page?.url?.pathname || '');
@@ -313,20 +342,29 @@
 			</div>
 
 			<!-- 导航菜单 -->
-			<nav class="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
-				{#each navItems as item (item.to)}
-					<a
-						href={item.to}
-						class={cn(
-							'flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition',
-							isActive(item.to)
-								? 'bg-primary/10 text-primary font-medium'
-								: 'text-muted-foreground hover:bg-accent hover:text-foreground'
-						)}
-					>
-						<item.icon size={18} />
-						<span>{item.label}</span>
-					</a>
+			<nav class="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+				{#each navGroups as group (group.title)}
+					<div>
+						<div class="px-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+							{group.title}
+						</div>
+						<div class="space-y-0.5">
+							{#each group.items as item (item.to)}
+								<a
+									href={item.to}
+									class={cn(
+										'flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition',
+										isActive(item.to)
+											? 'bg-primary/10 text-primary font-medium'
+											: 'text-muted-foreground hover:bg-accent hover:text-foreground'
+									)}
+								>
+									<item.icon size={18} />
+									<span>{item.label}</span>
+								</a>
+							{/each}
+						</div>
+					</div>
 				{/each}
 			</nav>
 
@@ -443,20 +481,29 @@
 						<div class="text-xs text-muted-foreground">简洁纯粹的记账本</div>
 					</div>
 				</div>
-				<nav class="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
-					{#each navItems as item (item.to)}
-						<a
-							href={item.to}
-							class={cn(
-								'flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition',
-								isActive(item.to)
-									? 'bg-primary/10 text-primary font-medium'
-									: 'text-muted-foreground hover:bg-accent hover:text-foreground'
-							)}
-						>
-							<item.icon size={18} />
-							<span>{item.label}</span>
-						</a>
+				<nav class="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+					{#each navGroups as group (group.title)}
+						<div>
+							<div class="px-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+								{group.title}
+							</div>
+							<div class="space-y-0.5">
+								{#each group.items as item (item.to)}
+									<a
+										href={item.to}
+										class={cn(
+											'flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition',
+											isActive(item.to)
+												? 'bg-primary/10 text-primary font-medium'
+												: 'text-muted-foreground hover:bg-accent hover:text-foreground'
+										)}
+									>
+										<item.icon size={18} />
+										<span>{item.label}</span>
+									</a>
+								{/each}
+							</div>
+						</div>
 					{/each}
 				</nav>
 				<div class="px-3 py-3 border-t">
@@ -485,6 +532,15 @@
 							<div class="absolute -top-5 w-14 h-14 rounded-full bg-primary text-primary-foreground grid place-items-center shadow-lg border-4 border-background">
 								<Plus size={24} />
 							</div>
+						</button>
+					{:else if tab.more}
+						<!-- A3：「更多」打开完整导航抽屉，9 个低频功能不再无处可去 -->
+						<button
+							class="flex flex-col items-center justify-center gap-0.5 py-2.5 text-[11px] transition text-muted-foreground"
+							onclick={() => (sidebarOpen = true)}
+						>
+							<tab.icon size={20} />
+							<span>{tab.label}</span>
 						</button>
 					{:else}
 						<button

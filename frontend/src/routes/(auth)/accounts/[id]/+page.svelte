@@ -29,6 +29,9 @@
 	let initialAmount = $state('');
 	let bankName = $state('');
 	let fullCardNo = $state('');
+	// C15：完整卡号需二次验证后按需显示
+	let cardLoaded = $state(false);
+	let revealing = $state(false);
 	let creditLimit = $state('');
 	let billDay = $state('');
 	let repayDay = $state('');
@@ -62,13 +65,8 @@
 			includeInTotal = account.include_in_total;
 			includeInBudget = account.include_in_budget;
 			remark = account.remark || '';
-			// 尝试拉取完整卡号用于编辑预填（无则忽略）
-			try {
-				const fc: any = await accountApi.getFullCardNo(accountId);
-				fullCardNo = fc.full_card_no || '';
-			} catch {
-				fullCardNo = '';
-			}
+			// C15：不再自动拉取完整卡号。解密前必须重新输入登录密码，
+			// 由 revealFullCardNo() 按需触发。
 		} catch {
 			hzToast.error('加载账户失败');
 			goto('/accounts');
@@ -76,6 +74,23 @@
 			loading = false;
 		}
 	});
+
+	// C15：二次验证后解密完整卡号
+	async function revealFullCardNo() {
+		const pwd = window.prompt('出于安全考虑，请重新输入登录密码以查看完整卡号：');
+		if (!pwd) return;
+		revealing = true;
+		try {
+			const fc: any = await accountApi.getFullCardNo(accountId, pwd);
+			fullCardNo = fc.full_card_no || '';
+			cardLoaded = true;
+			hzToast.success('已显示完整卡号');
+		} catch (e: any) {
+			hzToast.error(e.message || '密码错误或该账户未保存完整卡号');
+		} finally {
+			revealing = false;
+		}
+	}
 
 	function onNameInput() {
 		if (!bankName.trim()) {
@@ -222,6 +237,20 @@
 						maxlength={23}
 						bind:value={fullCardNo}
 					/>
+					<!-- C15：完整卡号不再随页面加载自动拉取，改为按需 + 二次验证 -->
+					<div class="flex items-center justify-between">
+						<p class="text-[11px] text-muted-foreground">
+							{#if cardLoaded}已解密显示，编辑后保存即覆盖{:else}留空则保持原卡号不变{/if}
+						</p>
+						<button
+							type="button"
+							class="text-[11px] text-primary hover:underline"
+							onclick={revealFullCardNo}
+							disabled={revealing}
+						>
+							{revealing ? '验证中…' : cardLoaded ? '重新获取' : '查看完整卡号'}
+						</button>
+					</div>
 				</div>
 
 				<!-- 信用卡专属字段 -->

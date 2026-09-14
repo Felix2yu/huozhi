@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"sort"
 	"huozhi/internal/database"
 	"huozhi/internal/dto"
 	"huozhi/internal/middleware"
@@ -117,19 +118,7 @@ func GetStatistics(c *gin.Context) {
 			catInfo[c.ID] = c
 		}
 
-		// 构造支出排行数组（排序）
-		type catOut struct {
-			ID       uint         `json:"id"`
-			Name     string       `json:"name"`
-			Icon     string       `json:"icon"`
-			Color    string       `json:"color"`
-			Kind     string       `json:"kind"`
-			Amount   models.Money `json:"amount"`
-			Count    int64        `json:"count"`
-			Percent  float64      `json:"percent"`
-			ParentID uint         `json:"parent_id"`
-		}
-		var expenseRank, incomeRank []catOut
+		var expenseRank, incomeRank []categoryRankItem
 
 		for id, m := range catMap {
 			info := catInfo[id]
@@ -140,7 +129,7 @@ func GetStatistics(c *gin.Context) {
 				if totalExpense > 0 {
 					pct = round2(expAmt.Yuan() / totalExpense.Yuan() * 100)
 				}
-				expenseRank = append(expenseRank, catOut{
+				expenseRank = append(expenseRank, categoryRankItem{
 					ID: id, Name: info.Name, Icon: info.Icon, Color: info.Color,
 					Kind: string(info.Kind), Amount: expAmt, Count: m["count"].(int64),
 					Percent: pct, ParentID: info.ParentID,
@@ -151,7 +140,7 @@ func GetStatistics(c *gin.Context) {
 				if totalIncome > 0 {
 					pct = round2(incAmt.Yuan() / totalIncome.Yuan() * 100)
 				}
-				incomeRank = append(incomeRank, catOut{
+				incomeRank = append(incomeRank, categoryRankItem{
 					ID: id, Name: info.Name, Icon: info.Icon, Color: info.Color,
 					Kind: string(info.Kind), Amount: incAmt, Count: m["count"].(int64),
 					Percent: pct, ParentID: info.ParentID,
@@ -236,17 +225,8 @@ func GetStatistics(c *gin.Context) {
 		Type      string
 		SumAmount float64
 	}
-	var dateGroup string
-	switch dimension {
-	case "month":
-		dateGroup = "strftime('%Y-%m', tx_date)"
-	case "week":
-		dateGroup = "strftime('%G-W%V', tx_date)"
-	case "day":
-		fallthrough
-	default:
-		dateGroup = "strftime('%Y-%m-%d', tx_date)"
-	}
+	// 按方言生成日期分组表达式：SQLite 用 strftime，PostgreSQL 用 to_char。
+	dateGroup := database.DateGroupExpr("tx_date", dateGrainOf(dimension))
 	base().Select(fmt.Sprintf("%s day, type, SUM(amount) sum_amount", dateGroup)).
 		Where("type IN ?", []string{string(models.TxExpense), string(models.TxIncome), string(models.TxRefund)}).
 		Group("day, type").Order("day ASC").Scan(&trendRows)
@@ -344,8 +324,10 @@ func GetAssetOverview(c *gin.Context) {
 		Where("user_id = ? AND tx_date >= ? AND tx_date < ? AND type = ? AND include_in_balance = ?",
 			uid, first, last, string(models.TxExpense), true).
 		Select("COALESCE(SUM(amount), 0)").Row().Scan(&me)
-	monthIncome = models.FromYuan(mi)
-	monthExpense = models.FromYuan(me)
+	// SUM(amount) 返回的是「分」，必须用 FromCents 还原成 Money。
+	// 早期误用 FromYuan（元→分，×100），导致首页本月收支恒为真实值的 100 倍。
+	monthIncome = models.FromCents(mi)
+	monthExpense = models.FromCents(me)
 
 	OK(c, gin.H{
 		"total_asset":   totalAsset,
@@ -379,10 +361,12 @@ func GetAssetTimeline(c *gin.Context) {
 	var points []point
 	for i := months - 1; i >= 0; i-- {
 		d := now.AddDate(0, -i, 0)
-		// 先看快照
+		// 先用快照。DATE(snap_date)=? 是 SQLite 专有写法，PostgreSQL 不可用，
+		// 统一改为「当月区间内取最新一条」的范围查询，语义更健壮（月初无快照时取当月任意一天）。
 		var snap models.AssetSnapshot
-		database.DB.Where("user_id = ? AND DATE(snap_date) = ?", uid,
-			time.Date(d.Year(), d.Month(), 1, 0, 0, 0, 0, d.Location()).Format("2006-01-02")).
+		monthStart := time.Date(d.Year(), d.Month(), 1, 0, 0, 0, 0, d.Location())
+		monthEnd := monthStart.AddDate(0, 1, 0)
+		database.DB.Where("user_id = ? AND snap_date >= ? AND snap_date < ?", uid, monthStart, monthEnd).
 			Order("snap_date DESC").First(&snap)
 		if snap.ID > 0 {
 			points = append(points, point{
@@ -424,15 +408,47 @@ func round2(v float64) float64 {
 	return float64(int(v*100+0.5)) / 100
 }
 
-func sortByAmountDesc[T any](items []T) {
-	// 简化处理：在实际代码中可用sort.Slice按Amount排序，这里依赖SQL ORDER
+// categoryRankItem 分类排行条目。提升为包级类型，便于排序函数访问 Amount 字段
+// （此前 sortByAmountDesc 用泛型却拿不到字段，函数体为空 → 排行顺序随机）。
+type categoryRankItem struct {
+	ID       uint         `json:"id"`
+	Name     string       `json:"name"`
+	Icon     string       `json:"icon"`
+	Color    string       `json:"color"`
+	Kind     string       `json:"kind"`
+	Amount   models.Money `json:"amount"`
+	Count    int64        `json:"count"`
+	Percent  float64      `json:"percent"`
+	ParentID uint         `json:"parent_id"`
+}
+
+// sortByAmountDesc 按金额降序稳定排序（金额相同时按 ID 升序，保证刷新结果稳定）
+func sortByAmountDesc(items []categoryRankItem) {
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].Amount != items[j].Amount {
+			return items[i].Amount > items[j].Amount
+		}
+		return items[i].ID < items[j].ID
+	})
+}
+
+// dateGrainOf 把统计维度映射到日期分组粒度
+func dateGrainOf(dimension string) string {
+	switch dimension {
+	case "month":
+		return "month"
+	case "week":
+		return "week"
+	default:
+		return "day"
+	}
 }
 
 // ========== 存钱计划 ==========
 func ListSavingPlans(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var list []models.SavingPlan
-	database.DB.Where("user_id = ?", uid).Order("status ASC, created_at DESC").Find(&list)
+	applyBookScope(database.DB.Model(&models.SavingPlan{}), uid).Order("status ASC, created_at DESC").Find(&list)
 	OK(c, list)
 }
 func CreateSavingPlan(c *gin.Context) {
@@ -478,22 +494,58 @@ func AddSavingRecord(c *gin.Context) {
 	c.ShouldBindUri(&reqUri)
 	var req dto.AddSavingRecordRequest
 	if err := c.ShouldBindJSON(&req); err != nil { Bad(c, err.Error()); return }
+	// B6：存钱真实产生资金流 —— 生成交易、扣减来源账户余额、写回 transaction_id。
+	// 旧实现只累加 current_amount，计划进度与真实资产完全脱节。
+	db := database.DB.Begin()
+	var plan models.SavingPlan
+	if err := db.Where("id = ? AND user_id = ?", reqUri.ID, uid).First(&plan).Error; err != nil {
+		db.Rollback()
+		NotFound(c, "存钱计划不存在")
+		return
+	}
+	amt := models.FromYuan(req.Amount)
 	rec := models.SavingRecord{
 		UserID: uid, SavingPlanID: reqUri.ID,
-		Amount: models.FromYuan(req.Amount), RecordDate: req.RecordDate.T(),
+		Amount: amt, RecordDate: req.RecordDate.T(),
 		TransactionID: req.TransactionID, Note: req.Note,
 	}
-	database.DB.Create(&rec)
-	database.DB.Model(&models.SavingPlan{}).Where("id = ?", reqUri.ID).
-		UpdateColumn("current_amount", gorm.Expr("current_amount + ?", int64(models.FromYuan(req.Amount))))
-	Created(c, rec)
+	if err := db.Create(&rec).Error; err != nil {
+		db.Rollback()
+		InternalErr(c, "记录失败: "+err.Error())
+		return
+	}
+	db.Model(&models.SavingPlan{}).Where("id = ?", reqUri.ID).
+		UpdateColumn("current_amount", gorm.Expr("current_amount + ?", int64(amt)))
+
+	txID := uint(0)
+	if req.TransactionID == 0 {
+		txID = depositSaving(db, &plan, amt, req.AccountID, req.RecordDate.T())
+		if txID > 0 {
+			db.Model(&models.SavingRecord{}).Where("id = ?", rec.ID).
+				Update("transaction_id", txID)
+			rec.TransactionID = txID
+		}
+	}
+	if err := db.Commit().Error; err != nil {
+		InternalErr(c, "提交失败: "+err.Error())
+		return
+	}
+
+	// 达标自动完成
+	var updated models.SavingPlan
+	database.DB.First(&updated, reqUri.ID)
+	if updated.TargetAmount > 0 && updated.CurrentAmount >= updated.TargetAmount && updated.Status == "active" {
+		database.DB.Model(&models.SavingPlan{}).Where("id = ?", updated.ID).Update("status", "done")
+		updated.Status = "done"
+	}
+	Created(c, gin.H{"record": rec, "transaction_id": txID, "plan": updated})
 }
 
 // ========== 周期记账 ==========
 func ListRecurrings(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var list []models.Recurring
-	database.DB.Where("user_id = ?", uid).Order("next_run_at ASC").Find(&list)
+	applyBookScope(database.DB.Model(&models.Recurring{}), uid).Order("next_run_at ASC").Find(&list)
 	OK(c, list)
 }
 func CreateRecurring(c *gin.Context) {
@@ -563,7 +615,7 @@ func DeleteRecurring(c *gin.Context) {
 func ListInstallments(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var list []models.Installment
-	database.DB.Where("user_id = ?", uid).Order("status ASC, next_repay_date ASC").Find(&list)
+	applyBookScope(database.DB.Model(&models.Installment{}), uid).Order("status ASC, next_repay_date ASC").Find(&list)
 	OK(c, list)
 }
 func CreateInstallment(c *gin.Context) {
@@ -599,7 +651,7 @@ func DeleteInstallment(c *gin.Context) {
 func ListReimbursements(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var list []models.Reimbursement
-	database.DB.Where("user_id = ?", uid).Order("created_at DESC").Find(&list)
+	applyBookScope(database.DB.Model(&models.Reimbursement{}), uid).Order("created_at DESC").Find(&list)
 	OK(c, list)
 }
 func CreateReimbursement(c *gin.Context) {
@@ -631,21 +683,38 @@ func UpdateReimbursement(c *gin.Context) {
 	updates := map[string]interface{}{
 		"status": req.Status, "received_amount": models.FromYuan(req.ReceivedAmount), "remark": req.Remark,
 	}
+	now := time.Now()
+	if !req.ReceivedDate.IsZero() {
+		now = req.ReceivedDate.T()
+	}
 	if req.Status == "received" {
-		updates["received_at"] = time.Now()
+		updates["received_at"] = now
 	}
 	r.Updates(updates)
 
-	// 更新相关交易状态
+	// 更新相关交易状态 + 生成收款交易（B5）
 	var rm models.Reimbursement
 	database.DB.First(&rm, reqUri.ID)
-	if req.Status == "received" {
+	receivedTxID := uint(0)
+	if req.Status == "received" || req.Status == "partial" {
 		for _, tid := range rm.TransactionIDs {
 			database.DB.Model(&models.Transaction{}).Where("id = ?", tid).Update("reimburse_status", "done")
 		}
+		amount := models.FromYuan(req.ReceivedAmount)
+		if amount <= 0 {
+			amount = rm.TotalAmount
+		}
+		db := database.DB.Begin()
+		if id, ok := payReimbursement(db, &rm, req.AccountID, amount, now); ok {
+			receivedTxID = id
+			db.Commit()
+		} else {
+			db.Rollback()
+		}
 	}
 	Broadcast(c, "reimbursements", "update", reqUri.ID)
-	OK(c, nil)
+	OK(c, gin.H{"id": rm.ID, "status": rm.Status, "received_amount": rm.ReceivedAmount,
+		"transaction_id": receivedTxID})
 }
 func DeleteReimbursement(c *gin.Context) {
 	uid := middleware.GetUID(c)

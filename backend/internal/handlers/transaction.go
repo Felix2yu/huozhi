@@ -38,19 +38,33 @@ func CreateTransaction(c *gin.Context) {
 		}
 	}()
 
-	// 读取账户（加乐观锁，余额操作要谨慎）
+	// 读取账户（加乐观锁，余额操作要谨慎）。
+	// 共享账本里的账户可能由他人创建，不能只按 user_id 校验（C5）。
 	var fromAcc, toAcc models.Account
-	if err := tx.Where("id = ? AND user_id = ?", req.AccountID, uid).First(&fromAcc).Error; err != nil {
+	ids := accessibleBookIDs(uid)
+	accQuery := func(id uint, out *models.Account) error {
+		if len(ids) > 0 {
+			return tx.Where("id = ? AND (user_id = ? OR book_id IN ?)", id, uid, ids).First(out).Error
+		}
+		return tx.Where("id = ? AND user_id = ?", id, uid).First(out).Error
+	}
+	if err := accQuery(req.AccountID, &fromAcc); err != nil {
 		tx.Rollback()
 		Bad(c, "来源账户不存在")
 		return
 	}
 	if req.ToAccountID > 0 {
-		if err := tx.Where("id = ? AND user_id = ?", req.ToAccountID, uid).First(&toAcc).Error; err != nil {
+		if err := accQuery(req.ToAccountID, &toAcc); err != nil {
 			tx.Rollback()
 			Bad(c, "目标账户不存在")
 			return
 		}
+	}
+	// 归属校验：必须对该账本有写权限（本人账本或共享账本的 editor/owner）
+	if !canWriteBook(uid, req.BookID) {
+		tx.Rollback()
+		Forbidden(c, "对该账本无写入权限")
+		return
 	}
 
 	// 构建交易
@@ -72,17 +86,15 @@ func CreateTransaction(c *gin.Context) {
 		Images:           req.Images,
 		Merchant:         req.Merchant,
 		Location:         req.Location,
-		IncludeInBalance: req.IncludeInBalance,
-		IncludeInBudget:  req.IncludeInBudget,
+		// C3/C12：未显式传值时默认 true，显式传 false 时尊重客户端
+		// （旧实现强制改回 true，导致 DTO 暴露的字段永远无效）
+		IncludeInBalance: req.BalanceFlag(),
+		IncludeInBudget:  req.BudgetFlag(),
 		RecurringID:      req.RecurringID,
 		InstallmentID:    req.InstallmentID,
 		Remark:           req.Remark,
 		ReimburseStatus:  req.ReimburseStatus,
 	}
-	if !newTx.IncludeInBalance {
-		newTx.IncludeInBalance = true
-	}
-
 	if err := tx.Create(&newTx).Error; err != nil {
 		tx.Rollback()
 		InternalErr(c, "创建交易失败: "+err.Error())
@@ -93,7 +105,8 @@ func CreateTransaction(c *gin.Context) {
 	if len(req.TagIDs) > 0 {
 		for _, tid := range req.TagIDs {
 			tx.Create(&models.TransactionTag{TransactionID: newTx.ID, TagID: tid})
-			tx.Model(&models.Tag{}).Where("id = ?", tid).UpdateColumn("count", gorm.Expr("count + 1"))
+			tx.Model(&models.Tag{}).Where("id = ?", tid).
+				UpdateColumn("count", gorm.Expr("count + 1"))
 		}
 		// 预加载标签
 		var tags []models.Tag
@@ -107,6 +120,31 @@ func CreateTransaction(c *gin.Context) {
 
 	// 更新账户余额
 	updateAccountBalances(tx, &newTx, &fromAcc, &toAcc, true)
+
+	// C8：转账手续费生成独立支出交易，保证「每笔资金变动都有流水」
+	if newTx.Type == models.TxTransfer && newTx.TransferFee > 0 {
+		feeCat := ensureSystemCategory(tx, uid, req.BookID, "转账手续费", models.KindExpense, "💸")
+		feeTx := models.Transaction{
+			UserID:           uid,
+			BookID:           req.BookID,
+			Type:             models.TxExpense,
+			Amount:           newTx.TransferFee,
+			Currency:         newTx.Currency,
+			CategoryID:       feeCat,
+			AccountID:        req.AccountID,
+			TxDate:           newTx.TxDate,
+			Description:      "转账手续费",
+			RelatedTxID:      newTx.ID,
+			RelatedType:      models.RelatedTransferFee,
+			IncludeInBalance: true,
+			IncludeInBudget:  true,
+		}
+		if err := tx.Create(&feeTx).Error; err == nil {
+			feeFrom := fromAcc
+			updateAccountBalances(tx, &feeTx, &feeFrom, nil, true)
+			applyBudgetUsed(tx, uid, req.BookID, feeCat, feeTx.TxDate, feeTx.Amount, feeTx.Type, true, 1)
+		}
+	}
 
 	if req.BookID > 0 {
 		applyBudgetUsed(tx, uid, req.BookID, newTx.CategoryID, newTx.TxDate, newTx.Amount, newTx.Type, newTx.IncludeInBudget, 1)
@@ -174,7 +212,6 @@ func updateAccountBalances(db *gorm.DB, tx *models.Transaction, from, to *models
 	dsFrom := debtSign(from)
 	dsTo := debtSign(to)
 	amount := int64(tx.Amount)
-	fee := int64(tx.TransferFee)
 	discount := int64(tx.TransferDiscount)
 	switch tx.Type {
 	case models.TxExpense, models.TxReimburse:
@@ -184,11 +221,10 @@ func updateAccountBalances(db *gorm.DB, tx *models.Transaction, from, to *models
 		// 收入/退款：from账户余额增加（信用卡则欠款减少）
 		db.Model(from).Update("balance", gorm.Expr("balance + ?", amount*factor*dsFrom))
 	case models.TxTransfer:
-		// 转账：from 减少 amount、增加 discount（信用卡侧方向取反）；to 增加 amount
+		// 转账：from 减少 amount、增加 discount（信用卡侧方向取反）；to 增加 amount。
+		// 手续费（C8）不再在此处静默扣减，而是由 CreateTransaction 生成一条独立的
+		// 「转账手续费」支出交易，保证每笔资金变动都有流水可查、账户与统计对得上。
 		db.Model(from).Update("balance", gorm.Expr("balance - ? + ?", amount*factor*dsFrom, discount*factor*dsFrom))
-		if tx.TransferFee > 0 {
-			db.Model(from).Update("balance", gorm.Expr("balance - ?", fee*factor*dsFrom))
-		}
 		if to != nil && to.ID > 0 {
 			db.Model(to).Update("balance", gorm.Expr("balance + ?", amount*factor*dsTo))
 		}
@@ -247,7 +283,7 @@ func ListTransactions(c *gin.Context) {
 		req.PageSize = 20
 	}
 
-	q := database.DB.Where("user_id = ?", uid)
+	q := applyBookScope(database.DB.Model(&models.Transaction{}), uid)
 	if req.BookID > 0 {
 		q = q.Where("book_id = ?", req.BookID)
 	}
@@ -326,7 +362,7 @@ func ListTransactions(c *gin.Context) {
 
 	// 汇总 — 必须用新 query，不能复用已执行过 Find 的 q
 	var sumIn, sumOut models.Money
-	sq := database.DB.Model(&models.Transaction{}).Where("user_id = ?", uid)
+	sq := applyBookScope(database.DB.Model(&models.Transaction{}), uid)
 	if req.BookID > 0 {
 		sq = sq.Where("book_id = ?", req.BookID)
 	}
@@ -379,6 +415,47 @@ func UpdateTransaction(c *gin.Context) {
 		return
 	}
 
+	// C14：类型白名单 —— 客户端传空串/非法值会写入脏 type
+	switch req.Type {
+	case string(models.TxExpense), string(models.TxIncome), string(models.TxTransfer),
+		string(models.TxRefund), string(models.TxReimburse), string(models.TxAdjust):
+	default:
+		db.Rollback()
+		Bad(c, "非法交易类型: "+req.Type)
+		return
+	}
+	// C14：归属校验 —— 账户/目标账户/分类必须属于当前用户（或共享账本）
+	if !ownsOrSharesAccount(uid, req.AccountID) {
+		db.Rollback()
+		Bad(c, "来源账户不存在或无权限")
+		return
+	}
+	if req.ToAccountID > 0 && !ownsOrSharesAccount(uid, req.ToAccountID) {
+		db.Rollback()
+		Bad(c, "目标账户不存在或无权限")
+		return
+	}
+	if req.CategoryID > 0 {
+		var cnt int64
+		db.Model(&models.Category{}).Where("id = ? AND (user_id = ? OR book_id IN ?)",
+			req.CategoryID, uid, append(accessibleBookIDs(uid), 0)).Count(&cnt)
+		if cnt == 0 {
+			db.Rollback()
+			Bad(c, "分类不存在或无权限")
+			return
+		}
+	}
+	if req.Type == string(models.TxTransfer) && req.ToAccountID == 0 {
+		db.Rollback()
+		Bad(c, "转账需要指定目标账户")
+		return
+	}
+
+	// 撤销旧标签计数（C10）
+	adjustTagCounts(db, txTagIDs(db, old.ID), -1)
+	// 撤销该交易派生出的子交易（手续费等），避免留下与余额不符的孤儿流水
+	revertDerivedTransactions(db, old.ID)
+
 	// 先撤销原交易对余额的影响
 	var from, to models.Account
 	db.First(&from, old.AccountID)
@@ -408,15 +485,20 @@ func UpdateTransaction(c *gin.Context) {
 		"images":             req.Images,
 		"merchant":           req.Merchant,
 		"location":           req.Location,
-		"include_in_balance": req.IncludeInBalance,
-		"include_in_budget":  req.IncludeInBudget,
+		"include_in_balance": req.BalanceFlag(),
+		"include_in_budget":  req.BudgetFlag(),
 		"remark":             req.Remark,
 		"reimburse_status":   req.ReimburseStatus,
 	}
-	db.Model(&old).Updates(updates)
+	if err := db.Model(&old).Updates(updates).Error; err != nil {
+		db.Rollback()
+		InternalErr(c, "更新失败: "+err.Error())
+		return
+	}
 
 	// 标签重新关联
 	db.Where("transaction_id = ?", old.ID).Delete(&models.TransactionTag{})
+	adjustTagCounts(db, req.TagIDs, 1)
 	for _, tid := range req.TagIDs {
 		db.Create(&models.TransactionTag{TransactionID: old.ID, TagID: tid})
 	}
@@ -434,7 +516,27 @@ func UpdateTransaction(c *gin.Context) {
 	// 应用新预算 used_amount
 	applyBudgetUsed(db, uid, newTx.BookID, newTx.CategoryID, newTx.TxDate, newTx.Amount, newTx.Type, newTx.IncludeInBudget, 1)
 
-	db.Commit()
+	// 转账手续费：重新生成派生交易（旧的已在前面回滚）
+	if newTx.Type == models.TxTransfer && newTx.TransferFee > 0 {
+		feeCat := ensureSystemCategory(db, uid, newTx.BookID, "转账手续费", models.KindExpense, "💸")
+		feeTx := models.Transaction{
+			UserID: uid, BookID: newTx.BookID, Type: models.TxExpense,
+			Amount: newTx.TransferFee, Currency: newTx.Currency, CategoryID: feeCat,
+			AccountID: newTx.AccountID, TxDate: newTx.TxDate, Description: "转账手续费",
+			RelatedTxID: newTx.ID, RelatedType: models.RelatedTransferFee,
+			IncludeInBalance: true, IncludeInBudget: true,
+		}
+		if err := db.Create(&feeTx).Error; err == nil {
+			feeFrom := from2
+			updateAccountBalances(db, &feeTx, &feeFrom, nil, true)
+			applyBudgetUsed(db, uid, feeTx.BookID, feeCat, feeTx.TxDate, feeTx.Amount, feeTx.Type, true, 1)
+		}
+	}
+
+	if err := db.Commit().Error; err != nil {
+		InternalErr(c, "提交失败: "+err.Error())
+		return
+	}
 
 	database.DB.Preload("Tags").First(&newTx, old.ID)
 	Broadcast(c, "transactions", "update", old.ID)
@@ -455,6 +557,11 @@ func DeleteTransaction(c *gin.Context) {
 		return
 	}
 
+	// 撤销标签计数（C10）
+	adjustTagCounts(db, txTagIDs(db, tx.ID), -1)
+	// 撤销派生交易（手续费等）
+	revertDerivedTransactions(db, tx.ID)
+
 	var from, to models.Account
 	db.First(&from, tx.AccountID)
 	if tx.ToAccountID > 0 {
@@ -465,8 +572,12 @@ func DeleteTransaction(c *gin.Context) {
 	// 撤销预算 used_amount（删除交易）
 	applyBudgetUsed(db, uid, tx.BookID, tx.CategoryID, tx.TxDate, tx.Amount, tx.Type, tx.IncludeInBudget, -1)
 
+	db.Where("transaction_id = ?", tx.ID).Delete(&models.TransactionTag{})
 	db.Delete(&tx)
-	db.Commit()
+	if err := db.Commit().Error; err != nil {
+		InternalErr(c, "删除失败: "+err.Error())
+		return
+	}
 	Broadcast(c, "transactions", "delete", req.ID)
 	OK(c, nil)
 }
@@ -484,11 +595,18 @@ func BatchDeleteTransactions(c *gin.Context) {
 		Bad(c, err.Error())
 		return
 	}
+	if len(req.IDs) == 0 {
+		Bad(c, "请选择要删除的交易")
+		return
+	}
 	// 逐条处理余额回滚
 	db := database.DB.Begin()
 	var txs []models.Transaction
 	db.Where("id IN ? AND user_id = ?", req.IDs, uid).Find(&txs)
 	for _, tx := range txs {
+		tx := tx
+		adjustTagCounts(db, txTagIDs(db, tx.ID), -1)
+		revertDerivedTransactions(db, tx.ID)
 		var from, to models.Account
 		db.First(&from, tx.AccountID)
 		if tx.ToAccountID > 0 {
@@ -496,10 +614,64 @@ func BatchDeleteTransactions(c *gin.Context) {
 		}
 		updateAccountBalances(db, &tx, &from, &to, false)
 		applyBudgetUsed(db, uid, tx.BookID, tx.CategoryID, tx.TxDate, tx.Amount, tx.Type, tx.IncludeInBudget, -1)
+		db.Where("transaction_id = ?", tx.ID).Delete(&models.TransactionTag{})
 		db.Delete(&tx)
 	}
-	db.Commit()
+	if err := db.Commit().Error; err != nil {
+		InternalErr(c, "批量删除失败: "+err.Error())
+		return
+	}
 	OK(c, gin.H{"deleted_count": len(txs)})
+}
+
+// RecoverTransaction 撤销软删除（回收站恢复）。
+// 后端早已是软删除（BaseModel.DeletedAt），此前却没有任何恢复入口，
+// 删除即永久丢失。这里提供按 ID 恢复，并回滚余额与预算。
+func RecoverTransaction(c *gin.Context) {
+	uid := middleware.GetUID(c)
+	var req dto.IDRequest
+	if err := c.ShouldBindUri(&req); err != nil {
+		Bad(c, "参数错误")
+		return
+	}
+	db := database.DB.Begin()
+	var tx models.Transaction
+	if err := db.Unscoped().Where("id = ? AND user_id = ? AND deleted_at IS NOT NULL", req.ID, uid).
+		First(&tx).Error; err != nil {
+		db.Rollback()
+		NotFound(c, "未找到已删除的交易")
+		return
+	}
+	if err := db.Unscoped().Model(&models.Transaction{}).Where("id = ?", req.ID).
+		Update("deleted_at", nil).Error; err != nil {
+		db.Rollback()
+		InternalErr(c, "恢复失败: "+err.Error())
+		return
+	}
+	var from, to models.Account
+	db.First(&from, tx.AccountID)
+	if tx.ToAccountID > 0 {
+		db.First(&to, tx.ToAccountID)
+	}
+	updateAccountBalances(db, &tx, &from, &to, true)
+	applyBudgetUsed(db, uid, tx.BookID, tx.CategoryID, tx.TxDate, tx.Amount, tx.Type, tx.IncludeInBudget, 1)
+	adjustTagCounts(db, txTagIDs(db, tx.ID), 1)
+	if err := db.Commit().Error; err != nil {
+		InternalErr(c, "恢复失败: "+err.Error())
+		return
+	}
+	Broadcast(c, "transactions", "recover", req.ID)
+	OK(c, gin.H{"recovered": req.ID})
+}
+
+// ListDeletedTransactions 回收站：列出软删除的交易
+func ListDeletedTransactions(c *gin.Context) {
+	uid := middleware.GetUID(c)
+	var list []models.Transaction
+	database.DB.Unscoped().Preload("Tags").
+		Where("user_id = ? AND deleted_at IS NOT NULL", uid).
+		Order("deleted_at DESC").Limit(200).Find(&list)
+	OK(c, list)
 }
 
 // ========== 预算 Budget ==========
@@ -507,7 +679,8 @@ func BatchDeleteTransactions(c *gin.Context) {
 func ListBudgets(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	bookID := c.Query("book_id")
-	q := database.DB.Where("user_id = ?", uid)
+	// C5：共享账本的预算对受邀成员可见
+	q := applyBookScope(database.DB.Model(&models.Budget{}), uid)
 	// book_id=0 表示「全部账本」：与流水/分类/账户列表保持一致，不加账本过滤。
 	// 否则传 0 会变成 `book_id = 0` 的字面过滤，预算列表恒为空。
 	if bookID != "" && bookID != "0" {
@@ -546,21 +719,39 @@ func CreateBudget(c *gin.Context) {
 		Bad(c, "参数错误: "+err.Error())
 		return
 	}
+	// 起止日期：客户端未传或区间非法时，按 period_type + 用户账期起始日自动推导（C2）
+	monthStart := userMonthStart(uid)
+	start := req.StartDate.T()
+	end := req.EndDate.T()
+	if start.IsZero() {
+		s, e := budgetPeriodRange(req.PeriodType, time.Now(), monthStart)
+		start, end = s, e
+	} else if end.IsZero() || !end.After(start) {
+		_, e := budgetPeriodRange(req.PeriodType, start, monthStart)
+		start = time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, start.Location())
+		end = e
+	}
+
 	b := models.Budget{
 		UserID:     uid,
 		BookID:     req.BookID,
 		PeriodType: req.PeriodType,
 		CategoryID: req.CategoryID,
 		Amount:     models.FromYuan(req.Amount),
-		StartDate:  req.StartDate.T(),
-		EndDate:    req.EndDate.T(),
+		StartDate:  start,
+		EndDate:    end,
 		AlertRate:  req.AlertRate,
 		RollOver:   req.RollOver,
 	}
 	if b.AlertRate <= 0 {
 		b.AlertRate = 0.8
 	}
-	database.DB.Create(&b)
+	if err := database.DB.Create(&b).Error; err != nil {
+		InternalErr(c, "创建预算失败: "+err.Error())
+		return
+	}
+	// 回溯回填：按区间内已有支出重算 used_amount，避免月中建预算进度恒为 0（B2）
+	recalcBudgetUsed(database.DB, &b)
 	Created(c, b)
 }
 
@@ -568,23 +759,74 @@ func UpdateBudget(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var reqUri dto.IDRequest
 	c.ShouldBindUri(&reqUri)
-	var b models.Budget
-	if err := c.ShouldBindJSON(&b); err != nil {
-		Bad(c, err.Error())
+	var req dto.UpdateBudgetRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		Bad(c, "参数错误: "+err.Error())
 		return
 	}
-	database.DB.Model(&models.Budget{}).Where("id = ? AND user_id = ?", reqUri.ID, uid).Updates(map[string]interface{}{
-		"period_type": b.PeriodType,
-		"category_id": b.CategoryID,
-		"amount":      b.Amount,
-		"start_date":  b.StartDate,
-		"end_date":    b.EndDate,
-		"alert_rate":  b.AlertRate,
-		"roll_over":   b.RollOver,
-	})
+	var old models.Budget
+	if err := database.DB.Where("id = ? AND user_id = ?", reqUri.ID, uid).First(&old).Error; err != nil {
+		NotFound(c, "预算不存在")
+		return
+	}
+
+	updates := map[string]interface{}{}
+	if req.PeriodType != "" {
+		updates["period_type"] = req.PeriodType
+	}
+	if req.CategoryID != nil {
+		updates["category_id"] = *req.CategoryID
+	}
+	if req.Amount != nil {
+		updates["amount"] = models.FromYuan(*req.Amount)
+	}
+	if req.AlertRate != nil {
+		updates["alert_rate"] = *req.AlertRate
+	}
+	if req.RollOver != nil {
+		updates["roll_over"] = *req.RollOver
+	}
+	if !req.StartDate.IsZero() {
+		updates["start_date"] = req.StartDate.T()
+	}
+	if !req.EndDate.IsZero() {
+		updates["end_date"] = req.EndDate.T()
+	}
+	// 改了 period_type 却没给日期 → 重新推导区间
+	if _, ok := updates["period_type"]; ok {
+		if _, okS := updates["start_date"]; !okS {
+			if _, okE := updates["end_date"]; !okE {
+				s, e := budgetPeriodRange(req.PeriodType, old.StartDate, userMonthStart(uid))
+				updates["start_date"] = s
+				updates["end_date"] = e
+			}
+		}
+	}
+	if len(updates) > 0 {
+		if err := database.DB.Model(&models.Budget{}).
+			Where("id = ? AND user_id = ?", reqUri.ID, uid).Updates(updates).Error; err != nil {
+			InternalErr(c, "更新失败: "+err.Error())
+			return
+		}
+	}
+
 	var nb models.Budget
 	database.DB.First(&nb, reqUri.ID)
+	// 区间/分类/金额任一变化都会影响已用金额口径，统一重算（B2）
+	recalcBudgetUsed(database.DB, &nb)
 	OK(c, nb)
+}
+
+// userMonthStart 读取用户的自定义账期起始日（1-28），未设置时为 1
+func userMonthStart(uid uint) int {
+	var u models.User
+	if err := database.DB.Select("month_start").Where("id = ?", uid).First(&u).Error; err != nil {
+		return 1
+	}
+	if u.MonthStart < 1 || u.MonthStart > 28 {
+		return 1
+	}
+	return u.MonthStart
 }
 
 func DeleteBudget(c *gin.Context) {

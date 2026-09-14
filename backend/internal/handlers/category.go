@@ -19,7 +19,8 @@ func ListCategories(c *gin.Context) {
 	kind := c.Query("kind") // expense/income/system/all
 	includeArchived := c.Query("include_archived") == "1"
 
-	q := database.DB.Where("user_id = ?", uid)
+	// C5：共享账本的分类对受邀成员可见
+	q := applyBookScope(database.DB.Model(&models.Category{}), uid)
 	if bookID != "" && bookID != "0" {
 		q = q.Where("(book_id = ? OR book_id = 0)", bookID)
 	}
@@ -191,7 +192,7 @@ func DeleteCategory(c *gin.Context) {
 func ListTags(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var tags []models.Tag
-	database.DB.Where("user_id = ?", uid).Order("sort ASC, count DESC, id DESC").Find(&tags)
+	applyBookScope(database.DB.Model(&models.Tag{}), uid).Order("sort ASC, count DESC, id DESC").Find(&tags)
 	OK(c, tags)
 }
 

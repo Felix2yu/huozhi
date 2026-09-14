@@ -59,7 +59,6 @@ func TestCreateAccount(t *testing.T) {
 		"initial_amount": 1000,
 		"full_card_no":  "6225880123456789",
 		"card_no4":      "6789",
-		"cvv":           "123",
 		"bill_day":      5,
 		"repay_day":     25,
 		"currency":      "CNY",
@@ -87,8 +86,17 @@ func TestCreateAccount(t *testing.T) {
 		t.Fatalf("expected 400 got %d %s", w.Code, w.Body.String())
 	}
 
-	// full card returns decrypted
-	w = do(authReq("GET", "/api/accounts/"+itoa(accID)+"/full-card", tok, nil))
+	// full card：C15 起要求二次验证登录密码
+	w = do(authReq("POST", "/api/accounts/"+itoa(accID)+"/full-card", tok, map[string]interface{}{
+		"password": "wrong-password",
+	}))
+	if w.Code != 403 {
+		t.Fatalf("full-card 未校验密码，错误密码返回 %d %s", w.Code, w.Body.String())
+	}
+
+	w = do(authReq("POST", "/api/accounts/"+itoa(accID)+"/full-card", tok, map[string]interface{}{
+		"password": "secret123",
+	}))
 	if w.Code != 200 {
 		t.Fatalf("full-card %d %s", w.Code, w.Body.String())
 	}
@@ -97,8 +105,9 @@ func TestCreateAccount(t *testing.T) {
 	if data["full_card_no"] != "6225880123456789" {
 		t.Fatalf("card mismatch %v", data["full_card_no"])
 	}
-	if data["cvv"] != "123" {
-		t.Fatalf("cvv mismatch %v", data["cvv"])
+	// CVV 已按 PCI-DSS 要求整体移除（C15），接口不再返回该字段
+	if _, ok := data["cvv"]; ok {
+		t.Fatalf("cvv 不应再被返回或存储")
 	}
 
 	_ = uid
@@ -109,7 +118,7 @@ func TestUpdateAccount(t *testing.T) {
 	var a models.Account
 	database.DB.Where("book_id = ?", bookID).First(&a)
 	w := do(authReq("PUT", "/api/accounts/"+itoa(a.ID), tok, map[string]interface{}{
-		"name": "改名", "type": "cash", "full_card_no": "4111111111111111", "cvv": "999",
+		"name": "改名", "type": "cash", "full_card_no": "4111111111111111",
 	}))
 	if w.Code != 200 {
 		t.Fatalf("update %d %s", w.Code, w.Body.String())

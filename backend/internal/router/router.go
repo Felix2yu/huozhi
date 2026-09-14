@@ -68,12 +68,15 @@ func New(mode string, staticDir string) *gin.Engine {
 			books := auth.Group("/books")
 			{
 				books.GET("", handlers.ListBooks)
+				books.GET("/archived", handlers.ListArchivedBooks)
 				books.GET("/:id", handlers.GetBook)
 				books.POST("", handlers.CreateBook)
 				books.PUT("/:id", handlers.UpdateBook)
+				books.PUT("/:id/archive", handlers.ArchiveBook)
 				books.DELETE("/:id", handlers.DeleteBook)
 				books.GET("/:id/members", handlers.ListBookMembers)
 				books.POST("/:id/members", handlers.InviteBookMember)
+				books.DELETE("/:id/members/:memberId", handlers.RemoveBookMember)
 			}
 
 			// 账户/资产
@@ -82,6 +85,7 @@ func New(mode string, staticDir string) *gin.Engine {
 				accounts.GET("", handlers.ListAccounts)
 				// ⚠️ 静态路径必须在 /:id 之前注册，否则被参数路由劫持
 				accounts.GET("/credit-summary", handlers.GetCreditSummary)
+				accounts.GET("/audit", handlers.AuditAccounts) // 数据体检（B7）
 				accounts.GET("/groups", handlers.ListAccountGroups)
 				accounts.POST("/groups", handlers.CreateAccountGroup)
 				accounts.DELETE("/groups/:id", handlers.DeleteAccountGroup)
@@ -90,7 +94,10 @@ func New(mode string, staticDir string) *gin.Engine {
 				accounts.PUT("/:id", handlers.UpdateAccount)
 				accounts.DELETE("/:id", handlers.DeleteAccount)
 				accounts.POST("/:id/adjust", handlers.AdjustAccountBalance)
-				accounts.GET("/:id/full-card", handlers.GetFullCardNo)
+				accounts.POST("/:id/recalc", handlers.RecalcAccountBalance) // 按流水重算余额（B7）
+				// C15：改用 POST 并在 Handler 内校验登录密码，
+				// 避免密码出现在 URL / 访问日志中
+				accounts.POST("/:id/full-card", handlers.GetFullCardNo)
 			}
 
 			// 分类
@@ -116,10 +123,12 @@ func New(mode string, staticDir string) *gin.Engine {
 			txs := auth.Group("/transactions")
 			{
 				txs.GET("", handlers.ListTransactions)
+				txs.GET("/deleted", handlers.ListDeletedTransactions) // 回收站（B3）
 				txs.GET("/:id", handlers.GetTransaction)
 				txs.POST("", handlers.CreateTransaction)
 				txs.PUT("/:id", handlers.UpdateTransaction)
 				txs.DELETE("/:id", handlers.DeleteTransaction)
+				txs.POST("/:id/recover", handlers.RecoverTransaction) // 撤销删除（B3）
 				txs.POST("/batch-delete", handlers.BatchDeleteTransactions)
 			}
 
@@ -128,7 +137,9 @@ func New(mode string, staticDir string) *gin.Engine {
 			{
 				budgets.GET("", handlers.ListBudgets)
 				budgets.POST("", handlers.CreateBudget)
+				budgets.POST("/recalc", handlers.RecalcAllBudgetsHandler) // 重算全部（B2）
 				budgets.PUT("/:id", handlers.UpdateBudget)
+				budgets.POST("/:id/recalc", handlers.RecalcBudgetHandler) // 重算单条（B2）
 				budgets.DELETE("/:id", handlers.DeleteBudget)
 			}
 
@@ -183,6 +194,9 @@ func New(mode string, staticDir string) *gin.Engine {
 				io.POST("/import", handlers.ImportTransactions)
 				io.GET("/template", handlers.DownloadImportTemplate)
 				io.GET("/bill", handlers.GetBill)
+				io.GET("/backup", handlers.ExportBackup)   // 全量 JSON 快照（B8）
+				io.POST("/restore", handlers.ImportBackup) // 从快照恢复（B8）
+				io.POST("/reset", handlers.ClearUserData)  // 清空全部业务数据（B9，需密码）
 			}
 		}
 	}

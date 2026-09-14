@@ -28,6 +28,15 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 	let creditItems = $state<CreditRepayItem[]>([]);
 	let loading = $state(true);
 
+	// C20：把交易的 category_id / account_id 解析成可读名称，供列表副标题使用
+	function categoryOf(tx: Transaction) {
+		const all = [...(appStore.categories?.expense ?? []), ...(appStore.categories?.income ?? [])];
+		return all.find((c: any) => c.id === tx.category_id);
+	}
+	function accountOf(tx: Transaction) {
+		return (appStore.accounts ?? []).find((a: any) => a.id === tx.account_id);
+	}
+
 	async function loadData() {
 		loading = true;
 		try {
@@ -259,23 +268,20 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 							class="flex items-center gap-3 p-3 hover:bg-accent/50 transition cursor-pointer text-left w-full"
 							onclick={() => goto(`/transactions/edit/${tx.id}`)}
 						>
+							<!-- C19：class 属性为空（重构残留），图标没有底色 -->
 							<div
-								class="w-9 h-9 rounded-lg grid place-items-center text-sm font-semibold"
-
-
-
-
-
-
+								class="w-9 h-9 rounded-lg grid place-items-center text-sm font-semibold bg-muted"
+								style={categoryOf(tx)?.color ? `background:${categoryOf(tx).color}22;color:${categoryOf(tx).color}` : ''}
 							>
-								{tx.description?.[0] || tx.merchant?.[0] || '¥'}
+								{categoryOf(tx)?.icon || tx.description?.[0] || tx.merchant?.[0] || '¥'}
 							</div>
 							<div class="flex-1 min-w-0">
 								<div class="text-sm font-medium truncate">
-									{tx.description || tx.merchant || '未分类'}
+									{tx.description || tx.merchant || categoryOf(tx)?.name || '未分类'}
 								</div>
-								<div class="text-xs text-muted-foreground">
-									{formatRelativeDate(tx.tx_date)}
+								<!-- C20：副标题补上「分类 · 账户」，与分类管理/账户资产的数据资产对齐 -->
+								<div class="text-xs text-muted-foreground truncate">
+									{categoryOf(tx)?.name || '未分类'} · {accountOf(tx)?.name || '—'} · {formatRelativeDate(tx.tx_date)}
 								</div>
 							</div>
 							<div

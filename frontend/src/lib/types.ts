@@ -175,6 +175,8 @@ export interface TransactionListData {
   grouped: DayGroup[];
   summary: { total_income: number; total_expense: number; net: number };
   flat_list: Transaction[];
+  // A1：保留后端分页信息，供「加载更多」判断是否还有下一页
+  pagination?: { page: number; page_size: number; total: number };
 }
 
 // ====== 预算 ======

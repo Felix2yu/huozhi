@@ -98,7 +98,8 @@ type Account struct {
 	RepayDay        int     `gorm:"default:0" json:"repay_day"`          // 还款日
 	ExpireMonth     int     `gorm:"default:0" json:"expire_month"`       // 卡有效期月份 1-12
 	ExpireYear      int     `gorm:"default:0" json:"expire_year"`        // 卡有效期年份 如 27（2027年）
-	EncryptedCVV    string  `gorm:"size:128" json:"-"`                   // CVV2/CVC2（AES-GCM 加密存）
+	// EncryptedCVV 已移除：PCI-DSS 明确禁止在授权后以任何形式（含加密）存储 CVV2/CVC2。
+	// 记账场景也不需要它，保留只会把「完整卡号 + CVV + 无二次验证」变成一次泄露即全量失守（C15）。
 	// 负债专属
 	APR           float64 `gorm:"default:0" json:"apr"`                // 年化利率
 	// 通用设置
@@ -161,6 +162,14 @@ const (
 	TxAdjust     TransactionType = "adjust"     // 余额调整
 )
 
+// 衍生交易类型（Transaction.RelatedType）
+const (
+	RelatedTransferFee      = "transfer_fee"       // 转账手续费
+	RelatedInstallmentRepay = "installment_repay"  // 分期每期还款
+	RelatedReimburseReceived = "reimburse_received" // 报销收款
+	RelatedSaving           = "saving"             // 存钱计划存入
+)
+
 // Transaction 交易记录
 type Transaction struct {
 	BaseModel
@@ -179,6 +188,10 @@ type Transaction struct {
 	TransferDiscount Money         `gorm:"default:0" json:"transfer_discount"` // 优惠（分）
 	// 关联退款/报销
 	RefundOfID    uint            `gorm:"default:0;index" json:"refund_of_id"`
+	// 衍生交易关联：由另一笔交易自动派生出来的记录（转账手续费、分期还款、报销收款、存钱计划）。
+	// 删除/修改主交易时据此级联撤销，避免留下与账户余额不符的孤儿流水。
+	RelatedTxID   uint            `gorm:"default:0;index" json:"related_tx_id"`
+	RelatedType   string          `gorm:"size:30;default:''" json:"related_type"` // transfer_fee, installment_repay, reimburse_received, saving
 	ReimburseStatus string        `gorm:"size:20;default:none" json:"reimburse_status"` // none, pending, done
 	ReimburseAmount Money         `gorm:"default:0" json:"reimburse_amount"` // 报销金额（分）
 	// 记账者（协作账本中记录是谁记的账）

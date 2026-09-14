@@ -6,7 +6,9 @@ import (
 	"huozhi/internal/dto"
 	"huozhi/internal/middleware"
 	"huozhi/internal/models"
+	"huozhi/pkg/auth"
 	"huozhi/pkg/crypto"
+	"log"
 	"sort"
 	"strings"
 	"time"
@@ -50,7 +52,8 @@ func ListAccounts(c *gin.Context) {
 	typeFilter := c.Query("type")
 	includeArchived := c.Query("include_archived") == "1"
 
-	q := database.DB.Where("user_id = ?", uid)
+	// C5：共享账本内的账户由成员共享可见
+	q := applyBookScope(database.DB.Model(&models.Account{}), uid)
 	if bookID != "" && bookID != "0" {
 		q = q.Where("(book_id = ? OR book_id = 0)", bookID)
 	}
@@ -115,7 +118,6 @@ func CreateAccount(c *gin.Context) {
 
 	// 处理完整卡号：加密存储 + 自动更新尾号
 	var encryptedCardNo string
-	var encryptedCVV string
 	cardNo4 := req.CardNo4
 	if req.FullCardNo != "" {
 		encryptedCardNo = encryptCardNo(req.FullCardNo)
@@ -123,10 +125,6 @@ func CreateAccount(c *gin.Context) {
 			cardNo4 = tail4(req.FullCardNo)
 		}
 	}
-	if req.CVV != "" {
-		encryptedCVV = encryptCardNo(req.CVV) // 复用同一套 AES-GCM
-	}
-
 	acc := models.Account{
 		UserID:          uid,
 		BookID:          req.BookID,
@@ -145,7 +143,6 @@ func CreateAccount(c *gin.Context) {
 		RepayDay:        req.RepayDay,
 		ExpireMonth:     req.ExpireMonth,
 		ExpireYear:      req.ExpireYear,
-		EncryptedCVV:    encryptedCVV,
 		APR:             req.APR,
 		IncludeInTotal:  req.IncludeInTotal,
 		IncludeInBudget: req.IncludeInBudget,
@@ -225,10 +222,6 @@ func UpdateAccount(c *gin.Context) {
 			updates["card_no4"] = tail4(req.FullCardNo)
 		}
 	}
-	// CVV：非空才加密覆盖，空则保持原值
-	if req.CVV != "" {
-		updates["encrypted_cvv"] = encryptCardNo(req.CVV)
-	}
 	database.DB.Model(&models.Account{}).Where("id = ? AND user_id = ?", reqUri.ID, uid).Updates(updates)
 	var acc models.Account
 	database.DB.First(&acc, reqUri.ID)
@@ -236,7 +229,11 @@ func UpdateAccount(c *gin.Context) {
 	OK(c, acc)
 }
 
-// GetFullCardNo 按需解密返回完整卡信息（需验证所有权，仅返回敏感字段）
+// GetFullCardNo 按需解密返回完整卡信息。
+//
+// C15：该接口原先是「登录即可取全卡号」，一旦账号被盗即全量泄露。
+// 现要求二次验证登录密码，并把动作降到 POST（避免密码出现在 URL/访问日志里）。
+// CVV 字段已整体移除（PCI-DSS 禁止存储授权后的 CVV2/CVC2）。
 func GetFullCardNo(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var reqUri dto.IDRequest
@@ -244,20 +241,35 @@ func GetFullCardNo(c *gin.Context) {
 		Bad(c, "参数错误")
 		return
 	}
+
+	// 二次验证：必须重新输入登录密码
+	var req dto.VerifyPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		Bad(c, "请重新输入登录密码以查看完整卡号")
+		return
+	}
+	var user models.User
+	if err := database.DB.Where("id = ?", uid).First(&user).Error; err != nil {
+		NotFound(c, "用户不存在")
+		return
+	}
+	if !auth.CheckPassword(req.Password, user.PasswordHash) {
+		Forbidden(c, "密码错误")
+		return
+	}
+
 	var acc models.Account
 	if err := database.DB.Where("id = ? AND user_id = ?", reqUri.ID, uid).First(&acc).Error; err != nil {
 		NotFound(c, "账户不存在")
 		return
 	}
-	full := decryptCardNo(acc.EncryptedCardNo)
-	cvv := decryptCardNo(acc.EncryptedCVV)
-	if full == "" && cvv == "" {
+	if acc.EncryptedCardNo == "" {
 		NotFound(c, "未保存完整卡信息")
 		return
 	}
+	log.Printf("[Audit] 用户 %d 查看了账户 %d 的完整卡号", uid, acc.ID)
 	OK(c, gin.H{
-		"full_card_no": full,
-		"cvv":          cvv,
+		"full_card_no": decryptCardNo(acc.EncryptedCardNo),
 		"expire_month": acc.ExpireMonth,
 		"expire_year":  acc.ExpireYear,
 	})
@@ -289,8 +301,12 @@ func AdjustAccountBalance(c *gin.Context) {
 		return
 	}
 
+	// C13：UPDATE balance 与 INSERT 调整记录原本不在同一事务，中途失败会让余额与流水对不上；
+	// 且 diff 可为负，会写入 amount < 0 的 adjust 交易（列表/统计展示异常）。
+	db := database.DB.Begin()
 	var acc models.Account
-	if err := database.DB.Where("id = ? AND user_id = ?", reqUri.ID, uid).First(&acc).Error; err != nil {
+	if err := db.Where("id = ? AND user_id = ?", reqUri.ID, uid).First(&acc).Error; err != nil {
+		db.Rollback()
 		NotFound(c, "账户不存在")
 		return
 	}
@@ -298,30 +314,63 @@ func AdjustAccountBalance(c *gin.Context) {
 	// 计算差额
 	newBalance := models.FromYuan(req.Amount)
 	diff := newBalance - acc.Balance
+	if diff == 0 {
+		db.Rollback()
+		OK(c, gin.H{"new_balance": acc.Balance, "diff": models.Money(0), "changed": false})
+		return
+	}
 
 	// 更新余额
-	database.DB.Model(&acc).Update("balance", newBalance)
+	if err := db.Model(&acc).Update("balance", newBalance).Error; err != nil {
+		db.Rollback()
+		InternalErr(c, "更新余额失败: "+err.Error())
+		return
+	}
 
-	// 插入调整记录
+	// 插入调整记录：金额恒为正，方向体现在描述与方向标记上，
+	// 保证列表/统计不会出现负数金额，也让对账（B7）能算出正确方向。
 	var adjCat models.Category
-	database.DB.Where("user_id = ? AND kind = ? AND name = ?", uid, models.KindSystem, "余额调整").First(&adjCat)
+	db.Where("user_id = ? AND kind = ? AND name = ?", uid, models.KindSystem, "余额调整").First(&adjCat)
+	if adjCat.ID == 0 {
+		adjCat.ID = ensureSystemCategory(db, uid, acc.BookID, "余额调整", models.KindSystem, "⚙️")
+	}
+	absDiff := diff
+	direction := "调增"
+	if absDiff < 0 {
+		absDiff = -absDiff
+		direction = "调减"
+	}
+	desc := req.Description
+	if desc == "" {
+		desc = "余额调整（" + direction + "）"
+	}
 	tx := models.Transaction{
 		UserID:           uid,
 		BookID:           acc.BookID,
 		Type:             models.TxAdjust,
-		Amount:           diff,
+		Amount:           absDiff,
 		Currency:         acc.Currency,
 		CategoryID:       adjCat.ID,
 		AccountID:        acc.ID,
 		TxDate:           req.Date.T(),
-		Description:      firstNotEmpty(req.Description, "余额调整"),
-		IncludeInBalance: true,
+		Description:      desc,
+		Remark:           direction,
+		RelatedType:      "balance_adjust",
+		IncludeInBalance: false, // 余额已直接置值，禁止再被余额引擎二次加减
 		IncludeInBudget:  false,
 	}
-	database.DB.Create(&tx)
+	if err := db.Create(&tx).Error; err != nil {
+		db.Rollback()
+		InternalErr(c, "记录调整流水失败: "+err.Error())
+		return
+	}
+	if err := db.Commit().Error; err != nil {
+		InternalErr(c, "提交失败: "+err.Error())
+		return
+	}
 
 	Broadcast(c, "accounts", "update", acc.ID)
-	OK(c, gin.H{"new_balance": newBalance, "diff": diff, "transaction": tx})
+	OK(c, gin.H{"new_balance": newBalance, "diff": diff, "direction": direction, "transaction": tx})
 }
 
 // ========== 资产分组 ==========
@@ -383,19 +432,28 @@ func GetCreditSummary(c *gin.Context) {
 
 	for _, card := range cards {
 		// 计算下一个还款日
+		// C17：原实现「过了 00:00 就算逾期」，还款日当天一早就显示「还剩 -0 天 / 逾期」，
+		// 前端直接渲染负数 → 出现「还剩 -3 天」。改为：
+		//   - 当天为还款日：不算逾期，还剩 0 天（今天要还）
+		//   - 已过还款日：days_left 为正的已逾期天数（文案为「已逾期 N 天」）
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
 		curMonthRepay := time.Date(now.Year(), now.Month(), card.RepayDay, 0, 0, 0, 0, loc)
 		var nextRepay time.Time
 		var daysLeft int
 		var overdue bool
 
-		if curMonthRepay.Before(now) {
-			// 本月还款日已过 → 下个月
-			nextRepay = curMonthRepay.AddDate(0, 1, 0)
-			daysLeft = -int(now.Sub(curMonthRepay).Hours() / 24) // 负数表示已逾期几天
-			overdue = true
-		} else {
+		switch {
+		case curMonthRepay.Equal(today):
 			nextRepay = curMonthRepay
-			daysLeft = int(nextRepay.Sub(now).Hours() / 24)
+			daysLeft = 0
+			overdue = false
+		case curMonthRepay.Before(today):
+			nextRepay = curMonthRepay.AddDate(0, 1, 0)
+			daysLeft = int(today.Sub(curMonthRepay).Hours() / 24) // 正数：已逾期天数
+			overdue = true
+		default:
+			nextRepay = curMonthRepay
+			daysLeft = int(curMonthRepay.Sub(today).Hours() / 24)
 			overdue = false
 		}
 

@@ -7,12 +7,13 @@
 	import Dialog from '$lib/components/ui/Dialog.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
 	import Label from '$lib/components/ui/Label.svelte';
+	import AccountSelect from '$lib/components/AccountSelect.svelte';
 	import { reimbApi } from '$lib/api/modules/reimbursements';
 	import { appStore } from '$lib/stores/app';
 	import { hzToast } from '$lib/components/ui/toast';
-	import { formatMoney } from '$lib/utils/format';
+	import { formatMoney, formatDate } from '$lib/utils/format';
 	import type { Reimbursement } from '$lib/types';
-	import { Plus, FileText, Pencil, Trash2 } from '@lucide/svelte';
+	import { Plus, FileText, Pencil, Trash2, Wallet } from '@lucide/svelte';
 
 	let list = $state<Reimbursement[]>([]);
 	let loading = $state(true);
@@ -25,6 +26,16 @@
 	let receivedAmount = $state('');
 	let remark = $state('');
 	let saving = $state(false);
+
+	// B5：报销到账此前只改 status，不生成收款交易、不进账户 —— 钱在资产里凭空消失。
+	// 后端 UpdateReimbursement 要求 status（required, oneof=pending received partial），
+	// 前端此前根本不传 status，更新请求必然 400。这里补齐三个字段：
+	//   status  —— 待处理 / 部分到账 / 已收齐
+	//   account —— 收款账户，到账金额按此账户生成一条收入交易
+	//   date    —— 到账日期
+	let status = $state<'pending' | 'received' | 'partial'>('pending');
+	let accountId = $state<number>(0);
+	let receivedDate = $state(formatDate(new Date(), 'YYYY-MM-DD'));
 
 	async function loadData() {
 		loading = true;
@@ -42,6 +53,9 @@
 		totalAmount = '';
 		receivedAmount = '0';
 		remark = '';
+		status = 'pending';
+		accountId = appStore.accounts[0]?.id || 0;
+		receivedDate = formatDate(new Date(), 'YYYY-MM-DD');
 		showDialog = true;
 	}
 
@@ -51,6 +65,11 @@
 		totalAmount = String(item.total_amount);
 		receivedAmount = String(item.received_amount);
 		remark = item.remark;
+		status = (item.status as any) || 'pending';
+		accountId = appStore.accounts[0]?.id || 0;
+		// 未到账时后端返回零值时间（0001-01-01），不能直接展示
+		const ra = (item.received_at || '').slice(0, 10);
+		receivedDate = ra && !ra.startsWith('0001') ? ra : formatDate(new Date(), 'YYYY-MM-DD');
 		showDialog = true;
 	}
 
@@ -67,19 +86,28 @@
 
 		saving = true;
 		try {
-			const data = {
-				name: reimbName.trim(),
-				total_amount: total,
-				received_amount: parseFloat(receivedAmount) || 0,
-				remark: remark.trim(),
-				book_id: appStore.effectiveBookId()
-			};
-
 			if (editingItem) {
-				await reimbApi.update(editingItem.id, data);
-				hzToast.success('报销单已更新');
+				// 更新：后端要求 status 必填；已到账/部分到账必须指定收款账户，否则无法入账
+				if (status !== 'pending' && !accountId) {
+					hzToast.warning('请选择收款账户');
+					saving = false;
+					return;
+				}
+				await reimbApi.update(editingItem.id, {
+					status,
+					received_amount: parseFloat(receivedAmount) || 0,
+					remark: remark.trim(),
+					account_id: accountId,
+					received_date: receivedDate
+				});
+				hzToast.success(status === 'pending' ? '报销单已更新' : '已登记到账并生成收入交易');
 			} else {
-				await reimbApi.create(data);
+				await reimbApi.create({
+					name: reimbName.trim(),
+					total_amount: total,
+					remark: remark.trim(),
+					book_id: appStore.effectiveBookId()
+				});
 				hzToast.success('报销单已创建');
 			}
 			showDialog = false;
@@ -152,7 +180,7 @@
 								</div>
 								<Badge
 									variant={
-										item.status === 'done'
+										item.status === 'received'
 											? 'default'
 											: item.status === 'partial'
 												? 'secondary'
@@ -160,7 +188,13 @@
 									}
 									class="mt-1"
 								>
-									{item.status === 'done' ? '已收齐' : item.status === 'partial' ? '部分' : '待处理'}
+									<!-- 后端 status 取值是 pending / received / partial，
+									     此前前端判断 'done'，永远匹配不上，已收齐也显示「待处理」 -->
+									{item.status === 'received'
+										? '已收齐'
+										: item.status === 'partial'
+											? '部分到账'
+											: '待处理'}
 								</Badge>
 							</div>
 							<button
@@ -195,22 +229,70 @@
 			<Input bind:value={reimbName} placeholder="例如: 差旅费报销" />
 		</div>
 
-		<div class="grid grid-cols-2 gap-4">
-			<div class="space-y-2">
-				<Label>总金额</Label>
-				<div class="relative">
-					<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
-					<Input class="pl-8" type="number" step="0.01" placeholder="0.00" bind:value={totalAmount} />
-				</div>
+		<div class="space-y-2">
+			<Label>总金额</Label>
+			<div class="relative">
+				<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
+				<Input
+					class="pl-8"
+					type="number"
+					step="0.01"
+					placeholder="0.00"
+					bind:value={totalAmount}
+					disabled={!!editingItem}
+				/>
 			</div>
-			<div class="space-y-2">
-				<Label>已收金额</Label>
-				<div class="relative">
-					<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
-					<Input class="pl-8" type="number" step="0.01" placeholder="0.00" bind:value={receivedAmount} />
-				</div>
-			</div>
+			{#if editingItem}
+				<p class="text-[11px] text-muted-foreground">总金额创建后不可修改</p>
+			{/if}
 		</div>
+
+		{#if editingItem}
+			<!-- B5：到账登记。填写后会在所选账户生成一条「报销到账」收入交易 -->
+			<div class="grid grid-cols-2 gap-4">
+				<div class="space-y-2">
+					<Label>报销状态</Label>
+					<select
+						class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+						bind:value={status}
+					>
+						<option value="pending">待处理</option>
+						<option value="partial">部分到账</option>
+						<option value="received">已收齐</option>
+					</select>
+				</div>
+				<div class="space-y-2">
+					<Label>已收金额</Label>
+					<div class="relative">
+						<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
+						<Input
+							class="pl-8"
+							type="number"
+							step="0.01"
+							placeholder="0.00"
+							bind:value={receivedAmount}
+						/>
+					</div>
+				</div>
+			</div>
+
+			{#if status !== 'pending'}
+				<div class="grid grid-cols-2 gap-4">
+					<div class="space-y-2">
+						<Label>收款账户</Label>
+						<AccountSelect bind:value={accountId} placeholder="选择收款账户" />
+					</div>
+					<div class="space-y-2">
+						<Label>到账日期</Label>
+						<Input type="date" bind:value={receivedDate} />
+					</div>
+				</div>
+				<p class="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+					<Wallet size={12} class="mt-0.5 shrink-0" />
+					确认后将按「已收金额」在所选账户生成一笔收入交易；未填则按总金额入账。
+				</p>
+			{/if}
+		{/if}
 
 		<div class="space-y-2">
 			<Label>备注</Label>

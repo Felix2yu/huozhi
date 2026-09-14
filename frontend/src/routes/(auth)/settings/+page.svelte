@@ -12,15 +12,34 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 	import { themeStore } from '$lib/stores/theme';
 	import { authApi } from '$lib/api/modules/auth';
 	import { ioApi } from '$lib/api/modules/io';
+	import { accountApi } from '$lib/api/modules/accounts';
 	import { http } from '$lib/api/http';
 	import { hzToast } from '$lib/components/ui/toast';
 	import { onMount } from 'svelte';
-	import { User, Palette, LogOut, CloudOff, Moon, Sun, Monitor, CreditCard, Key, Copy, Eye, EyeOff, Lock, Download, Upload } from '@lucide/svelte';
+	import { User, Palette, LogOut, CloudOff, Moon, Sun, Monitor, CreditCard, Key, Copy, Eye, EyeOff, Lock, Download, Upload, Database, ShieldCheck, FileText, Loader2, RefreshCw, AlertTriangle, Trash2 } from '@lucide/svelte';
 
 	let nickname = $state('');
 	let email = $state('');
 	let theme = $state(themeStore.value);
 	let loading = $state(false);
+
+	// B9：User 模型已有这些字段，后端 UpdateMe 也支持，但设置页此前完全没有入口
+	let monthStart = $state(1);
+	let currency = $state('CNY');
+	let timezone = $state('Asia/Shanghai');
+	let locale = $state('zh-CN');
+
+	// B8：全量备份 / 恢复
+	let backupLoading = $state(false);
+	let restoreLoading = $state(false);
+
+	// B9：清空数据（危险操作）
+	let clearing = $state(false);
+
+	// B7：数据体检（账户余额 vs 流水重算）
+	let auditRows = $state<any[]>([]);
+	let auditLoading = $state(false);
+	let auditOpen = $state(false);
 
 	// 修改密码
 	let showChangePwd = $state(false);
@@ -39,12 +58,102 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 		if (appStore.user) {
 			nickname = appStore.user.nickname;
 			email = appStore.user.email || '';
+			monthStart = appStore.user.month_start || 1;
+			currency = appStore.user.currency || 'CNY';
+			timezone = appStore.user.timezone || 'Asia/Shanghai';
+			locale = appStore.user.locale || 'zh-CN';
 		}
 		try {
 			apiKeyInfo = await http.get('/api-key');
 		} catch {}
 		apiKeyLoading = false;
 	});
+
+	// B8
+	async function handleBackup() {
+		backupLoading = true;
+		try {
+			await ioApi.backup();
+			hzToast.success('备份已下载');
+		} catch (e: any) {
+			hzToast.error(e.message || '备份失败');
+		} finally {
+			backupLoading = false;
+		}
+	}
+
+	function triggerRestore() {
+		const input = document.createElement('input');
+		input.type = 'file';
+		input.accept = '.json,application/json';
+		input.onchange = async (e) => {
+			const file = (e.target as HTMLInputElement).files?.[0];
+			if (!file) return;
+			if (!confirm('恢复将覆盖当前全部账本与流水（replace 模式），确定继续？')) return;
+			restoreLoading = true;
+			try {
+				const res = await ioApi.restore(file, 'replace');
+				hzToast.success(`已恢复：${Object.entries(res?.imported ?? {}).map(([k, v]) => `${k} ${v}`).join('、') || '完成'}`);
+				await appStore.loadBooks();
+				await appStore.loadDictionaries();
+			} catch (err: any) {
+				hzToast.error(err.message || '恢复失败');
+			} finally {
+				restoreLoading = false;
+			}
+		};
+		input.click();
+	}
+
+	// B7：数据体检
+	async function runAudit() {
+		auditOpen = true;
+		auditLoading = true;
+		try {
+			const res = await accountApi.audit();
+			auditRows = res?.accounts ?? [];
+		} catch (e: any) {
+			hzToast.error(e.message || '体检失败');
+		} finally {
+			auditLoading = false;
+		}
+	}
+
+	async function fixAccount(id: number) {
+		try {
+			const res: any = await accountApi.recalc(id);
+			hzToast.success(res?.changed ? `已修正差额 ${(res.diff / 100).toFixed(2)} 元` : '该账户无需修正');
+			await runAudit();
+			await appStore.loadDictionaries();
+		} catch (e: any) {
+			hzToast.error(e.message || '修复失败');
+		}
+	}
+
+	// B9：清空全部业务数据（需二次输入密码，服务端先落安全快照）
+	async function handleClearData() {
+		const ok = confirm(
+			'⚠️ 此操作非常危险，可能导致不可逆的数据丢失！\n\n' +
+				'将删除全部交易、账户、分类、标签、预算、周期、分期、报销、存钱计划数据。\n' +
+				'服务端会先保存一份安全快照，但恢复需要人工介入。\n\n' +
+				'确定继续？'
+		);
+		if (!ok) return;
+		const pwd = window.prompt('请输入登录密码以确认清空：');
+		if (!pwd) return;
+
+		clearing = true;
+		try {
+			await ioApi.reset(pwd);
+			hzToast.success('已清空全部数据');
+			await appStore.loadBooks();
+			await appStore.loadDictionaries();
+		} catch (e: any) {
+			hzToast.error(e.message || '清空失败');
+		} finally {
+			clearing = false;
+		}
+	}
 
 	async function handleGenerateApiKey() {
 		try {
@@ -154,9 +263,25 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 	async function handleSaveProfile() {
 		loading = true;
 		try {
-			await authApi.updateMe({ nickname, email });
+			await authApi.updateMe({
+				nickname,
+				email,
+				// B9：账期起始日 / 币种 / 时区 / 语言
+				month_start: monthStart,
+				currency,
+				timezone,
+				locale
+			});
 			if (appStore.user) {
-				appStore.setTokenAndAuth(http.getToken()!, { ...appStore.user, nickname, email });
+				appStore.setTokenAndAuth(http.getToken()!, {
+					...appStore.user,
+					nickname,
+					email,
+					month_start: monthStart,
+					currency,
+					timezone,
+					locale
+				});
 			}
 			hzToast.success('保存成功');
 		} catch (e: any) {
@@ -208,6 +333,53 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 					<Label>邮箱</Label>
 					<Input type="email" bind:value={email} />
 				</div>
+
+				<!-- B9：账期起始日 / 币种 —— 后端模型早已支持，此前无处配置 -->
+				<div class="grid grid-cols-2 gap-3">
+					<div class="space-y-2">
+						<Label>账期起始日</Label>
+						<select
+							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+							bind:value={monthStart}
+						>
+							{#each Array.from({ length: 28 }, (_, i) => i + 1) as d}
+								<option value={d}>每月 {d} 日</option>
+							{/each}
+						</select>
+						<p class="text-[11px] text-muted-foreground">影响月度预算与统计的周期划分</p>
+					</div>
+					<div class="space-y-2">
+						<Label>默认币种</Label>
+						<select
+							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+							bind:value={currency}
+						>
+							<option value="CNY">CNY 人民币</option>
+							<option value="USD">USD 美元</option>
+							<option value="EUR">EUR 欧元</option>
+							<option value="HKD">HKD 港币</option>
+							<option value="JPY">JPY 日元</option>
+						</select>
+					</div>
+				</div>
+
+				<div class="grid grid-cols-2 gap-3">
+					<div class="space-y-2">
+						<Label>时区</Label>
+						<Input bind:value={timezone} placeholder="Asia/Shanghai" />
+					</div>
+					<div class="space-y-2">
+						<Label>语言</Label>
+						<select
+							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+							bind:value={locale}
+						>
+							<option value="zh-CN">简体中文</option>
+							<option value="en">English</option>
+						</select>
+					</div>
+				</div>
+
 				<Button onclick={handleSaveProfile} disabled={loading}>
 					{loading ? '保存中...' : '保存修改'}
 				</Button>
@@ -339,9 +511,125 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 				>
 					<span>下载导入模板</span>
 				</button>
+
+				<!-- B8：全量备份 / 恢复（CSV 只能导出流水，账本/分类/预算/周期全丢） -->
+				<div class="grid grid-cols-2 gap-2 pt-1">
+					<button
+						class="flex items-center justify-center gap-2 p-3 rounded-lg border hover:bg-accent transition text-sm"
+						onclick={handleBackup}
+						disabled={backupLoading}
+					>
+						<Database size={16} />
+						{backupLoading ? '导出中…' : '导出全量备份'}
+					</button>
+					<button
+						class="flex items-center justify-center gap-2 p-3 rounded-lg border hover:bg-accent transition text-sm"
+						onclick={triggerRestore}
+						disabled={restoreLoading}
+					>
+						<Upload size={16} />
+						{restoreLoading ? '恢复中…' : '从备份恢复'}
+					</button>
+				</div>
+				<p class="text-[11px] text-muted-foreground">
+					全量备份为 JSON 快照，包含账本、账户、分类、标签、预算、周期、分期、报销等全部数据
+				</p>
+
+				<!-- B7：数据体检 -->
+				<button
+					class="w-full flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition"
+					onclick={runAudit}
+				>
+					<span class="flex items-center gap-2">
+						<ShieldCheck size={16} />
+						数据体检（账户余额 vs 流水）
+					</span>
+					<span class="text-muted-foreground text-sm">→</span>
+				</button>
+
+				<!-- A8：账单导出挂到「数据」下，不再是无处可去的孤儿页面 -->
+				<button
+					class="w-full flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition"
+					onclick={() => goto('/bill-export')}
+				>
+					<span class="flex items-center gap-2">
+						<FileText size={16} />
+						月度账单导出
+					</span>
+					<span class="text-muted-foreground text-sm">→</span>
+				</button>
+
+				<!-- B9：清空数据（危险操作，需密码 + 确认字串，服务端先落安全快照） -->
+				<div class="rounded-lg border border-destructive/40 p-3 space-y-3">
+					<div>
+						<p class="flex items-center gap-2 text-sm font-medium text-destructive">
+							<AlertTriangle size={16} />
+							危险操作
+						</p>
+						<p class="mt-1 text-[11px] text-muted-foreground">
+							清空全部业务数据（交易、账户、分类、预算、标签、周期、分期、报销、存钱计划）
+							并重建默认账本与内置分类。此操作不可撤销，请先导出全量备份。
+						</p>
+					</div>
+					<Button
+						variant="outline"
+						class="w-full border-destructive/50 text-destructive hover:bg-destructive/10"
+						onclick={handleClearData}
+						disabled={clearing}
+					>
+						<Trash2 size={16} />
+						{clearing ? '清空中…' : '清空全部数据'}
+					</Button>
+				</div>
 			</CardContent>
 		</Card>
 	</section>
+
+	<!-- 数据体检结果 -->
+	{#if auditOpen}
+		<section>
+			<div class="flex items-center gap-2 mb-3">
+				<ShieldCheck size={16} />
+				<h2 class="text-sm font-medium">数据体检结果</h2>
+				<div class="flex-1"></div>
+				<Button size="sm" variant="outline" onclick={runAudit} disabled={auditLoading}>
+					<RefreshCw size={14} class={auditLoading ? 'animate-spin' : ''} />
+					重新检查
+				</Button>
+			</div>
+			<Card>
+				<CardContent class="p-4">
+					{#if auditLoading}
+						<div class="py-6 grid place-items-center text-sm text-muted-foreground">
+							<Loader2 size={16} class="animate-spin" />
+						</div>
+					{:else if auditRows.length === 0}
+						<p class="text-sm text-muted-foreground">没有账户</p>
+					{:else}
+						<div class="space-y-2">
+							{#each auditRows as row (row.account_id)}
+								<div class="flex items-center gap-3 p-2 rounded border text-sm">
+									<div class="flex-1 min-w-0">
+										<div class="truncate font-medium">{row.name}</div>
+										<div class="text-xs text-muted-foreground">
+											当前 {(row.balance / 100).toFixed(2)} · 按流水 {(row.computed / 100).toFixed(2)}
+											· {row.tx_count} 笔
+										</div>
+									</div>
+									{#if row.need_fix}
+										<Badge variant="destructive">差 {(row.diff / 100).toFixed(2)}</Badge>
+										<Button size="sm" onclick={() => fixAccount(row.account_id)}>修复</Button>
+									{:else}
+										<Badge variant="secondary">一致</Badge>
+									{/if}
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</CardContent>
+			</Card>
+		</section>
+	{/if}
 
 	<!-- 离线数据 -->
 	<section>

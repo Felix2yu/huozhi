@@ -570,17 +570,8 @@ func GetBill(c *gin.Context) {
 		catInfo[c.ID] = c
 	}
 
-	type catOut struct {
-		ID      uint         `json:"id"`
-		Name    string       `json:"name"`
-		Icon    string       `json:"icon"`
-		Color   string       `json:"color"`
-		Amount  models.Money `json:"amount"`
-		Count   int64        `json:"count"`
-		Percent float64      `json:"percent"`
-		Kind    string       `json:"kind"`
-	}
-	var expRank, incRank []catOut
+	// 复用 statistics.go 中的统一排行条目类型（含可排序的 Amount 字段）
+	var expRank, incRank []categoryRankItem
 	for id, m := range catMap {
 		info := catInfo[id]
 		if m["expense"] > 0 {
@@ -588,7 +579,7 @@ func GetBill(c *gin.Context) {
 			if expense > 0 {
 				pct = round2(m["expense"].Yuan() / expense.Yuan() * 100)
 			}
-			expRank = append(expRank, catOut{
+			expRank = append(expRank, categoryRankItem{
 				ID: id, Name: info.Name, Icon: info.Icon, Color: info.Color,
 				Amount: m["expense"], Count: catCntMap[id], Percent: pct, Kind: "expense",
 			})
@@ -598,7 +589,7 @@ func GetBill(c *gin.Context) {
 			if income > 0 {
 				pct = round2(m["income"].Yuan() / income.Yuan() * 100)
 			}
-			incRank = append(incRank, catOut{
+			incRank = append(incRank, categoryRankItem{
 				ID: id, Name: info.Name, Icon: info.Icon, Color: info.Color,
 				Amount: m["income"], Count: catCntMap[id], Percent: pct, Kind: "income",
 			})
