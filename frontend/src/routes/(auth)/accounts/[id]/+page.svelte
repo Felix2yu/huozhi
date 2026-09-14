@@ -28,6 +28,7 @@
 	let balance = $state('');
 	let initialAmount = $state('');
 	let bankName = $state('');
+	let bankNameTouched = $state(false);
 	let fullCardNo = $state('');
 	// C15：完整卡号需二次验证后按需显示
 	let cardLoaded = $state(false);
@@ -93,7 +94,7 @@
 	}
 
 	function onNameInput() {
-		if (!bankName.trim()) {
+		if (!bankNameTouched) {
 			const bn = detectBankName(name);
 			if (bn) bankName = bn;
 		}
@@ -222,11 +223,11 @@
 					</div>
 				</div>
 
-				<!-- 银行名称 -->
-				<div class="space-y-2">
-					<Label>银行/机构名称</Label>
-					<Input placeholder="例如: 工商银行、支付宝" bind:value={bankName} />
-				</div>
+			<!-- 银行名称 -->
+			<div class="space-y-2">
+				<Label>银行/机构名称</Label>
+				<Input placeholder="例如: 工商银行、支付宝" bind:value={bankName} oninput={() => (bankNameTouched = true)} />
+			</div>
 
 				<!-- 银行卡号 -->
 				<div class="space-y-2">

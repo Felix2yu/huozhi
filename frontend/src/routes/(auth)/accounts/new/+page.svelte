@@ -21,6 +21,7 @@
 	let balance = $state('');
 	let initialAmount = $state('');
 	let bankName = $state('');
+	let bankNameTouched = $state(false);
 	let fullCardNo = $state('');
 	let creditLimit = $state('');
 	let billDay = $state('');
@@ -44,7 +45,7 @@
 
 	// 输入名称时，自动从名称推断银行/机构名（仅在用户尚未手动填写时），并适度推断类型
 	function onNameInput() {
-		if (!bankName.trim()) {
+		if (!bankNameTouched) {
 			const bn = detectBankName(name);
 			if (bn) bankName = bn;
 		}
@@ -161,7 +162,7 @@
 			<!-- 银行名称 -->
 			<div class="space-y-2">
 				<Label>银行/机构名称</Label>
-				<Input placeholder="例如: 工商银行、支付宝" bind:value={bankName} />
+				<Input placeholder="例如: 工商银行、支付宝" bind:value={bankName} oninput={() => (bankNameTouched = true)} />
 			</div>
 
 			<!-- 银行卡号 -->
