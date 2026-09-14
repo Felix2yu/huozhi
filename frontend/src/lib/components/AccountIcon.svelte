@@ -14,6 +14,7 @@
 		bankName = '',
 		name = '',
 		type = '',
+		icon = '',
 		size = 40,
 		class: className = ''
 	}: {
@@ -21,11 +22,18 @@
 		bankName?: string;
 		name?: string;
 		type?: string;
+		icon?: string;
 		size?: number;
 		class?: string;
 	} = $props();
 
 	const iconPath = $derived.by(() => {
+		// 优先使用手动选择的图标
+		const manualIcon = icon || account?.icon;
+		if (manualIcon) {
+			const key = `/src/lib/assets/bank-icons/${manualIcon}.svg`;
+			return bankIcons[key] || null;
+		}
 		if (type === 'cash' || account?.type === 'cash') return null;
 		const src = bankName || account?.bank_name || name || account?.name || '';
 		const iconId = getBankIcon(src);

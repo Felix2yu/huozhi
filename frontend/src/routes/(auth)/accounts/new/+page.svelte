@@ -12,6 +12,7 @@
 	import { hzToast } from '$lib/components/ui/toast';
 	import { detectBankName, detectAccountType } from '$lib/utils/bank-themes';
 	import AccountIcon from '$lib/components/AccountIcon.svelte';
+	import IconPicker from '$lib/components/IconPicker.svelte';
 	import type { AccountType } from '$lib/types';
 	import { Save, X } from '@lucide/svelte';
 
@@ -22,6 +23,7 @@
 	let initialAmount = $state('');
 	let bankName = $state('');
 	let bankNameTouched = $state(false);
+	let icon = $state('');
 	let fullCardNo = $state('');
 	let creditLimit = $state('');
 	let billDay = $state('');
@@ -72,6 +74,7 @@
 				include_in_budget: includeInBudget,
 				book_id: appStore.effectiveBookId()
 			};
+			if (icon) data.icon = icon;
 			if (bankName.trim()) data.bank_name = bankName.trim();
 			if (fullCardNo.trim()) data.full_card_no = fullCardNo.replace(/\s/g, '');
 			if (isCredit && creditLimit) data.credit_limit = parseFloat(creditLimit);
@@ -104,15 +107,18 @@
 			<!-- 账户名称 -->
 			<div class="space-y-2">
 				<Label>账户名称</Label>
-				<div class="flex items-center gap-3">
-					<AccountIcon bankName={bankName} name={name} type={type} size={44} />
-					<Input
-						placeholder="例如: 招商银行信用卡、微信钱包"
-						bind:value={name}
-						oninput={onNameInput}
-					/>
-				</div>
+				<Input
+					placeholder="例如: 招商银行信用卡、微信钱包"
+					bind:value={name}
+					oninput={onNameInput}
+				/>
 				<p class="text-xs text-muted-foreground">输入名称后会自动识别银行/机构（如「招商银行信用卡」→ 招商银行）</p>
+			</div>
+
+			<!-- 图标 -->
+			<div class="space-y-2">
+				<Label>图标</Label>
+				<IconPicker bind:value={icon} {bankName} {name} {type} />
 			</div>
 
 			<!-- 账户类型 -->
