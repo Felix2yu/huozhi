@@ -16,7 +16,7 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 	import { http } from '$lib/api/http';
 	import { hzToast } from '$lib/components/ui/toast';
 	import { onMount } from 'svelte';
-	import { User, Palette, LogOut, CloudOff, Moon, Sun, Monitor, CreditCard, Key, Copy, Eye, EyeOff, Lock, Download, Upload, Database, ShieldCheck, FileText, Loader2, RefreshCw, AlertTriangle, Trash2 } from '@lucide/svelte';
+	import { User, Palette, LogOut, CloudOff, Moon, Sun, Monitor, CreditCard, Key, Copy, Eye, EyeOff, Lock, Download, Upload, Database, ShieldCheck, FileText, Loader2, RefreshCw, AlertTriangle, Trash2, Heart } from '@lucide/svelte';
 
 	let nickname = $state('');
 	let email = $state('');
@@ -740,6 +740,49 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 		<LogOut size={16} />
 		退出登录
 	</Button>
+
+	<!-- 致谢 -->
+	<section>
+		<div class="flex items-center gap-2 mb-3 text-sm font-medium text-muted-foreground">
+			<Heart size={16} />
+			致谢
+		</div>
+		<Card>
+			<CardContent class="p-4 space-y-4 text-sm">
+				<div>
+					<div class="font-medium mb-2">前端技术</div>
+					<div class="text-muted-foreground space-y-1">
+						<div><span class="font-medium text-foreground">SvelteKit</span> — 新一代全栈框架</div>
+						<div><span class="font-medium text-foreground">TailwindCSS</span> — 原子化 CSS 框架</div>
+						<div><span class="font-medium text-foreground">Lucide</span> — 精美 SVG 图标库</div>
+						<div><span class="font-medium text-foreground">Chart.js</span> — 数据可视化图表</div>
+						<div><span class="font-medium text-foreground">Vaul Svelte</span> — 抽屉组件</div>
+						<div><span class="font-medium text-foreground">svelte-sonner</span> — Toast 通知组件</div>
+						<div><span class="font-medium text-foreground">Day.js</span> — 轻量日期处理库</div>
+						<div><span class="font-medium text-foreground">Bank Logos</span> — 银行图标库 (icongo)</div>
+					</div>
+				</div>
+				<div>
+					<div class="font-medium mb-2">后端技术</div>
+					<div class="text-muted-foreground space-y-1">
+						<div><span class="font-medium text-foreground">Go</span> — 高性能编程语言</div>
+						<div><span class="font-medium text-foreground">Gin</span> — HTTP Web 框架</div>
+						<div><span class="font-medium text-foreground">GORM</span> — ORM 框架</div>
+						<div><span class="font-medium text-foreground">SQLite / PostgreSQL</span> — 数据库</div>
+						<div><span class="font-medium text-foreground">JWT</span> — 身份认证</div>
+						<div><span class="font-medium text-foreground">WebSocket</span> — 实时同步</div>
+					</div>
+				</div>
+				<div>
+					<div class="font-medium mb-2">特别感谢</div>
+					<div class="text-muted-foreground space-y-1">
+						<div>所有开源项目的贡献者</div>
+						<div>每一位用户的反馈与支持</div>
+					</div>
+				</div>
+			</CardContent>
+		</Card>
+	</section>
 
 	<!-- 关于 -->
 	<div class="text-center text-xs text-muted-foreground pt-4">

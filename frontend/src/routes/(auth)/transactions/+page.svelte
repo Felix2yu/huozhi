@@ -12,7 +12,7 @@
 	import { hzToast } from '$lib/components/ui/toast';
 	import { formatMoney, formatRelativeDate } from '$lib/utils/format';
 	import type { Transaction, DayGroup, TransactionListData } from '$lib/types';
-	import { Plus, Search, Filter, X, Trash2, CheckSquare, Loader2 } from '@lucide/svelte';
+	import { Plus, Search, Filter, X, Trash2, CheckSquare, Loader2, Copy } from '@lucide/svelte';
 
 	let type = $state<'all' | 'expense' | 'income' | 'transfer'>('all');
 	let grouped = $state<DayGroup[]>([]);
@@ -154,6 +154,25 @@
 		} catch (e: any) {
 			hzToastError(e.message || '删除失败');
 		}
+	}
+
+	function handleCopy(tx: Transaction) {
+		const params = new URLSearchParams();
+		params.set('type', tx.type);
+		params.set('amount', String(tx.amount));
+		if (tx.description) params.set('description', tx.description);
+		params.set('category_id', String(tx.category_id));
+		params.set('account_id', String(tx.account_id));
+		if (tx.to_account_id) params.set('to_account_id', String(tx.to_account_id));
+		if (tx.merchant) params.set('merchant', tx.merchant);
+		if (tx.location) params.set('location', tx.location);
+		if (tx.remark) params.set('remark', tx.remark);
+		if (tx.images?.length) params.set('images', JSON.stringify(tx.images));
+		params.set('include_in_budget', String(tx.include_in_budget));
+		if (tx.currency) params.set('currency', tx.currency);
+		if ((tx as any).exchange_rate) params.set('exchange_rate', String((tx as any).exchange_rate));
+		previewOpen = false;
+		goto(`/transactions/add?${params.toString()}`);
 	}
 
 	async function handleBatchDelete() {
@@ -584,6 +603,13 @@
 			<div class="flex gap-2 pt-2">
 				<Button class="flex-1" onclick={() => goto(`/transactions/edit/${previewTx.id}`)}>
 					编辑
+				</Button>
+				<Button
+					variant="outline"
+					onclick={() => previewTx && handleCopy(previewTx)}
+					title="复制账单"
+				>
+					<Copy size={16} />
 				</Button>
 				<!-- B3：预览弹窗内直接删除 -->
 				<Button

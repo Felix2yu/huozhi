@@ -34,8 +34,9 @@
 
 	interface Props {
 		id?: string | number | null;
+		clone?: any | null;
 	}
-	let { id = null }: Props = $props();
+	let { id = null, clone = null }: Props = $props();
 
 	const isEdit = $derived(!!id);
 
@@ -129,6 +130,26 @@
 				hzToast.error('加载交易失败');
 				goto('/transactions');
 			});
+	});
+
+	// 复制模式：从 clone prop 预填数据，时间使用当前时间
+	$effect(() => {
+		if (!clone) return;
+		type = clone.type as any;
+		amount = String((clone.amount ?? 0) / 100);
+		description = clone.description || '';
+		categoryId = clone.category_id;
+		accountId = clone.account_id;
+		toAccountId = clone.to_account_id || 0;
+		txDate = formatDate(new Date(), 'YYYY-MM-DD');
+		merchant = clone.merchant || '';
+		location = clone.location || '';
+		remark = clone.remark || '';
+		images = clone.images || [];
+		tagIds = (clone.tags || []).map((t: any) => t.id);
+		includeInBudget = clone.include_in_budget !== false;
+		currency = clone.currency || baseCurrency;
+		exchangeRate = clone.exchange_rate ? String(clone.exchange_rate) : '';
 	});
 
 	function resetForNext() {
