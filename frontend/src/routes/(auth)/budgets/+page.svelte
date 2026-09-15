@@ -66,8 +66,8 @@
 	function openEdit(budget: BudgetView) {
 		editingBudget = budget;
 		categoryId = budget.category_id;
-		// 后端金额以「分」为单位，编辑回填时要换算回元
-		amount = String((budget.amount ?? 0) / 100);
+		// 后端 Money 类型 JSON 序列化已是「元」，直接使用，勿再 /100
+		amount = String(budget.amount ?? 0);
 		periodType = budget.period_type as 'monthly' | 'yearly';
 		alertRate = String(Math.round(budget.alert_rate * 100));
 		rollOver = !!budget.roll_over;

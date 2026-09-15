@@ -122,7 +122,7 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 	async function fixAccount(id: number) {
 		try {
 			const res: any = await accountApi.recalc(id);
-			hzToast.success(res?.changed ? `已修正差额 ${(res.diff / 100).toFixed(2)} 元` : '该账户无需修正');
+			hzToast.success(res?.changed ? `已修正差额 ${res.diff.toFixed(2)} 元` : '该账户无需修正');
 			await runAudit();
 			await appStore.loadDictionaries();
 		} catch (e: any) {
@@ -612,12 +612,12 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 									<div class="flex-1 min-w-0">
 										<div class="truncate font-medium">{row.name}</div>
 										<div class="text-xs text-muted-foreground">
-											当前 {(row.balance / 100).toFixed(2)} · 按流水 {(row.computed / 100).toFixed(2)}
+											当前 {row.balance.toFixed(2)} · 按流水 {row.computed.toFixed(2)}
 											· {row.tx_count} 笔
 										</div>
 									</div>
 									{#if row.need_fix}
-										<Badge variant="destructive">差 {(row.diff / 100).toFixed(2)}</Badge>
+										<Badge variant="destructive">差 {row.diff.toFixed(2)}</Badge>
 										<Button size="sm" onclick={() => fixAccount(row.account_id)}>修复</Button>
 									{:else}
 										<Badge variant="secondary">一致</Badge>

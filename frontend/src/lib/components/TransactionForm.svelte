@@ -109,8 +109,8 @@
 			.get(Number(id))
 			.then((tx) => {
 				type = tx.type as any;
-				// 后端金额以「分」存储，编辑时需换算成元
-				amount = String((tx.amount ?? 0) / 100);
+				// 后端 Money 类型 JSON 序列化已是「元」，直接使用，勿再 /100
+				amount = String(tx.amount ?? 0);
 				description = tx.description || '';
 				categoryId = tx.category_id;
 				accountId = tx.account_id;
@@ -136,7 +136,8 @@
 	$effect(() => {
 		if (!clone) return;
 		type = clone.type as any;
-		amount = String((clone.amount ?? 0) / 100);
+		// clone.amount 来自列表接口，已是「元」（Money 序列化结果），勿再 /100
+		amount = String(clone.amount ?? 0);
 		description = clone.description || '';
 		categoryId = clone.category_id;
 		accountId = clone.account_id;
