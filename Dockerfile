@@ -21,9 +21,9 @@ FROM node:26-alpine AS fe-builder
 LABEL stage=fe-builder
 WORKDIR /src/frontend
 
-COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm install --no-audit --no-fund --registry=https://registry.npmmirror.com || \
-    npm install --no-audit --no-fund
+COPY frontend/package.json frontend/package-lock.json* frontend/.npmrc* ./
+RUN npm install --no-audit --no-fund --legacy-peer-deps --registry=https://registry.npmmirror.com || \
+    npm install --no-audit --no-fund --legacy-peer-deps
 
 COPY frontend/ ./
 ENV NODE_ENV=production
