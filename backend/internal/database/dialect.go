@@ -14,6 +14,16 @@ func IsPostgres() bool {
 	return config.AppConfig.Database.Driver == "postgres"
 }
 
+// LikeExpr 返回按方言生成的 LIKE 表达式。
+//   - SQLite:     LIKE（默认不区分大小写）
+//   - PostgreSQL: ILIKE（大小写不敏感）
+func LikeExpr() string {
+	if IsPostgres() {
+		return "ILIKE"
+	}
+	return "LIKE"
+}
+
 // DateGroupExpr 返回按给定粒度对日期列分组的 SQL 表达式。
 // grain 支持 "day" | "week" | "month"。
 //   - SQLite:     strftime('%Y-%m-%d', col)

@@ -8,6 +8,7 @@ import (
 	"huozhi/internal/models"
 	"huozhi/internal/ws"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -304,7 +305,18 @@ func ListTransactions(c *gin.Context) {
 	}
 	if req.Keyword != "" {
 		k := "%" + req.Keyword + "%"
-		q = q.Where("description LIKE ? OR merchant LIKE ? OR remark LIKE ?", k, k, k)
+		like := database.LikeExpr()
+
+		// 如果关键词是合法数字，按金额精确匹配（×100转分）
+		amountCond := ""
+		if amount, err := strconv.ParseFloat(req.Keyword, 64); err == nil {
+			amountCond = " OR amount = " + strconv.FormatInt(int64(amount*100), 10)
+		}
+
+		q = q.Where(
+			"(description "+like+" ? OR merchant "+like+" ? OR remark "+like+" ? OR location "+like+" ? OR category_id IN (SELECT id FROM categories WHERE name "+like+" ?)"+amountCond+")",
+			k, k, k, k, k,
+		)
 	}
 	if req.MinAmount > 0 {
 		q = q.Where("amount >= ?", models.FromYuan(req.MinAmount))

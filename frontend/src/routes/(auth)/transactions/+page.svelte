@@ -254,6 +254,12 @@
 			default: return t;
 		}
 	}
+
+	function highlightText(text: string, keyword: string): string {
+		if (!keyword || !text) return text;
+		const regex = new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+		return text.replace(regex, '<mark class="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5">$1</mark>');
+	}
 </script>
 
 <svelte:head>
@@ -342,7 +348,15 @@
 					<Label>关键词搜索</Label>
 					<div class="relative">
 						<Search size={14} class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-						<Input class="pl-9" placeholder="搜索描述、商户..." bind:value={keyword} />
+						<Input class="pl-9" placeholder="搜索描述、商户、备注、地点、分类、金额..." bind:value={keyword} />
+					</div>
+					<div class="flex flex-wrap gap-1 mt-1">
+						<button class="text-xs px-2 py-0.5 rounded bg-muted hover:bg-accent transition" onclick={() => { keyword = '餐饮'; }}>餐饮</button>
+						<button class="text-xs px-2 py-0.5 rounded bg-muted hover:bg-accent transition" onclick={() => { keyword = '交通'; }}>交通</button>
+						<button class="text-xs px-2 py-0.5 rounded bg-muted hover:bg-accent transition" onclick={() => { keyword = '购物'; }}>购物</button>
+						<button class="text-xs px-2 py-0.5 rounded bg-muted hover:bg-accent transition" onclick={() => { keyword = '娱乐'; }}>娱乐</button>
+						<button class="text-xs px-2 py-0.5 rounded bg-muted hover:bg-accent transition" onclick={() => { keyword = '医疗'; }}>医疗</button>
+						<button class="text-xs px-2 py-0.5 rounded bg-muted hover:bg-accent transition" onclick={() => { keyword = '教育'; }}>教育</button>
 					</div>
 				</div>
 
@@ -488,12 +502,12 @@
 									</div>
 									<div class="flex-1 min-w-0">
 										<div class="text-sm font-medium truncate">
-											{tx.description || tx.merchant || '未分类'}
+											{@html highlightText(tx.description || tx.merchant || '未分类', keyword)}
 										</div>
 										<!-- C20：副标题改为「分类 · 账户」，与分类管理/账户资产的数据资产对齐 -->
 										<div class="text-xs text-muted-foreground truncate">
-											{getCategoryName(tx)} · {getAccountName(tx)}
-											{#if tx.merchant}· {tx.merchant}{/if}
+											{@html highlightText(getCategoryName(tx), keyword)} · {@html highlightText(getAccountName(tx), keyword)}
+											{#if tx.merchant}· {@html highlightText(tx.merchant, keyword)}{/if}
 										</div>
 									</div>
 									<div class="font-semibold tabular-nums text-sm">
