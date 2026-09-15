@@ -64,9 +64,17 @@
 				statsApi.assets(),
 				statsApi.timeline({ months: 6 })
 			]);
-			if (statsRes.status === 'fulfilled') data = statsRes.value;
 			if (assetsRes.status === 'fulfilled') assets = assetsRes.value;
 			if (tlRes.status === 'fulfilled') timeline = (tlRes.value as any[]) ?? [];
+			// 兜底：后端个别数组字段在空数据期可能返回 null，避免 .length / .slice 抛错导致渲染崩溃
+			if (statsRes.status === 'fulfilled' && statsRes.value) {
+				const d = statsRes.value as any;
+				d.by_category_expense = d.by_category_expense ?? [];
+				d.by_category_income = d.by_category_income ?? [];
+				d.trend = d.trend ?? [];
+				d.top_expense = d.top_expense ?? [];
+				data = d;
+			}
 		} catch {}
 		loading = false;
 	}

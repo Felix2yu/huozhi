@@ -118,7 +118,10 @@ func GetStatistics(c *gin.Context) {
 			catInfo[c.ID] = c
 		}
 
-		var expenseRank, incomeRank []categoryRankItem
+		// 用 make([]T, 0) 初始化，保证空数据时序列化为 [] 而非 null，
+		// 否则前端 data.by_category_expense.length 会因 null 抛 TypeError 而崩溃渲染。
+		expenseRank := make([]categoryRankItem, 0)
+		incomeRank := make([]categoryRankItem, 0)
 
 		for id, m := range catMap {
 			info := catInfo[id]
@@ -260,20 +263,21 @@ func GetStatistics(c *gin.Context) {
 	result["trend"] = trendList
 
 	// 4) Top 支出排行榜
-	var topExp []struct {
+	// 用 make([]T, 0) 初始化，保证空数据时序列化为 [] 而非 null。
+	topExp := make([]struct {
 		ID          uint         `json:"id"`
 		Amount      models.Money `json:"amount"`
 		Description string       `json:"description"`
 		TxDate      time.Time    `json:"tx_date"`
 		CategoryID  uint         `json:"category_id"`
 		Merchant    string       `json:"merchant"`
-	}
+	}, 0)
 	base().Where("type = ?", string(models.TxExpense)).Order("amount DESC").Limit(10).
 		Select("id, amount, description, tx_date, category_id, merchant").Scan(&topExp)
 	result["top_expense"] = topExp
 
 	// 5) 资产曲线（月度资产快照）
-	var snapshots []models.AssetSnapshot
+	snapshots := make([]models.AssetSnapshot, 0)
 	database.DB.Where("user_id = ? AND snap_date >= ? AND snap_date <= ?",
 		uid, req.StartDate, req.EndDate).Order("snap_date ASC").Find(&snapshots)
 	result["asset_snapshots"] = snapshots

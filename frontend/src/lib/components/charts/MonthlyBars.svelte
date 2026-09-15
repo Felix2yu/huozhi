@@ -24,7 +24,7 @@
 		points: Point[];
 		height?: number;
 	}
-	let { points, height = 280 }: Props = $props();
+	let { points = [], height = 280 }: Props = $props();
 
 	ChartJS.register(Title, Tooltip, Legend, BarElement, LinearScale, CategoryScale);
 	const mounted = useMounted();

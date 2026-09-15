@@ -22,7 +22,7 @@
 		limit?: number;
 		height?: number;
 	}
-	let { items, limit = 8, height = 260 }: Props = $props();
+	let { items = [], limit = 8, height = 260 }: Props = $props();
 
 	ChartJS.register(Title, Tooltip, Legend, ArcElement);
 	const mounted = useMounted();

@@ -25,7 +25,7 @@
 		height?: number;
 		showNet?: boolean;
 	}
-	let { points, height = 280, showNet = true }: Props = $props();
+	let { points = [], height = 280, showNet = true }: Props = $props();
 
 	ChartJS.register(Title, Tooltip, Legend, LineElement, LinearScale, PointElement, CategoryScale, Filler);
 	const mounted = useMounted();
