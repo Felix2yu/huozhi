@@ -444,15 +444,25 @@
 						{#if appStore.tags.length === 0}
 							<p class="text-xs text-muted-foreground">还没有标签，可在「标签中心」创建</p>
 						{:else}
-							<div class="flex flex-wrap gap-2">
-								{#each appStore.tags as tag (tag.id)}
-									<button type="button" onclick={() => toggleTag(tag.id)}>
-										<Badge variant={tagIds.includes(tag.id) ? 'default' : 'outline'}>
-											{tag.name}
-										</Badge>
-									</button>
-								{/each}
-							</div>
+						<div class="flex flex-wrap gap-2">
+							{#each appStore.tags as tag (tag.id)}
+								<Badge
+									variant={tagIds.includes(tag.id) ? 'default' : 'outline'}
+									class="cursor-pointer select-none"
+									role="button"
+									tabindex={0}
+									onclick={() => toggleTag(tag.id)}
+									onkeydown={(e: KeyboardEvent) => {
+										if (e.key === 'Enter' || e.key === ' ') {
+											e.preventDefault();
+											toggleTag(tag.id);
+										}
+									}}
+								>
+									{tag.name}
+								</Badge>
+							{/each}
+						</div>
 						{/if}
 					</div>
 
