@@ -15,6 +15,13 @@ import (
 
 // ========== 统计分析 Statistics ==========
 
+// baseAmountExpr 把原币金额按汇率折算到基准币种后再聚合的 SQL 片段。
+//
+// 修复背景（原 B-02）：此前统计页各处一律用 SUM(amount)，汇率从未参与运算，
+// 一笔 100 USD / 汇率 7.18 的支出在统计里只算 1.00 元。
+// 这里与 models.Transaction.AmountInBase() 保持同一口径：汇率 <= 0 视为 1。
+const baseAmountExpr = "CASE WHEN exchange_rate > 0 THEN amount * exchange_rate ELSE amount END"
+
 // GetStatistics 多维度统计
 func GetStatistics(c *gin.Context) {
 	uid := middleware.GetUID(c)
@@ -27,7 +34,8 @@ func GetStatistics(c *gin.Context) {
 	// 基础查询构造器：每次返回全新查询。GORM 链式 Where 会在同一语句上累积条件，
 	// 复用同一个 *gorm.DB 追加不同 type 条件会导致后续查询自相矛盾而查空。
 	base := func() *gorm.DB {
-		q := database.DB.Model(&models.Transaction{}).Where("user_id = ?", uid)
+		// 读范围与流水列表一致（本人 或 可见共享账本），消除两处口径差异（原 B-05）
+		q := applyBookScope(c, database.DB.Model(&models.Transaction{}), uid)
 		if req.BookID > 0 {
 			q = q.Where("book_id = ?", req.BookID)
 		}
@@ -39,10 +47,14 @@ func GetStatistics(c *gin.Context) {
 	var totalIncome, totalExpense models.Money
 	var incomeCount, expenseCount int64
 	var incSum, expSum float64
-	base().Where("type IN ?", []string{string(models.TxIncome), string(models.TxRefund)}).
-		Select("COALESCE(SUM(amount), 0), COUNT(*)").Row().Scan(&incSum, &incomeCount)
-	base().Where("type = ?", string(models.TxExpense)).
-		Select("COALESCE(SUM(amount), 0), COUNT(*)").Row().Scan(&expSum, &expenseCount)
+	base().Where("type IN ?", models.TypesInBucket(models.StatsBucketIncome)).
+		Select(fmt.Sprintf("COALESCE(SUM(%s), 0), COUNT(*)", baseAmountExpr)).
+		Row().Scan(&incSum, &incomeCount)
+	// 支出口径必须包含 reimburse：它真实扣减了账户余额，
+	// 此前被排除在统计外，导致「流水明细加总 ≠ 统计页支出」（原 B-04）。
+	base().Where("type IN ?", models.TypesInBucket(models.StatsBucketExpense)).
+		Select(fmt.Sprintf("COALESCE(SUM(%s), 0), COUNT(*)", baseAmountExpr)).
+		Row().Scan(&expSum, &expenseCount)
 	totalIncome = models.FromCents(incSum)
 	totalExpense = models.FromCents(expSum)
 
@@ -82,8 +94,8 @@ func GetStatistics(c *gin.Context) {
 			SumAmount  float64
 			Count      int64
 		}
-		base().Select("category_id, type, SUM(amount) sum_amount, COUNT(*) count").
-			Where("type IN ?", []string{string(models.TxExpense), string(models.TxIncome), string(models.TxRefund)}).
+		base().Select(fmt.Sprintf("category_id, type, SUM(%s) sum_amount, COUNT(*) count", baseAmountExpr)).
+			Where("type IN ?", []string{string(models.TxExpense), string(models.TxReimburse), string(models.TxIncome), string(models.TxRefund)}).
 			Group("category_id, type").Scan(&catRows)
 
 		var catMap = make(map[uint]map[string]interface{})
@@ -100,7 +112,7 @@ func GetStatistics(c *gin.Context) {
 			switch r.Type {
 			case string(models.TxIncome), string(models.TxRefund):
 				catMap[k]["income"] = catMap[k]["income"].(models.Money) + models.FromCents(r.SumAmount)
-			case string(models.TxExpense):
+			case string(models.TxExpense), string(models.TxReimburse):
 				catMap[k]["expense"] = catMap[k]["expense"].(models.Money) + models.FromCents(r.SumAmount)
 			}
 			catMap[k]["count"] = catMap[k]["count"].(int64) + r.Count
@@ -164,8 +176,8 @@ func GetStatistics(c *gin.Context) {
 			Type      string
 			SumAmount float64
 		}
-		base().Select("book_id, type, SUM(amount) sum_amount").
-			Where("type IN ?", []string{string(models.TxExpense), string(models.TxIncome), string(models.TxRefund)}).
+		base().Select(fmt.Sprintf("book_id, type, SUM(%s) sum_amount", baseAmountExpr)).
+			Where("type IN ?", []string{string(models.TxExpense), string(models.TxReimburse), string(models.TxIncome), string(models.TxRefund)}).
 			Group("book_id, type").Scan(&bookRows)
 		out := map[uint]gin.H{}
 		for _, r := range bookRows {
@@ -175,7 +187,7 @@ func GetStatistics(c *gin.Context) {
 			switch r.Type {
 			case string(models.TxIncome), string(models.TxRefund):
 				out[r.BookID]["income"] = out[r.BookID]["income"].(models.Money) + models.FromCents(r.SumAmount)
-			case string(models.TxExpense):
+			case string(models.TxExpense), string(models.TxReimburse):
 				out[r.BookID]["expense"] = out[r.BookID]["expense"].(models.Money) + models.FromCents(r.SumAmount)
 			}
 		}
@@ -204,8 +216,8 @@ func GetStatistics(c *gin.Context) {
 			Type      string
 			SumAmount float64
 		}
-		base().Select("account_id, type, SUM(amount) sum_amount").
-			Where("type IN ?", []string{string(models.TxExpense), string(models.TxIncome), string(models.TxRefund)}).
+		base().Select(fmt.Sprintf("account_id, type, SUM(%s) sum_amount", baseAmountExpr)).
+			Where("type IN ?", []string{string(models.TxExpense), string(models.TxReimburse), string(models.TxIncome), string(models.TxRefund)}).
 			Group("account_id, type").Scan(&accRows)
 		out := map[uint]gin.H{}
 		for _, r := range accRows {
@@ -215,7 +227,7 @@ func GetStatistics(c *gin.Context) {
 			switch r.Type {
 			case string(models.TxIncome), string(models.TxRefund):
 				out[r.AccountID]["income"] = out[r.AccountID]["income"].(models.Money) + models.FromCents(r.SumAmount)
-			case string(models.TxExpense):
+			case string(models.TxExpense), string(models.TxReimburse):
 				out[r.AccountID]["expense"] = out[r.AccountID]["expense"].(models.Money) + models.FromCents(r.SumAmount)
 			}
 		}
@@ -230,8 +242,8 @@ func GetStatistics(c *gin.Context) {
 	}
 	// 按方言生成日期分组表达式：SQLite 用 strftime，PostgreSQL 用 to_char。
 	dateGroup := database.DateGroupExpr("tx_date", dateGrainOf(dimension))
-	base().Select(fmt.Sprintf("%s day, type, SUM(amount) sum_amount", dateGroup)).
-		Where("type IN ?", []string{string(models.TxExpense), string(models.TxIncome), string(models.TxRefund)}).
+	base().Select(fmt.Sprintf("%s day, type, SUM(%s) sum_amount", dateGroup, baseAmountExpr)).
+		Where("type IN ?", []string{string(models.TxExpense), string(models.TxReimburse), string(models.TxIncome), string(models.TxRefund)}).
 		Group("day, type").Order("day ASC").Scan(&trendRows)
 
 	type trendPoint struct {
@@ -250,7 +262,7 @@ func GetStatistics(c *gin.Context) {
 		switch r.Type {
 		case string(models.TxIncome), string(models.TxRefund):
 			trendMap[r.Day].Income += models.FromCents(r.SumAmount)
-		case string(models.TxExpense):
+		case string(models.TxExpense), string(models.TxReimburse):
 			trendMap[r.Day].Expense += models.FromCents(r.SumAmount)
 		}
 	}
@@ -322,12 +334,13 @@ func GetAssetOverview(c *gin.Context) {
 	var mi, me float64
 	database.DB.Model(&models.Transaction{}).
 		Where("user_id = ? AND tx_date >= ? AND tx_date < ? AND type IN ? AND include_in_balance = ?",
-			uid, first, last, []string{string(models.TxIncome), string(models.TxRefund)}, true).
-		Select("COALESCE(SUM(amount), 0)").Row().Scan(&mi)
+			uid, first, last, models.TypesInBucket(models.StatsBucketIncome), true).
+		Select(fmt.Sprintf("COALESCE(SUM(%s), 0)", baseAmountExpr)).Row().Scan(&mi)
+	// 支出口径含 reimburse（原 B-04）
 	database.DB.Model(&models.Transaction{}).
-		Where("user_id = ? AND tx_date >= ? AND tx_date < ? AND type = ? AND include_in_balance = ?",
-			uid, first, last, string(models.TxExpense), true).
-		Select("COALESCE(SUM(amount), 0)").Row().Scan(&me)
+		Where("user_id = ? AND tx_date >= ? AND tx_date < ? AND type IN ? AND include_in_balance = ?",
+			uid, first, last, models.TypesInBucket(models.StatsBucketExpense), true).
+		Select(fmt.Sprintf("COALESCE(SUM(%s), 0)", baseAmountExpr)).Row().Scan(&me)
 	// SUM(amount) 返回的是「分」，必须用 FromCents 还原成 Money。
 	// 早期误用 FromYuan（元→分，×100），导致首页本月收支恒为真实值的 100 倍。
 	monthIncome = models.FromCents(mi)
@@ -452,7 +465,7 @@ func dateGrainOf(dimension string) string {
 func ListSavingPlans(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var list []models.SavingPlan
-	applyBookScope(database.DB.Model(&models.SavingPlan{}), uid).Order("status ASC, created_at DESC").Find(&list)
+	applyBookScope(c, database.DB.Model(&models.SavingPlan{}), uid).Order("status ASC, created_at DESC").Find(&list)
 	OK(c, list)
 }
 func CreateSavingPlan(c *gin.Context) {
@@ -549,7 +562,7 @@ func AddSavingRecord(c *gin.Context) {
 func ListRecurrings(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var list []models.Recurring
-	applyBookScope(database.DB.Model(&models.Recurring{}), uid).Order("next_run_at ASC").Find(&list)
+	applyBookScope(c, database.DB.Model(&models.Recurring{}), uid).Order("next_run_at ASC").Find(&list)
 	OK(c, list)
 }
 func CreateRecurring(c *gin.Context) {
@@ -619,7 +632,7 @@ func DeleteRecurring(c *gin.Context) {
 func ListInstallments(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var list []models.Installment
-	applyBookScope(database.DB.Model(&models.Installment{}), uid).Order("status ASC, next_repay_date ASC").Find(&list)
+	applyBookScope(c, database.DB.Model(&models.Installment{}), uid).Order("status ASC, next_repay_date ASC").Find(&list)
 	OK(c, list)
 }
 func CreateInstallment(c *gin.Context) {
@@ -655,7 +668,7 @@ func DeleteInstallment(c *gin.Context) {
 func ListReimbursements(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var list []models.Reimbursement
-	applyBookScope(database.DB.Model(&models.Reimbursement{}), uid).Order("created_at DESC").Find(&list)
+	applyBookScope(c, database.DB.Model(&models.Reimbursement{}), uid).Order("created_at DESC").Find(&list)
 	OK(c, list)
 }
 func CreateReimbursement(c *gin.Context) {

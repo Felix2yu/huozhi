@@ -257,7 +257,9 @@ type CreateTransactionRequest struct {
 	Type             string    `json:"type" binding:"required,oneof=expense income transfer refund reimburse adjust"`
 	Amount           float64   `json:"amount" binding:"required,gt=0"`
 	Currency         string    `json:"currency" binding:"omitempty,max=10"`
-	ExchangeRate     float64   `json:"exchange_rate"`
+	// ExchangeRate：1 单位原币 = ? 单位基准币。未传时后端按 1 兜底。
+	// 显式传值必须为正数——0 只会来自脏数据（Go 零值），会让折算结果变成 0。
+	ExchangeRate     float64   `json:"exchange_rate" binding:"omitempty,gt=0"`
 	CategoryID       uint      `json:"category_id"`
 	AccountID        uint      `json:"account_id" binding:"required"`
 	ToAccountID      uint      `json:"to_account_id"`
@@ -298,7 +300,66 @@ func (r *CreateTransactionRequest) BudgetFlag() bool {
 	return *r.IncludeInBudget
 }
 
-type UpdateTransactionRequest = CreateTransactionRequest
+// UpdateTransactionRequest 更新交易：补丁语义（PATCH semantics）。
+//
+// 每个字段用指针区分「未传」与「传了零值」：只有非 nil 的字段才会写库。
+// 此前这里直接 `= CreateTransactionRequest`（全字段必填且一律覆盖），
+// 而前端表单只提交十来个字段，导致一次「改备注」式的无害编辑就把
+// transfer_fee / refund_of_id / reimburse_status / images 全部清零（原 B-01），
+// 并且已回滚的转账手续费派生交易因 fee=0 不再重建，造成账实永久不符。
+type UpdateTransactionRequest struct {
+	BookID           *uint      `json:"book_id"`
+	Type             *string    `json:"type" binding:"omitempty,oneof=expense income transfer refund reimburse adjust"`
+	Amount           *float64   `json:"amount" binding:"omitempty,gt=0"`
+	Currency         *string    `json:"currency" binding:"omitempty,max=10"`
+	ExchangeRate     *float64   `json:"exchange_rate" binding:"omitempty,gt=0"`
+	CategoryID       *uint      `json:"category_id"`
+	AccountID        *uint      `json:"account_id"`
+	ToAccountID      *uint      `json:"to_account_id"`
+	TransferFee      *float64   `json:"transfer_fee" binding:"omitempty,gte=0"`
+	TransferDiscount *float64   `json:"transfer_discount" binding:"omitempty,gte=0"`
+	RefundOfID       *uint      `json:"refund_of_id"`
+	TxDate           *FlexDate  `json:"tx_date"`
+	Description      *string    `json:"description" binding:"omitempty,max=500"`
+	TagIDs           *[]uint    `json:"tag_ids"`
+	Images           *[]string  `json:"images"`
+	Merchant         *string    `json:"merchant" binding:"omitempty,max=200"`
+	Location         *string    `json:"location" binding:"omitempty,max=255"`
+	// 与创建接口一致：未传（nil）保持旧值；显式传才覆盖。
+	IncludeInBalance *bool      `json:"include_in_balance"`
+	IncludeInBudget  *bool      `json:"include_in_budget"`
+	Remark           *string    `json:"remark" binding:"omitempty,max=1000"`
+	ReimburseStatus  *string    `json:"reimburse_status" binding:"omitempty,oneof=none pending done"`
+}
+
+// TagIDsOrNil 取出标签集合：显式传 null（清空）与未传要能区分。
+// 未传时返回 nil，调用方据此保持旧标签不变。
+func (r *UpdateTransactionRequest) TagIDsOrNil() []uint {
+	if r.TagIDs == nil {
+		return nil
+	}
+	return *r.TagIDs
+}
+
+// HasTagIDs 判断是否显式提交了 tag_ids（含空数组 = 清空标签）
+func (r *UpdateTransactionRequest) HasTagIDs() bool {
+	return r.TagIDs != nil
+}
+
+// NormalizedReimburseStatus 报销状态兜底：空串写库会得到非法值，
+// 使该笔流水在「按 reimburse_status 筛选」时永远查不到。
+func (r *UpdateTransactionRequest) NormalizedReimburseStatus(old string) string {
+	if r.ReimburseStatus == nil {
+		if old == "" {
+			return "none"
+		}
+		return old
+	}
+	if *r.ReimburseStatus == "" {
+		return "none"
+	}
+	return *r.ReimburseStatus
+}
 
 type QueryTransactionRequest struct {
 	BookID     uint      `form:"book_id"`
@@ -314,6 +375,16 @@ type QueryTransactionRequest struct {
 	ReimburseStatus string `form:"reimburse_status"`
 	Page       int       `form:"page,default=1"`
 	PageSize   int       `form:"page_size,default=20"`
+	// 游标分页（原 F-04）：与此同时 offset 分页在「加载更多」时会被数据位移
+	// 打乱（新插入一条 → 下一页首条与上一页末条重复 → 前端去重后永远加载不到新数据）。
+	// 传了 cursor_* 时忽略 page，改为从「上一页最后一条的 (tx_date, id)」继续往前取。
+	CursorDate FlexDate `form:"cursor_date"`
+	CursorID   uint     `form:"cursor_id"`
+}
+
+// UseCursor 是否走游标分页
+func (r *QueryTransactionRequest) UseCursor() bool {
+	return r.CursorID > 0 && !r.CursorDate.IsZero()
 }
 
 // ====== 标签 ======

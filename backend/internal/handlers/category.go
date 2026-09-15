@@ -20,7 +20,7 @@ func ListCategories(c *gin.Context) {
 	includeArchived := c.Query("include_archived") == "1"
 
 	// C5：共享账本的分类对受邀成员可见
-	q := applyBookScope(database.DB.Model(&models.Category{}), uid)
+	q := applyBookScope(c, database.DB.Model(&models.Category{}), uid)
 	if bookID != "" && bookID != "0" {
 		q = q.Where("(book_id = ? OR book_id = 0)", bookID)
 	}
@@ -29,6 +29,13 @@ func ListCategories(c *gin.Context) {
 	}
 	if !includeArchived {
 		q = q.Where("is_archived = ?", false)
+	}
+	// 后端自动生成的隐蔽分类（转账手续费、报销回款、余额调整、转账、存钱）
+	// 不应对用户可见 —— 此前它们出现在分类管理页、表单选择器与流水筛选下拉里，
+	// 且标记为 is_system 不可删，形成永久噪声（原 B-12）。
+	// 流水列表通过服务端返回的 category_name 展示这些分类，不会退化成「未分类」。
+	if c.Query("include_hidden") != "1" {
+		q = q.Where("is_hidden = ?", false)
 	}
 
 	var all []models.Category
@@ -192,7 +199,7 @@ func DeleteCategory(c *gin.Context) {
 func ListTags(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var tags []models.Tag
-	applyBookScope(database.DB.Model(&models.Tag{}), uid).Order("sort ASC, count DESC, id DESC").Find(&tags)
+	applyBookScope(c, database.DB.Model(&models.Tag{}), uid).Order("sort ASC, count DESC, id DESC").Find(&tags)
 	OK(c, tags)
 }
 

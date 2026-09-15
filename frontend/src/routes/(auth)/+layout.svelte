@@ -79,21 +79,52 @@
 
 	let unsubSync: (() => void) | null = null;
 
+	/**
+	 * WS 变更通知的合流器（原 P-04）。
+	 * 10 种表此前共用一条分支、每次都发 3 个请求：批量导入 500 条交易会产生
+	 * 500 次 Broadcast → 最多 1500 次请求。改为按表分流 + 300ms 尾部防抖，
+	 * 同表的一批变更只触发一次取数。
+	 */
+	const syncTimers = new Map<string, ReturnType<typeof setTimeout>>();
+	function scheduleSync(key: string, fn: () => void, delay = 300) {
+		const prev = syncTimers.get(key);
+		if (prev) clearTimeout(prev);
+		syncTimers.set(
+			key,
+			setTimeout(() => {
+				syncTimers.delete(key);
+				fn();
+			}, delay)
+		);
+	}
+	function clearSyncTimers() {
+		for (const t of syncTimers.values()) clearTimeout(t);
+		syncTimers.clear();
+	}
+
 	function handleSync(msg: WsMessage) {
 		if (msg.type === 'sync' && msg.table) {
-			// 根据变更的表刷新对应数据
+			// 只刷新与该表真正相关的资源，避免无关请求
 			switch (msg.table) {
 				case 'transactions':
+					// 流水列表此前完全不响应 WS：周期记账自动入账、移动端记一笔之后
+					// PC 端列表不会更新。bumpListVersion 早就存在却从未被调用。
+					scheduleSync('transactions', () => {
+						appStore.bumpListVersion();
+						appStore.loadDictionaries();
+					});
+					break;
 				case 'accounts':
 				case 'categories':
 				case 'tags':
-				case 'budgets':
+					scheduleSync(msg.table, () => appStore.loadDictionaries());
+					break;
 				case 'books':
-				case 'recurring':
-				case 'installments':
-				case 'reimbursements':
-				case 'saving_plans':
-					appStore.loadDictionaries();
+					scheduleSync('books', () => appStore.loadBooks());
+					break;
+				default:
+					// budgets / recurring / installments / reimbursements / saving_plans
+					// 由各自页面按需取数，全局布局不做无差别重刷
 					break;
 			}
 		} else if (msg.type === 'alert') {
@@ -106,6 +137,7 @@
 	onDestroy(() => {
 		disconnectWs();
 		unsubSync?.();
+		clearSyncTimers();
 	});
 
 	// ========= 移动端侧边栏 =========
@@ -195,6 +227,8 @@
 		// book_id 传 0 表示「全部账本」，后端会按用户聚合所有账本。
 		// 不能因为 bid 为 0 就提前 return，否则切到「全部账本」后迷你统计永远不更新。
 		const bid = appStore.currentBookId || 0;
+		// 跟随 WS 变更通知刷新（原 P-04：此前顶部迷你统计对交易变更无反应）
+		void appStore.listVersion;
 
 		(async () => {
 			try {

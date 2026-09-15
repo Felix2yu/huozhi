@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"huozhi/internal/database"
 	"huozhi/internal/dto"
 	"huozhi/internal/middleware"
@@ -62,15 +63,20 @@ func nextBudgetPeriod(periodType string, start, end time.Time) (time.Time, time.
 
 // recalcBudgetUsed 用真实流水回填某条预算的 used_amount（B2）。
 // 口径与 applyBudgetUsed 保持一致：仅支出、且 include_in_budget = true。
+// 口径与 applyBudgetUsed 严格一致：
+//  1. 只算统计口径为「支出」的类型 —— 现在包含 reimburse（此前遗漏，导致
+//     报销流水真实扣了账户却不算预算占用，原 B-04）；
+//  2. 金额按汇率折算到基准币种（baseAmountExpr），此前直接用 SUM(amount)，
+//     外币支出的预算占用按原币金额计算（原 B-02）。
 func recalcBudgetUsed(db *gorm.DB, b *models.Budget) models.Money {
 	var used float64
 	q := db.Model(&models.Transaction{}).
-		Where("book_id = ? AND type = ? AND include_in_budget = ? AND tx_date >= ? AND tx_date < ?",
-			b.BookID, string(models.TxExpense), true, b.StartDate, b.EndDate)
+		Where("book_id = ? AND include_in_budget = ? AND tx_date >= ? AND tx_date < ? AND type IN ?",
+			b.BookID, true, b.StartDate, b.EndDate, models.TypesInBucket(models.StatsBucketExpense))
 	if b.CategoryID > 0 {
 		q = q.Where("category_id = ?", b.CategoryID)
 	}
-	q.Select("COALESCE(SUM(amount), 0)").Row().Scan(&used)
+	q.Select(fmt.Sprintf("COALESCE(SUM(%s), 0)", baseAmountExpr)).Row().Scan(&used)
 	newUsed := models.FromCents(used)
 	db.Model(&models.Budget{}).Where("id = ?", b.ID).Update("used_amount", newUsed)
 	b.UsedAmount = newUsed

@@ -162,6 +162,13 @@ export interface Transaction {
   installment_total: number;
   remark?: string;
   created_at: string;
+  // 服务端填充的只读派生字段（展示用，不回传）。
+  // 「全部账本」视图下本地字典覆盖不到全部账本，必须依赖服务端给出的名称，
+  // 否则分类稳定显示「未分类」、账户稳定显示「—」。
+  amount_base?: number;
+  category_name?: string;
+  account_name?: string;
+  to_account_name?: string;
 }
 
 export interface DayGroup {
@@ -174,7 +181,8 @@ export interface DayGroup {
 export interface TransactionListData {
   grouped: DayGroup[];
   summary: { total_income: number; total_expense: number; net: number };
-  flat_list: Transaction[];
+  // flat_list 已移除：它与 grouped 是同一批数据、被序列化两次（原 P-02）。
+  // 需要平铺列表时用 grouped.flatMap((g) => g.transactions)。
   // A1：保留后端分页信息，供「加载更多」判断是否还有下一页
   pagination?: { page: number; page_size: number; total: number };
 }

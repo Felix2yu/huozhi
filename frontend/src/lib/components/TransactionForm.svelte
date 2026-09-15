@@ -28,6 +28,7 @@
 	import { hzToast } from '$lib/components/ui/toast';
 	import { aiApi } from '$lib/api/modules/ai';
 	import { formatDate } from '$lib/utils/format';
+	import { clampMoneyInput } from '$lib/utils/tx';
 	import {
 		Sparkles, Save, X, ChevronDown, ChevronUp, ImagePlus, Trash2, Wand2
 	} from '@lucide/svelte';
@@ -72,6 +73,12 @@
 	// 但此前没有任何录入入口，外币记账无法正确折算。
 	let currency = $state('CNY');
 	let exchangeRate = $state('');
+	// 用户手动改过币种后就不再被「账户默认币种」覆盖（原 F-06）
+	let currencyTouched = $state(false);
+	let includeInBalance = $state(true);
+	// 分类按收支种类分别记忆上次选择：切 tab 再切回来时保留用户原选，
+	// 而不是被默认值静默重置（原 F-06）
+	let lastCatByKind = $state<Record<string, number>>({ expense: 0, income: 0 });
 
 	const baseCurrency = $derived((appStore.user as any)?.currency || 'CNY');
 	// 账户币种优先，其次用户基准币种
@@ -94,13 +101,31 @@
 				toAccountId = appStore.accounts[1].id;
 			}
 		}
-		const firstLeaf = categories.find((c) => c.parent_id) || categories[0];
-		if (firstLeaf && !categories.find((c) => c.id === categoryId)) {
-			categoryId = firstLeaf.id;
+		// 仅当当前分类对「当前收支种类」无效时才重新选择：
+		//  - 优先恢复该种类上次的选择（误触 tab 再切回不会丢）
+		//  - 没有记忆才回落到第一个叶子分类
+		// 这样既不会静默覆盖用户已选，也不会留下与类型不匹配的分类 id。
+		const kind = type === 'income' ? 'income' : 'expense';
+		if (!categories.some((c) => c.id === categoryId)) {
+			const remembered = lastCatByKind[kind];
+			if (remembered && categories.some((c) => c.id === remembered)) {
+				categoryId = remembered;
+			} else {
+				const firstLeaf = categories.find((c) => c.parent_id) || categories[0];
+				if (firstLeaf) {
+					categoryId = firstLeaf.id;
+					lastCatByKind[kind] = firstLeaf.id;
+				}
+			}
 		}
-		// B11：币种跟随所选账户，用户可手动改为其他币种
-		currency = effectiveCurrency;
+		// B11：币种跟随所选账户，用户手动改过之后不再覆盖
+		if (!currencyTouched) currency = effectiveCurrency;
 	});
+
+	function onCategoryChange(id: number) {
+		categoryId = id;
+		lastCatByKind[type === 'income' ? 'income' : 'expense'] = id;
+	}
 
 	// 编辑模式：加载原交易
 	$effect(() => {
@@ -122,6 +147,7 @@
 				images = tx.images || [];
 				tagIds = (tx.tags || []).map((t: any) => t.id);
 				includeInBudget = tx.include_in_budget !== false;
+				includeInBalance = tx.include_in_balance !== false;
 				// B11：回填币种与汇率
 				currency = tx.currency || baseCurrency;
 				exchangeRate = (tx as any).exchange_rate ? String((tx as any).exchange_rate) : '';
@@ -195,7 +221,8 @@
 				book_id: appStore.effectiveBookId(),
 				// C3：此前前端从不传该字段 → 后端按 false 处理 → 预算进度恒为 0
 				include_in_budget: includeInBudget,
-				include_in_balance: true
+				// 编辑时尊重原值，不再无条件置 true
+				include_in_balance: includeInBalance
 			};
 			if (type === 'transfer') data.to_account_id = toAccountId;
 			// B11：币种与汇率
@@ -293,6 +320,18 @@
 		}
 	}
 
+	/**
+	 * F-11：金额输入即时截断到两位小数。
+	 * step="0.01" 只约束步进器，不阻止手输 12.349；后端 FromYuan 会静默
+	 * 四舍五入成 12.35 且无任何提示。这里在输入时就截断，所见即所存。
+	 */
+	function onAmountInput(e: Event) {
+		const el = e.currentTarget as HTMLInputElement;
+		const clamped = clampMoneyInput(el.value);
+		if (clamped !== el.value) el.value = clamped;
+		amount = clamped;
+	}
+
 	function toggleTag(tid: number) {
 		tagIds = tagIds.includes(tid) ? tagIds.filter((t) => t !== tid) : [...tagIds, tid];
 	}
@@ -345,6 +384,7 @@
 						step="0.01"
 						placeholder="0.00"
 						bind:value={amount}
+						oninput={onAmountInput}
 					/>
 				</div>
 			</div>
@@ -352,7 +392,11 @@
 			{#if type !== 'transfer'}
 				<div class="space-y-2">
 					<Label>分类</Label>
-					<CategoryPicker bind:value={categoryId} kind={type === 'income' ? 'income' : 'expense'} />
+					<CategoryPicker
+					bind:value={categoryId}
+					kind={type === 'income' ? 'income' : 'expense'}
+					onchange={onCategoryChange}
+				/>
 				</div>
 			{/if}
 
@@ -413,6 +457,7 @@
 							<select
 								class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
 								bind:value={currency}
+								onchange={() => (currencyTouched = true)}
 							>
 								<option value="CNY">CNY 人民币</option>
 								<option value="USD">USD 美元</option>

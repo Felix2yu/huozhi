@@ -168,8 +168,16 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 	const token = getToken();
 	if (token) finalHeaders['Authorization'] = `Bearer ${token}`;
 
-	// 超时控制
+	// 超时控制 + 外部（上层）取消。
+	// 后者是请求竞态治理的关键：列表页切换筛选条件时必须能掐掉上一个在途请求，
+	// 否则网络抖动会让旧响应的结果覆盖新条件的结果（详见 F-03）。
+	const external: AbortSignal | null = options.signal ?? null;
 	const controller = new AbortController();
+	const onExternalAbort = () => controller.abort(external?.reason);
+	if (external) {
+		if (external.aborted) controller.abort(external.reason);
+		else external.addEventListener('abort', onExternalAbort, { once: true });
+	}
 	const timer = setTimeout(() => controller.abort(), effectiveTimeout);
 
 	try {
@@ -196,6 +204,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 		return data.data as T;
 	} catch (err) {
 		clearTimeout(timer);
+		if (external) external.removeEventListener('abort', onExternalAbort);
+
+		// 被上层主动取消：既不是网络故障也不是业务错误，
+		// 绝不能入离线队列（否则一次筛选切换会凭空产生一串待同步请求）。
+		if (external?.aborted) {
+			throw new ApiError(-2, 'ABORTED');
+		}
 
 		// 离线写操作入队
 		// 只在真正的网络断开（fetch 抛出非 ApiError 的错误，或 navigator.onLine=false）时入队

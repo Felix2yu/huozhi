@@ -77,7 +77,7 @@ func RunInstallmentRepayments(now time.Time) int {
 			continue
 		}
 		updateAccountBalances(db, &tx, &acc, nil, true)
-		applyBudgetUsed(db, ins.UserID, ins.BookID, ins.CategoryID, tx.TxDate, tx.Amount, tx.Type, true, 1)
+		applyBudgetUsed(db, ins.UserID, ins.BookID, ins.CategoryID, tx.TxDate, tx.AmountInBase(), tx.Type, true, 1)
 
 		paidMonths := idx
 		nextRepay := repayDate.AddDate(0, 1, 0)
@@ -223,34 +223,40 @@ func recomputeAccountBalance(db *gorm.DB, acc *models.Account) (models.Money, in
 			continue
 		}
 		count++
-		amt := int64(t.Amount)
-		switch t.Type {
-		case models.TxExpense, models.TxReimburse:
+		// 折算到基准币种后再计入（原 B-02）：余额引擎亦按 AmountInBase() 增减，
+		// 对账口径必须一致，否则每笔外币流水都会被误报为「账实不符」。
+		amt := int64(t.AmountInBase())
+		discount := int64(t.ToBaseMoney(t.TransferDiscount))
+		switch models.TxBalanceDirection(t.Type) {
+		case -1:
 			if t.AccountID == acc.ID {
 				delta -= amt * sign
 			}
-		case models.TxIncome, models.TxRefund:
+		case 1:
 			if t.AccountID == acc.ID {
 				delta += amt * sign
 			}
-		case models.TxTransfer:
-			if t.AccountID == acc.ID {
-				delta += (-amt + int64(t.TransferDiscount)) * sign
-			}
-			if t.ToAccountID == acc.ID {
-				delta += amt * sign
-			}
-		case models.TxAdjust:
-			// 新格式：金额恒正，方向由 Remark 标记；旧格式：amount 直接是差额（可负）
-			if t.AccountID != acc.ID {
-				continue
-			}
-			if t.Amount < 0 {
-				delta += amt * sign
-			} else if t.Remark == "调减" {
-				delta -= amt * sign
-			} else {
-				delta += amt * sign
+		default:
+			switch t.Type {
+			case models.TxTransfer:
+				if t.AccountID == acc.ID {
+					delta += (-amt + discount) * sign
+				}
+				if t.ToAccountID == acc.ID {
+					delta += amt * sign
+				}
+			case models.TxAdjust:
+				// 新格式：金额恒正，方向由 Remark 标记；旧格式：amount 直接是差额（可负）
+				if t.AccountID != acc.ID {
+					continue
+				}
+				if t.Amount < 0 {
+					delta += amt * sign
+				} else if t.Remark == "调减" {
+					delta -= amt * sign
+				} else {
+					delta += amt * sign
+				}
 			}
 		}
 	}

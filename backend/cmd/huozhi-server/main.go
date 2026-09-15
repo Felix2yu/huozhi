@@ -84,6 +84,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("数据库迁移失败: %v", err)
 	}
+	// 复合索引（AutoMigrate 无法表达）：流水列表的主排序/io 路径见 database.EnsureIndexes
+	database.EnsureIndexes(db)
 	log.Println("数据库迁移完成")
 
 	// 启动HTTP服务
@@ -239,7 +241,7 @@ func processRecurring(r *models.Recurring) {
 	}
 	handlers.UpdateAccountBalances(db, &tx, &fromAcc, &toAcc, true)
 	handlers.ApplyBudgetUsed(db, tx.UserID, tx.BookID, tx.CategoryID, tx.TxDate,
-		tx.Amount, tx.Type, tx.IncludeInBudget, 1)
+		tx.AmountInBase(), tx.Type, tx.IncludeInBudget, 1)
 
 	// 更新任务状态
 	// 注意：gorm.Expr 与时间字段不能放在同一个 map 中 Update，否则时间字段会被丢弃，

@@ -2,11 +2,16 @@ import { http } from '../http';
 import type { Transaction, TransactionListData } from '$lib/types';
 
 export const txApi = {
-	list: (params?: any) =>
+	/**
+	 * 交易列表。
+	 * - 后端 PagedOK 返回 { list: {...业务数据}, pagination: {...} }，
+	 *   这里把业务字段与分页信息合并后再返回，否则前端拿不到 total 无法分页（A1）
+	 * - signal：上层可传入 AbortController.signal 取消在途请求，
+	 *   用于消除筛选条件快速切换时的响应乱序覆盖（F-03）
+	 */
+	list: (params?: any, signal?: AbortSignal) =>
 		http
-			.get<any>('/transactions', { params })
-			// 后端 PagedOK 返回 { list: {...业务数据}, pagination: {...} }，
-			// 这里把业务字段与分页信息合并后再返回，否则前端拿不到 total 无法分页（A1）
+			.get<any>('/transactions', { params, signal })
 			.then((res: any) => ({
 				...(res?.list ?? res ?? {}),
 				pagination: res?.pagination

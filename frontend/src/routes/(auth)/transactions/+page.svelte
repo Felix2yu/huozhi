@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { get } from 'svelte/store';
+	import { createWindowVirtualizer } from '@tanstack/svelte-virtual';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Card from '$lib/components/ui/Card.svelte';
 	import Dialog from '$lib/components/ui/Dialog.svelte';
@@ -11,10 +13,20 @@
 	import { appStore } from '$lib/stores/app';
 	import { hzToast } from '$lib/components/ui/toast';
 	import { formatMoney, formatRelativeDate } from '$lib/utils/format';
-	import type { Transaction, DayGroup, TransactionListData } from '$lib/types';
+	import {
+		amountDisplay,
+		baseAmount,
+		firstGrapheme,
+		highlightSegments,
+		recomputeDaySubtotal,
+		toneClass,
+		typeLabel
+	} from '$lib/utils/tx';
+	import type { DayGroup, Transaction, TransactionListData } from '$lib/types';
 	import { Plus, Search, Filter, X, Trash2, CheckSquare, Loader2, Copy } from '@lucide/svelte';
 
-	let type = $state<'all' | 'expense' | 'income' | 'transfer'>('all');
+	type TabType = 'all' | 'expense' | 'income' | 'transfer';
+	let type = $state<TabType>('all');
 	let grouped = $state<DayGroup[]>([]);
 	let summary = $state<{ total_income: number; total_expense: number; net: number }>({
 		total_income: 0,
@@ -23,13 +35,28 @@
 	});
 	let loading = $state(true);
 
-	// A1：分页状态 —— 此前从不传 page/page_size，用户最多只能看到 20 条流水
-	let page = $state(1);
+	// A1：分页状态。改为「游标分页」—— 以本批最后一条的 (tx_date, id) 作为下一次的起点。
+	// offset 分页在两页之间发生数据插入时会整页错位，前端去重后 flatCount 不再增长，
+	// 「加载更多」按钮永远可点却永远加载不到新数据（原 F-04）。
 	const pageSize = 30;
 	let total = $state(0);
-	let flatCount = $state(0);
+	let cursorId = $state(0);
+	let cursorDate = $state('');
 	let loadingMore = $state(false);
-	const hasMore = $derived(grouped.length > 0 && flatCount < total);
+	// 兜底：本批追加后一条新数据都没带来，说明已经到底（或游标无法前进），停止再拉
+	let endReached = $state(false);
+
+	const flatCount = $derived(
+		grouped.reduce((n, g) => n + (g.transactions?.length ?? 0), 0)
+	);
+	const hasMore = $derived(!endReached && grouped.length > 0 && flatCount < total);
+	const lastTx = $derived.by(() => {
+		for (let i = grouped.length - 1; i >= 0; i--) {
+			const txs = grouped[i]?.transactions ?? [];
+			if (txs.length) return txs[txs.length - 1];
+		}
+		return null;
+	});
 
 	// Filter state
 	let showFilters = $state(false);
@@ -38,7 +65,6 @@
 	let endDate = $state('');
 	let categoryId = $state<number | ''>('');
 	let accountId = $state<number | ''>('');
-	// A7：后端已支持但前端未暴露的筛选条件
 	let minAmount = $state('');
 	let maxAmount = $state('');
 	let tagId = $state<number | ''>('');
@@ -52,8 +78,37 @@
 	let selectMode = $state(false);
 	let selectedIds = $state<number[]>([]);
 
-	function buildParams(targetPage: number): any {
-		const params: any = { book_id: appStore.currentBookId || 0, page: targetPage, page_size: pageSize };
+	const hasFilters = $derived(
+		!!(
+			keyword ||
+			startDate ||
+			endDate ||
+			categoryId !== '' ||
+			accountId !== '' ||
+			minAmount ||
+			maxAmount ||
+			tagId !== '' ||
+			reimburseStatus ||
+			type !== 'all'
+		)
+	);
+
+	// F-07：分类筛选下拉必须跟随当前 tab。
+	// 此前无论切到哪个 tab 都只列支出分类，切到「收入」后筛选结果必为空集，
+	// 用户会误判为「没有收入记录」。
+	const categoryOptions = $derived.by(() => {
+		const cats = appStore.categories;
+		if (type === 'income') return cats.income ?? [];
+		if (type === 'expense') return cats.expense ?? [];
+		return [...(cats.expense ?? []), ...(cats.income ?? [])];
+	});
+
+	function buildParams(append: boolean): any {
+		const params: any = { book_id: appStore.currentBookId || 0, page_size: pageSize };
+		if (append && cursorId > 0 && cursorDate) {
+			params.cursor_id = cursorId;
+			params.cursor_date = cursorDate;
+		}
 		if (type !== 'all') params.type = type;
 		if (keyword.trim()) params.keyword = keyword.trim();
 		if (startDate) params.start_date = startDate;
@@ -67,51 +122,84 @@
 		return params;
 	}
 
-	// mergeGroups：把新一页的按日分组并入已有分组（同日合并）
+	// mergeGroups：把新一批按日分组并入已有分组（同日合并 + 按 id 去重）。
+	// 小计一律由「去重后的条目」重算，绝不累加服务端返回的小计 —— 否则
+	// 跨页重复条目会被重复计入，日小计与明细对不上（原 F-04 场景 2）。
 	function mergeGroups(existing: DayGroup[], incoming: DayGroup[]): DayGroup[] {
 		const map = new Map<string, DayGroup>();
-		for (const g of existing) map.set(g.date, { ...g, transactions: [...g.transactions] });
+		const seen = new Set<number>();
+		for (const g of existing) {
+			map.set(g.date, { ...g, transactions: [...(g.transactions ?? [])] });
+			for (const t of g.transactions ?? []) seen.add(t.id);
+		}
 		for (const g of incoming) {
 			const found = map.get(g.date);
 			if (found) {
-				const seen = new Set(found.transactions.map((t) => t.id));
-				found.transactions.push(...g.transactions.filter((t) => !seen.has(t.id)));
-				found.day_income += g.day_income;
-				found.day_expense += g.day_expense;
-				found.day_balance = found.day_income - found.day_expense;
+				for (const t of g.transactions ?? []) {
+					if (seen.has(t.id)) continue;
+					seen.add(t.id);
+					found.transactions.push(t);
+				}
+				recomputeDaySubtotal(found);
 			} else {
-				map.set(g.date, { ...g, transactions: [...g.transactions] });
+				const copy: DayGroup = { ...g, transactions: [...(g.transactions ?? [])] };
+				for (const t of copy.transactions) seen.add(t.id);
+				map.set(g.date, copy);
 			}
 		}
 		return [...map.values()].sort((a, b) => (a.date < b.date ? 1 : -1));
 	}
 
+	// F-03：请求序号 + 主动取消在途请求。
+	// 只 clearTimeout 无法处理「已发出但未返回」的请求 —— 网络抖动会让旧响应
+	// 后到并覆盖新条件的结果，界面停在旧数据上且不会自动纠正。
+	let reqSeq = 0;
+	let inflight: AbortController | null = null;
+
 	async function loadData(append = false) {
+		inflight?.abort();
+		const ctrl = new AbortController();
+		inflight = ctrl;
+		const seq = ++reqSeq;
+
 		if (append) loadingMore = true;
 		else loading = true;
 		try {
-			const data = (await txApi.list(buildParams(page))) as TransactionListData;
-			const incoming = data.grouped || [];
+			const data = (await txApi.list(buildParams(append), ctrl.signal)) as TransactionListData;
+			if (seq !== reqSeq) return; // 已发出更新的请求，丢弃本次结果
+			const incoming = data.grouped ?? [];
+			const before = flatCount;
 			grouped = append ? mergeGroups(grouped, incoming) : incoming;
-			summary = data.summary || { total_income: 0, total_expense: 0, net: 0 };
+			// 汇总只在首页返回（后端为避免每翻一页重复全表聚合而裁剪，原 P-01）
+			if (!append) {
+				summary = data.summary ?? { total_income: 0, total_expense: 0, net: 0 };
+				endReached = false;
+			} else if (flatCount === before) {
+				endReached = true;
+			}
 			total = data.pagination?.total ?? 0;
-			flatCount = grouped.reduce((n, g) => n + g.transactions.length, 0);
-		} catch (e) {
-			console.warn(e);
+			const last = lastTx;
+			cursorId = last?.id ?? 0;
+			cursorDate = last ? String(last.tx_date ?? '').slice(0, 10) : '';
+		} catch (e: any) {
+			// -2 = 被主动取消，静默忽略；其余错误保留日志
+			if (e?.code !== -2 && e?.name !== 'AbortError') console.warn(e);
 		} finally {
-			loading = false;
-			loadingMore = false;
+			if (seq === reqSeq) {
+				loading = false;
+				loadingMore = false;
+			}
 		}
 	}
 
 	async function loadMore() {
 		if (loadingMore || !hasMore) return;
-		page += 1;
 		await loadData(true);
 	}
 
 	function resetAndLoad() {
-		page = 1;
+		cursorId = 0;
+		cursorDate = '';
 		selectedIds = [];
 		loadData(false);
 	}
@@ -144,13 +232,27 @@
 			: [...selectedIds, id];
 	}
 
+	// F-09：删除后从本地剔除，不再强制回到第一页。
+	// 此前调用 resetAndLoad() 会把第 8 页的用户打回顶部并重新加载全部数据。
+	function removeLocal(ids: number[]) {
+		const drop = new Set(ids);
+		grouped = grouped
+			.map((g) => ({
+				...g,
+				transactions: (g.transactions ?? []).filter((t) => !drop.has(t.id))
+			}))
+			.filter((g) => (g.transactions?.length ?? 0) > 0);
+		total = Math.max(0, total - ids.length);
+	}
+
 	async function handleDelete(tx: Transaction) {
-		if (!confirm(`确定删除「${tx.description || tx.merchant || '该笔'}」？删除后可在回收站恢复。`)) return;
+		if (!confirm(`确定删除「${tx.description || tx.merchant || '该笔'}」？删除后可在回收站恢复。`))
+			return;
 		try {
 			await txApi.remove(tx.id);
 			hzToastSuccess('已删除');
 			previewOpen = false;
-			resetAndLoad();
+			removeLocal([tx.id]);
 		} catch (e: any) {
 			hzToastError(e.message || '删除失败');
 		}
@@ -181,46 +283,48 @@
 		try {
 			const res: any = await txApi.batchRemove(selectedIds);
 			hzToastSuccess(`已删除 ${res?.deleted_count ?? selectedIds.length} 笔`);
+			removeLocal(selectedIds);
 			selectMode = false;
-			resetAndLoad();
+			selectedIds = [];
 		} catch (e: any) {
 			hzToastError(e.message || '批量删除失败');
 		}
 	}
 
-	function hzToastSuccess(m: string) { hzToast.success(m); }
-	function hzToastError(m: string) { hzToast.error(m); }
+	function hzToastSuccess(m: string) {
+		hzToast.success(m);
+	}
+	function hzToastError(m: string) {
+		hzToast.error(m);
+	}
 
-	const hasFilters = $derived(
-		keyword ||
-			startDate ||
-			endDate ||
-			categoryId !== '' ||
-			accountId !== '' ||
-			minAmount ||
-			maxAmount ||
-			tagId !== '' ||
-			reimburseStatus
-	);
-
-	// 唯一的取数入口：账本切换（含切到「全部账本」=0）与任一筛选条件变化都会重新拉取，
-	// 关键词输入走 300ms 防抖。合并为一个 effect，避免挂载时重复请求。
+	// A：立即生效的筛选（Tabs / 下拉 / 账本切换 / 服务端变更通知）—— 不走防抖，
+	// 手感不再迟滞；依赖合并成一个 effect，挂载时只发一次请求。
 	$effect(() => {
 		void appStore.currentBookId;
+		void appStore.listVersion; // P-04：WS 收到变更通知后刷新列表
 		void type;
+		void categoryId;
+		void accountId;
+		void tagId;
+		void reimburseStatus;
+		resetAndLoad();
+	});
+
+	// B：文本框类输入走 300ms 防抖（跳过首次挂载，避免与 effect A 重复请求）
+	let debounceFirst = true;
+	$effect(() => {
 		void keyword;
 		void startDate;
 		void endDate;
-		void categoryId;
-		void accountId;
 		void minAmount;
 		void maxAmount;
-		void tagId;
-		void reimburseStatus;
-
+		if (debounceFirst) {
+			debounceFirst = false;
+			return;
+		}
 		const timer = setTimeout(() => {
-			page = 1;
-			loadData(false);
+			resetAndLoad();
 		}, 300);
 		return () => clearTimeout(timer);
 	});
@@ -237,28 +341,37 @@
 
 	function getAccountName(tx: Transaction): string {
 		return (
-			tx.account_name ||
-			appStore.accounts.find((a) => a.id === tx.account_id)?.name ||
-			'—'
+			tx.account_name || appStore.accounts.find((a) => a.id === tx.account_id)?.name || '—'
 		);
 	}
 
-	function getTypeLabel(t: string): string {
-		switch (t) {
-			case 'income': return '收入';
-			case 'expense': return '支出';
-			case 'transfer': return '转账';
-			case 'refund': return '退款';
-			case 'reimburse': return '报销';
-			case 'adjust': return '余额调整';
-			default: return t;
-		}
-	}
+	// ========== 虚拟滚动（原 P-05） ==========
+	// 列表按需加载后 DOM 会线性膨胀（300 条 ≈ 4500 节点），滚动明显掉帧。
+	// 这里以「一天」为虚拟项单位，离屏的日期分组完全不进入 DOM；
+	// 组内条目通常很少，保留原有卡片结构，避免为虚拟化重写整套布局。
+	const virtualizer = createWindowVirtualizer({
+		count: 0,
+		estimateSize: () => 240,
+		overscan: 4
+	});
 
-	function highlightText(text: string, keyword: string): string {
-		if (!keyword || !text) return text;
-		const regex = new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-		return text.replace(regex, '<mark class="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5">$1</mark>');
+	// 用 get() 读取实例而不是 $virtualizer：后者会让本 effect 依赖 store，
+	// 而 setOptions 本身会写 store → 形成自触发循环。
+	$effect(() => {
+		const v = get(virtualizer);
+		v?.setOptions({ count: grouped.length });
+	});
+
+	const totalHeight = $derived($virtualizer ? $virtualizer.getTotalSize() : 0);
+
+	/** 让虚拟器测量真实高度（含 emoji / 长文本导致的换行） */
+	function measureRow(node: HTMLElement, v: any) {
+		v?.measureElement(node);
+		return {
+			update(next: any) {
+				next?.measureElement(node);
+			}
+		};
 	}
 </script>
 
@@ -284,9 +397,11 @@
 			</div>
 			<div class="text-center">
 				<div class="text-xs text-muted-foreground">结余</div>
-				<div class="mt-1 font-bold tabular-nums"
+				<div
+					class="mt-1 font-bold tabular-nums"
 					class:text-primary={summary.net >= 0}
-					class:text-[var(--color-expense)]={summary.net < 0}>
+					class:text-[var(--color-expense)]={summary.net < 0}
+				>
 					{formatMoney(summary.net)}
 				</div>
 			</div>
@@ -335,7 +450,12 @@
 			<div class="p-3 flex items-center gap-3 text-sm">
 				<span class="text-muted-foreground">已选 {selectedIds.length} 笔</span>
 				<div class="flex-1"></div>
-				<Button size="sm" variant="destructive" onclick={handleBatchDelete} disabled={selectedIds.length === 0}>
+				<Button
+					size="sm"
+					variant="destructive"
+					onclick={handleBatchDelete}
+					disabled={selectedIds.length === 0}
+				>
 					<Trash2 size={14} />
 					删除所选
 				</Button>
@@ -366,7 +486,7 @@
 							bind:value={categoryId}
 						>
 							<option value="">全部分类</option>
-							{#each appStore.categories.expense as cat}
+							{#each categoryOptions as cat (cat.id)}
 								<option value={cat.id}>{cat.icon || '📁'} {cat.name}</option>
 							{/each}
 						</select>
@@ -378,14 +498,13 @@
 							bind:value={accountId}
 						>
 							<option value="">全部账户</option>
-							{#each appStore.accounts as acc}
+							{#each appStore.accounts as acc (acc.id)}
 								<option value={acc.id}>{acc.name}</option>
 							{/each}
 						</select>
 					</div>
 				</div>
 
-				<!-- A7：后端已实现但前端未暴露 -->
 				<div class="grid grid-cols-2 gap-4">
 					<div class="space-y-2">
 						<Label>最小金额</Label>
@@ -405,7 +524,7 @@
 							bind:value={tagId}
 						>
 							<option value="">全部标签</option>
-							{#each appStore.tags as tag}
+							{#each appStore.tags as tag (tag.id)}
 								<option value={tag.id}>{tag.name}</option>
 							{/each}
 						</select>
@@ -445,78 +564,134 @@
 			{/each}
 		</div>
 	{:else if grouped.length === 0}
+		<!-- F-08：区分「从未记过账」与「筛选无结果」 -->
 		<Card>
 			<div class="py-16 text-center" data-testid="tx-empty">
-				<div class="text-4xl mb-4 opacity-50">📋</div>
-				<p class="text-muted-foreground mb-4">还没有交易记录</p>
-				<Button onclick={() => goto('/transactions/add')}>
-					<Plus size={16} />
-					记一笔
-				</Button>
+				<div class="text-4xl mb-4 opacity-50">{hasFilters ? '🔍' : '📋'}</div>
+				<p class="text-muted-foreground mb-4">
+					{hasFilters ? '没有符合筛选条件的记录' : '还没有交易记录'}
+				</p>
+				{#if hasFilters}
+					<Button variant="outline" onclick={clearFilters}>
+						<X size={16} />
+						清除筛选条件
+					</Button>
+				{:else}
+					<Button onclick={() => goto('/transactions/add')}>
+						<Plus size={16} />
+						记一笔
+					</Button>
+				{/if}
 			</div>
 		</Card>
 	{:else}
 		<div class="space-y-4" data-testid="tx-list">
-			{#each grouped as dayGroup (dayGroup.date)}
-				<div>
-					<div class="flex items-center justify-between mb-2 px-1">
-						<span class="text-xs text-muted-foreground">
-							{formatRelativeDate(dayGroup.date)}
-						</span>
-						<div class="text-xs text-muted-foreground tabular-nums">
-							<span class="text-[var(--color-income)]">+{formatMoney(dayGroup.day_income).replace('¥', '')}</span>
-							<span class="mx-1">/</span>
-							<span class="text-[var(--color-expense)]">-{formatMoney(dayGroup.day_expense).replace('¥', '')}</span>
-						</div>
-					</div>
-					<Card class="divide-y">
-						{#each dayGroup.transactions as tx (tx.id)}
-							<div class="w-full flex items-center gap-3 p-3 hover:bg-accent/50 transition">
-								{#if selectMode}
-									<input
-										type="checkbox"
-										class="rounded border-input"
-										checked={selectedIds.includes(tx.id)}
-										onchange={() => toggleSelect(tx.id)}
-									/>
-								{/if}
-								<button
-									class="flex items-center gap-3 flex-1 min-w-0 text-left"
-									onclick={() => showPreview(tx)}
-								>
-									<div class="w-10 h-10 rounded-lg bg-muted grid place-items-center text-sm font-semibold">
-										{(tx.description || tx.merchant || '¥')[0]}
+			<div class="relative w-full" style="height: {totalHeight}px;">
+				{#each $virtualizer.getVirtualItems() as row (row.key)}
+					{@const dayGroup = grouped[row.index]}
+					{#if dayGroup}
+						<div
+							class="absolute left-0 top-0 w-full"
+							style="transform: translateY({row.start}px);"
+							data-index={row.index}
+							use:measureRow={$virtualizer}
+						>
+							<div class="pb-4">
+								<div class="flex items-center justify-between mb-2 px-1">
+									<span class="text-xs text-muted-foreground">
+										{formatRelativeDate(dayGroup.date)}
+									</span>
+									<div class="text-xs text-muted-foreground tabular-nums">
+										<span class="text-[var(--color-income)]"
+											>+{formatMoney(dayGroup.day_income).replace('¥', '')}</span
+										>
+										<span class="mx-1">/</span>
+										<span class="text-[var(--color-expense)]"
+											>-{formatMoney(dayGroup.day_expense).replace('¥', '')}</span
+										>
 									</div>
-									<div class="flex-1 min-w-0">
-										<div class="text-sm font-medium truncate">
-											{@html highlightText(tx.description || tx.merchant || '未分类', keyword)}
+								</div>
+								<Card class="divide-y">
+									{#each dayGroup.transactions as tx (tx.id)}
+										{@const disp = amountDisplay(tx)}
+										<div class="w-full flex items-center gap-3 p-3 hover:bg-accent/50 transition">
+											{#if selectMode}
+												<input
+													type="checkbox"
+													class="rounded border-input"
+													checked={selectedIds.includes(tx.id)}
+													onchange={() => toggleSelect(tx.id)}
+												/>
+											{/if}
+											<button
+												class="flex items-center gap-3 flex-1 min-w-0 text-left"
+												onclick={() => showPreview(tx)}
+											>
+												<div
+													class="w-10 h-10 rounded-lg bg-muted grid place-items-center text-sm font-semibold shrink-0"
+												>
+													{firstGrapheme(tx.description || tx.merchant || '¥')}
+												</div>
+												<div class="flex-1 min-w-0">
+													<div class="text-sm font-medium truncate">
+														{#each highlightSegments(
+															tx.description || tx.merchant || '未分类',
+															keyword
+														) as seg}
+															{#if seg.hit}<mark
+																	class="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5"
+																	>{seg.text}</mark
+																>{:else}{seg.text}{/if}
+														{/each}
+													</div>
+													<div class="text-xs text-muted-foreground truncate">
+														{#each highlightSegments(getCategoryName(tx), keyword) as seg}
+															{#if seg.hit}<mark
+																	class="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5"
+																	>{seg.text}</mark
+																>{:else}{seg.text}{/if}
+														{/each} · {#each highlightSegments(
+															getAccountName(tx),
+															keyword
+														) as seg}
+															{#if seg.hit}<mark
+																	class="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5"
+																	>{seg.text}</mark
+																>{:else}{seg.text}{/if}
+														{/each}{#if tx.merchant}· {#each highlightSegments(
+																tx.merchant,
+																keyword
+															) as seg}
+																{#if seg.hit}<mark
+																		class="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5"
+																		>{seg.text}</mark
+																	>{:else}{seg.text}{/if}
+															{/each}{/if}
+													</div>
+												</div>
+												<!-- F-02：与日小计、详情弹窗共用同一套符号/颜色口径 -->
+												<div class="font-semibold tabular-nums text-sm {toneClass(disp.tone)}">
+													{disp.sign}{formatMoney(disp.abs)}
+												</div>
+											</button>
+											<!-- B3：单笔删除入口 -->
+											{#if !selectMode}
+												<button
+													class="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+													onclick={() => handleDelete(tx)}
+													title="删除"
+												>
+													<Trash2 size={15} />
+												</button>
+											{/if}
 										</div>
-										<!-- C20：副标题改为「分类 · 账户」，与分类管理/账户资产的数据资产对齐 -->
-										<div class="text-xs text-muted-foreground truncate">
-											{@html highlightText(getCategoryName(tx), keyword)} · {@html highlightText(getAccountName(tx), keyword)}
-											{#if tx.merchant}· {@html highlightText(tx.merchant, keyword)}{/if}
-										</div>
-									</div>
-									<div class="font-semibold tabular-nums text-sm">
-										{tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}
-										{formatMoney(tx.amount)}
-									</div>
-								</button>
-								<!-- B3：单笔删除入口（后端 API 早已实现，前端此前零调用） -->
-								{#if !selectMode}
-									<button
-										class="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-										onclick={() => handleDelete(tx)}
-										title="删除"
-									>
-										<Trash2 size={15} />
-									</button>
-								{/if}
+									{/each}
+								</Card>
 							</div>
-						{/each}
-					</Card>
-				</div>
-			{/each}
+						</div>
+					{/if}
+				{/each}
+			</div>
 
 			<!-- A1：分页 -->
 			<div class="text-center py-2">
@@ -539,15 +714,29 @@
 
 <!-- 预览弹窗 -->
 {#if previewTx}
-	<Dialog bind:open={previewOpen}>
+	<Dialog
+		bind:open={previewOpen}
+		onOpenChange={(o) => {
+			// F-10：关闭时清空数据，避免弹窗实例与 window 监听长期挂着
+			if (!o) previewTx = null;
+		}}
+	>
 		<div class="space-y-4">
 			<div class="text-center">
-				<div class="text-3xl font-bold tabular-nums {previewTx.type === 'income' ? 'text-[var(--color-income)]' : previewTx.type === 'expense' ? 'text-[var(--color-expense)]' : ''}">
-					{previewTx.type === 'income' ? '+' : previewTx.type === 'expense' ? '-' : ''}
-					{formatMoney(previewTx.amount)}
-				</div>
+				{#if previewTx}
+					{@const disp = amountDisplay(previewTx)}
+					<div class="text-3xl font-bold tabular-nums {toneClass(disp.tone)}">
+						{disp.sign}{formatMoney(disp.abs)}
+					</div>
+					{#if baseAmount(previewTx) !== previewTx.amount && previewTx.exchange_rate}
+						<div class="text-xs text-muted-foreground mt-1 tabular-nums">
+							原币 {previewTx.currency}
+							{formatMoney(previewTx.amount)} × {previewTx.exchange_rate}
+						</div>
+					{/if}
+				{/if}
 				<div class="text-sm text-muted-foreground mt-1">
-					{getTypeLabel(previewTx.type)}
+					{typeLabel(previewTx.type)}
 				</div>
 			</div>
 
@@ -574,6 +763,16 @@
 					<span class="text-muted-foreground">账户</span>
 					<span>{getAccountName(previewTx)}</span>
 				</div>
+				{#if previewTx.to_account_id}
+					<div class="flex justify-between">
+						<span class="text-muted-foreground">转入账户</span>
+						<span
+							>{previewTx.to_account_name ||
+								appStore.accounts.find((a) => a.id === previewTx.to_account_id)?.name ||
+								'—'}</span
+						>
+					</div>
+				{/if}
 				{#if (previewTx.tags || []).length}
 					<div class="flex justify-between">
 						<span class="text-muted-foreground">标签</span>
@@ -620,7 +819,7 @@
 				>
 					<Trash2 size={16} class="text-destructive" />
 				</Button>
-				<Button variant="outline" onclick={() => { previewOpen = false; }}>关闭</Button>
+				<Button variant="outline" onclick={() => (previewOpen = false)}>关闭</Button>
 			</div>
 		</div>
 	</Dialog>

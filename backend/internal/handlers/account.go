@@ -53,7 +53,7 @@ func ListAccounts(c *gin.Context) {
 	includeArchived := c.Query("include_archived") == "1"
 
 	// C5：共享账本内的账户由成员共享可见
-	q := applyBookScope(database.DB.Model(&models.Account{}), uid)
+	q := applyBookScope(c, database.DB.Model(&models.Account{}), uid)
 	if bookID != "" && bookID != "0" {
 		q = q.Where("(book_id = ? OR book_id = 0)", bookID)
 	}

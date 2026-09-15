@@ -108,6 +108,7 @@ func TestListTransactionsReimburseFilter(t *testing.T) {
 	database.DB.Model(&models.Transaction{}).Where("id = ?", idDone).Update("reimburse_status", "done")
 	database.DB.Model(&models.Transaction{}).Where("id = ?", idNone).Update("reimburse_status", "none")
 
+	// flat_list 已从接口移除（与 grouped 重复序列化，原 P-02），改为从分组展开
 	countFlat := func(status string) int {
 		p := "/api/transactions?book_id=" + itoa(bookID) + "&reimburse_status=" + status
 		w := do(authReq("GET", p, tok, nil))
@@ -119,11 +120,18 @@ func TestListTransactionsReimburseFilter(t *testing.T) {
 		if !ok {
 			t.Fatalf("list missing in response; body=%s", w.Body.String())
 		}
-		fl, ok := list["flat_list"].([]interface{})
+		grouped, ok := list["grouped"].([]interface{})
 		if !ok {
-			t.Fatalf("flat_list missing in response; body=%s", w.Body.String())
+			t.Fatalf("grouped missing in response; body=%s", w.Body.String())
 		}
-		return len(fl)
+		n := 0
+		for _, g := range grouped {
+			day := g.(map[string]interface{})
+			if txs, ok := day["transactions"].([]interface{}); ok {
+				n += len(txs)
+			}
+		}
+		return n
 	}
 	if n := countFlat("done"); n != 1 {
 		t.Errorf("reimburse_status=done -> %d, want 1", n)
@@ -190,10 +198,15 @@ func TestUpdateTransaction(t *testing.T) {
 	if data["reimburse_status"] != "done" {
 		t.Errorf("reimburse_status = %v, want done", data["reimburse_status"])
 	}
-	// bad body
-	w = do(authReq("PUT", "/api/transactions/"+itoa(id), tok, map[string]interface{}{"type": "expense"}))
+	// bad body：非法交易类型必须被拒（补丁语义下「只改一个字段」是合法的，
+	// 不再要求整包字段齐全，因此这里改用真正的非法值做校验）
+	w = do(authReq("PUT", "/api/transactions/"+itoa(id), tok, map[string]interface{}{"type": "not_a_type"}))
 	if w.Code != 400 {
 		t.Fatalf("expected 400 got %d", w.Code)
+	}
+	w = do(authReq("PUT", "/api/transactions/"+itoa(id), tok, map[string]interface{}{"amount": -1}))
+	if w.Code != 400 {
+		t.Fatalf("expected 400 for negative amount got %d", w.Code)
 	}
 }
 

@@ -145,6 +145,10 @@ type Category struct {
 	Sort       int          `gorm:"default:0" json:"sort"`
 	IsSystem   bool         `gorm:"default:false" json:"is_system"` // 系统内置不可删
 	IsArchived bool         `gorm:"default:false" json:"is_archived"`
+	// IsHidden：后端自动生成的隐蔽分类（转账手续费、报销回款等）。
+	// 它们不应出现在分类管理页 / 记账表单的选择器 / 流水页的筛选下拉里（原 B-12），
+	// 但仍是合法的分类引用——流水列表通过 category_name 直接展示，不会退化成「未分类」。
+	IsHidden   bool         `gorm:"default:false" json:"is_hidden"`
 	NeedTag    bool         `gorm:"default:false" json:"need_tag"` // 是否强制标签
 }
 
@@ -222,6 +226,15 @@ type Transaction struct {
 	InstallmentIndex int         `gorm:"default:0" json:"installment_index"` // 第几期
 	InstallmentTotal int         `gorm:"default:0" json:"installment_total"`
 	Remark         string          `gorm:"size:1000" json:"remark"`
+
+	// 只读派生字段（gorm:"-" 不落库），由服务端返回列表/详情前统一填充。
+	// 1) category_name / account_name：前端字典是按 currentBookId 加载的，
+	//    「全部账本」视图下跨账本流水的分类/账户必然查不到，稳定显示「未分类 / —」（原 P-06）；
+	// 2) amount_base：外币流水折算后的基准币金额，避免前端各处重复实现汇率逻辑（原 B-02）。
+	AmountBase    Money  `gorm:"-" json:"amount_base,omitempty"`
+	CategoryName  string `gorm:"-" json:"category_name,omitempty"`
+	AccountName   string `gorm:"-" json:"account_name,omitempty"`
+	ToAccountName string `gorm:"-" json:"to_account_name,omitempty"`
 }
 
 // TransactionTag 交易标签多对多

@@ -9,7 +9,7 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 	import AccountIcon from '$lib/components/AccountIcon.svelte';
 	import { accountApi, txApi, statsApi } from '$lib/api/modules';
 	import { formatMoney, getMonthRange, formatRelativeDate } from '$lib/utils/format';
-	import type { CreditRepayItem, Transaction, AssetOverview } from '$lib/types';
+	import type { CreditRepayItem, Transaction, AssetOverview, TransactionListData } from '$lib/types';
 	import {
 		Wallet,
 		ArrowUpRight,
@@ -55,8 +55,9 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 			]);
 			if (assets.status === 'fulfilled') assetOverview = assets.value;
 			if (txs.status === 'fulfilled') {
-				const data = txs.value as any;
-				recentTxs = (data.flat_list || data.transactions || []) as Transaction[];
+				const data = txs.value as TransactionListData;
+				// flat_list 已被后端移除（与 grouped 重复序列化，原 P-02），从分组展开
+				recentTxs = (data.grouped ?? []).flatMap((g) => g.transactions ?? []);
 			}
 			if (credits.status === 'fulfilled') creditItems = credits.value ?? [];
 		} catch (e) {
