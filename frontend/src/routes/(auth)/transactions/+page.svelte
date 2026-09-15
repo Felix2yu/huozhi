@@ -301,7 +301,10 @@
 			<TabsTrigger value="income">收入</TabsTrigger>
 			<TabsTrigger value="transfer">转账</TabsTrigger>
 		</Tabs>
-		<div class="flex-1"></div>
+		<div class="relative flex-1 min-w-[140px]">
+			<Search size={14} class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+			<Input class="pl-9 h-8" placeholder="搜索..." bind:value={keyword} />
+		</div>
 		<!-- B3：批量删除入口 -->
 		<Button
 			size="sm"
@@ -344,22 +347,6 @@
 	{#if showFilters}
 		<Card>
 			<div class="p-4 space-y-3">
-				<div class="space-y-2">
-					<Label>关键词搜索</Label>
-					<div class="relative">
-						<Search size={14} class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-						<Input class="pl-9" placeholder="搜索描述、商户、备注、地点、分类、金额..." bind:value={keyword} />
-					</div>
-					<div class="flex flex-wrap gap-1 mt-1">
-						<button class="text-xs px-2 py-0.5 rounded bg-muted hover:bg-accent transition" onclick={() => { keyword = '餐饮'; }}>餐饮</button>
-						<button class="text-xs px-2 py-0.5 rounded bg-muted hover:bg-accent transition" onclick={() => { keyword = '交通'; }}>交通</button>
-						<button class="text-xs px-2 py-0.5 rounded bg-muted hover:bg-accent transition" onclick={() => { keyword = '购物'; }}>购物</button>
-						<button class="text-xs px-2 py-0.5 rounded bg-muted hover:bg-accent transition" onclick={() => { keyword = '娱乐'; }}>娱乐</button>
-						<button class="text-xs px-2 py-0.5 rounded bg-muted hover:bg-accent transition" onclick={() => { keyword = '医疗'; }}>医疗</button>
-						<button class="text-xs px-2 py-0.5 rounded bg-muted hover:bg-accent transition" onclick={() => { keyword = '教育'; }}>教育</button>
-					</div>
-				</div>
-
 				<div class="grid grid-cols-2 gap-4">
 					<div class="space-y-2">
 						<Label>开始日期</Label>
