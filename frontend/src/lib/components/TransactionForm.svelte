@@ -42,6 +42,20 @@
 	const isEdit = $derived(!!id);
 
 	let type = $state<'expense' | 'income' | 'transfer'>('expense');
+	/**
+	 * 编辑/复制模式下，原交易数据是否已回填完成。
+	 * 回填完成前不跑「分类一致性校正」，否则会把原分类当成「与类型不匹配」
+	 * 而替换成默认分类。
+	 */
+	let prefilled = $state(false);
+	/** 后端还支持 refund / reimburse / adjust，它们没有对应的 Tab，编辑时保持原类型 */
+	const HIDDEN_TYPE_LABEL: Record<string, string> = {
+		refund: '退款',
+		reimburse: '报销',
+		adjust: '余额调整'
+	};
+	const hiddenTypeLabel = $derived(HIDDEN_TYPE_LABEL[type] || '');
+
 	let amount = $state('');
 	let description = $state('');
 	let categoryId = $state<number>(0);
@@ -94,11 +108,14 @@
 
 	// 默认值初始化（新增模式）
 	$effect(() => {
-		if (isEdit) return;
-		if (!accountId && appStore.accounts.length > 0) {
-			accountId = appStore.accounts[0].id;
-			if (appStore.accounts.length > 1 && !toAccountId) {
-				toAccountId = appStore.accounts[1].id;
+		if (isEdit && !prefilled) return;
+		// 账户默认值只在新增模式生效：编辑/复制时原账户优先
+		if (!isEdit) {
+			if (!accountId && appStore.accounts.length > 0) {
+				accountId = appStore.accounts[0].id;
+				if (appStore.accounts.length > 1 && !toAccountId) {
+					toAccountId = appStore.accounts[1].id;
+				}
 			}
 		}
 		// 仅当当前分类对「当前收支种类」无效时才重新选择：
@@ -106,7 +123,8 @@
 		//  - 没有记忆才回落到第一个叶子分类
 		// 这样既不会静默覆盖用户已选，也不会留下与类型不匹配的分类 id。
 		const kind = type === 'income' ? 'income' : 'expense';
-		if (!categories.some((c) => c.id === categoryId)) {
+		// 转账没有分类，不参与校正（保持原值，切回转出再切回来也不会丢）
+		if (type !== 'transfer' && !categories.some((c) => c.id === categoryId)) {
 			const remembered = lastCatByKind[kind];
 			if (remembered && categories.some((c) => c.id === remembered)) {
 				categoryId = remembered;
@@ -118,8 +136,9 @@
 				}
 			}
 		}
-		// B11：币种跟随所选账户，用户手动改过之后不再覆盖
-		if (!currencyTouched) currency = effectiveCurrency;
+		// B11：币种跟随所选账户，用户手动改过之后不再覆盖。
+		// 编辑/复制时原交易自带的币种优先，不被账户默认值冲掉。
+		if (!currencyTouched && !prefilled) currency = effectiveCurrency;
 	});
 
 	function onCategoryChange(id: number) {
@@ -151,6 +170,7 @@
 				// B11：回填币种与汇率
 				currency = tx.currency || baseCurrency;
 				exchangeRate = (tx as any).exchange_rate ? String((tx as any).exchange_rate) : '';
+				prefilled = true;
 			})
 			.catch(() => {
 				hzToast.error('加载交易失败');
@@ -177,6 +197,7 @@
 		includeInBudget = clone.include_in_budget !== false;
 		currency = clone.currency || baseCurrency;
 		exchangeRate = clone.exchange_rate ? String(clone.exchange_rate) : '';
+		prefilled = true;
 	});
 
 	function resetForNext() {
@@ -372,6 +393,11 @@
 				<TabsTrigger value="income">收入</TabsTrigger>
 				<TabsTrigger value="transfer">转账</TabsTrigger>
 			</Tabs>
+			{#if hiddenTypeLabel}
+				<p class="-mt-3 text-xs text-muted-foreground">
+					该交易原类型为「{hiddenTypeLabel}」，此处无可切换的标签，直接保存会保持原类型。
+				</p>
+			{/if}
 
 			<!-- 金额 -->
 			<div class="space-y-2">
