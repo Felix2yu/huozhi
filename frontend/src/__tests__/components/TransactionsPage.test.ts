@@ -152,6 +152,34 @@ describe('交易列表页 - 有数据', () => {
 			expect(screen.getByText('开始日期')).toBeTruthy();
 		});
 	});
+
+	it('点击交易项显示预览弹窗', async () => {
+		render(Page);
+		await waitFor(() => screen.getByText('午餐'));
+		await fireEvent.click(screen.getByText('午餐'));
+		await waitFor(() => {
+			expect(screen.getByText('编辑')).toBeTruthy();
+		});
+	});
+
+	it('点击加载更多按钮', async () => {
+		listFn.mockResolvedValueOnce({
+			grouped: MOCK_GROUPED,
+			summary: { total_income: 100000, total_expense: 5000, net: 95000 },
+			pagination: { total: 100 }
+		});
+		render(Page);
+		await waitFor(() => {
+			expect(screen.getByText(/加载更多/)).toBeTruthy();
+		});
+	});
+
+	it('搜索输入框存在', async () => {
+		render(Page);
+		await waitFor(() => {
+			expect(screen.getByPlaceholderText('搜索...')).toBeTruthy();
+		});
+	});
 });
 
 describe('交易列表页 - 空状态', () => {
