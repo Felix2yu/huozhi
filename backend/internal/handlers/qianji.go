@@ -57,10 +57,15 @@ func parseQianJiRows(rows [][]string, rowImgs map[int][]string, uid, bookID uint
 		return strings.TrimSpace(row[i])
 	}
 
-	// 账本名 -> bookID 缓存：每行的「账本」列决定归属账本，缺省回退到导入目标账本
+	// 账本名 -> bookID 缓存：每行的「账本」列决定归属账本，缺省回退到导入目标账本。
+	// 关键修正：当用户在导入时显式选择了目标账本（bookID != 0），应以该目标账本为准，
+	// 忽略 xlsx 的「账本」列，避免流水/分类被拆到用户并未查看的另一个账本（导致
+	// 分类管理丢失二级分类、流水列表显示「未分类」、编辑分类栏空白、银行卡不显示）。
+	// 仅当用户未选目标账本（bookID == 0，即「全部账本」）时才按「账本」列逐行归属，
+	// 以保留钱迹多账本结构。
 	bookCache := map[string]uint{}
 	resolveBook := func(name string) uint {
-		if name == "" {
+		if name == "" || bookID != 0 {
 			return bookID
 		}
 		if id, ok := bookCache[name]; ok {
@@ -168,12 +173,13 @@ func parseQianJiRows(rows [][]string, rowImgs map[int][]string, uid, bookID uint
 			}
 		}
 
-		// 账户
+		// 账户：必须与流水落在同一账本（rowBookID），否则账户会被建到导入目标账本，
+		// 与流水/分类所在的账本不一致，导致「账户生成了但对应银行卡不显示」。
 		if a1 != "" {
-			tx.AccountID = findAccountByNameOrCreate(uid, bookID, a1).ID
+			tx.AccountID = findAccountByNameOrCreate(uid, rowBookID, a1).ID
 		}
 		if a2 != "" {
-			tx.ToAccountID = findAccountByNameOrCreate(uid, bookID, a2).ID
+			tx.ToAccountID = findAccountByNameOrCreate(uid, rowBookID, a2).ID
 		}
 
 		// 报销状态：钱迹「已报销」列一般为「是/否」、空、日期或报销金额。
