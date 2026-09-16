@@ -180,6 +180,49 @@ describe('交易列表页 - 有数据', () => {
 			expect(screen.getByPlaceholderText('搜索...')).toBeTruthy();
 		});
 	});
+
+	it('多选模式下显示checkbox', async () => {
+		render(Page);
+		await waitFor(() => screen.getByText('多选'));
+		await fireEvent.click(screen.getByText('多选'));
+		await waitFor(() => {
+			expect(screen.getByText('退出多选')).toBeTruthy();
+			expect(screen.getByText('已选 0 笔')).toBeTruthy();
+		});
+	});
+
+	it('筛选面板包含日期选择', async () => {
+		render(Page);
+		await waitFor(() => screen.getByText('筛选'));
+		await fireEvent.click(screen.getByText('筛选'));
+		await waitFor(() => {
+			expect(screen.getByText('开始日期')).toBeTruthy();
+			expect(screen.getByText('结束日期')).toBeTruthy();
+			expect(screen.getByText('分类')).toBeTruthy();
+			expect(screen.getByText('账户')).toBeTruthy();
+		});
+	});
+
+	it('预览弹窗显示交易详情', async () => {
+		render(Page);
+		await waitFor(() => screen.getByText('午餐'));
+		await fireEvent.click(screen.getByText('午餐'));
+		await waitFor(() => {
+			expect(screen.getByText('编辑')).toBeTruthy();
+			expect(screen.getByText('关闭')).toBeTruthy();
+		});
+	});
+
+	it('关闭预览弹窗', async () => {
+		render(Page);
+		await waitFor(() => screen.getByText('午餐'));
+		await fireEvent.click(screen.getByText('午餐'));
+		await waitFor(() => screen.getByText('关闭'));
+		await fireEvent.click(screen.getByText('关闭'));
+		await waitFor(() => {
+			expect(screen.queryByText('编辑')).toBeNull();
+		});
+	});
 });
 
 describe('交易列表页 - 空状态', () => {
