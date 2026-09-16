@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -497,5 +498,270 @@ func TestParseQianJiRowsCustomTopCategory(t *testing.T) {
 	}
 	if txs[2].CategoryID != top.ID {
 		t.Errorf("同名二级应直接挂一级「食物」id=%d, got %d", top.ID, txs[2].CategoryID)
+	}
+}
+
+// 钱迹「还款」本质是转账：从储蓄卡等资金账户转到信用卡 / 花呗 / 房贷等账户。
+// 真实导出中「还款」是仅次于「支出」的高频类型，必须显式识别为转账，
+// 不能依赖 default 分支的「账户1、账户2 同时存在」猜测 —— 一旦目标账户缺失，
+// 旧实现会把它误判成支出。本用例覆盖两种账户结构以确保回归可控。
+func TestParseQianJiRowsRepayment(t *testing.T) {
+	uid, bookID := qjSetup(t)
+	rows := [][]string{
+		{"ID", "时间", "账本", "分类", "二级分类", "类型", "金额", "币种", "账户1", "账户2", "备注", "已报销", "手续费", "优惠券", "记账者", "账单标记", "标签", "账单图片", "关联账单"},
+		// 标准还款：储蓄卡 -> 信用卡
+		{"rp1", "2026-09-15 10:15:57", "日常账本", "其它", "", "还款", "180.59", "CNY", "交通银行储蓄卡", "交通银行万事达信用卡", "", "", "", "", "子翼", "", "", ""},
+		// 还款到花呗（互联网金融账户，负债类），并带手续费
+		{"rp2", "2026-09-15 10:14:44", "日常账本", "其它", "", "还款", "470.57", "CNY", "民生银行储蓄卡", "花呗", "", "", "2.0", "", "子翼", "", "", ""},
+		// 目标账户缺失：仍应为转账（旧实现落到 default 后会判为支出）
+		{"rp3", "2026-09-15 10:13:13", "日常账本", "其它", "", "还款", "121.63", "CNY", "民生银行储蓄卡", "", "", "", "", "", "子翼", "", "", ""},
+	}
+	txs, err := parseQianJiRows(rows, nil, uid, bookID)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	if len(txs) != 3 {
+		t.Fatalf("want 3 txs, got %d", len(txs))
+	}
+
+	// 1) 全部「还款」都必须落成转账（而非支出）
+	for i, tx := range txs {
+		if tx.Type != models.TxTransfer {
+			t.Errorf("row%d type = %s, want transfer", i, tx.Type)
+		}
+		if tx.Amount != models.FromYuan([]float64{180.59, 470.57, 121.63}[i]) {
+			t.Errorf("row%d amount = %v, want %v", i, tx.Amount.String(), tx.Amount)
+		}
+	}
+
+	// 2) 储蓄卡 -> 信用卡：目标账户应被建为信用卡类型
+	var cc models.Account
+	if err := database.DB.First(&cc, txs[0].ToAccountID).Error; err != nil {
+		t.Fatalf("row0 to account not resolved: %v", err)
+	}
+	if cc.Name != "交通银行万事达信用卡" || cc.Type != models.AccCredit {
+		t.Errorf("row0 to account = %s/%s, want 交通银行万事达信用卡/credit", cc.Name, cc.Type)
+	}
+
+	// 3) 储蓄卡 -> 花呗：目标账户应为负债类，且手续费落入 TransferFee
+	var hb models.Account
+	if err := database.DB.First(&hb, txs[1].ToAccountID).Error; err != nil {
+		t.Fatalf("row1 to account not resolved: %v", err)
+	}
+	if hb.Name != "花呗" || hb.Type != models.AccLiability {
+		t.Errorf("row1 to account = %s/%s, want 花呗/liability", hb.Name, hb.Type)
+	}
+	if txs[1].TransferFee != models.FromYuan(2) {
+		t.Errorf("row1 transfer fee = %v, want 2", txs[1].TransferFee)
+	}
+
+	// 4) 目标账户缺失的行：账户1 仍解析、转出方向保留，ToAccountID 为 0 但不影响类型判定
+	if txs[2].AccountID == 0 {
+		t.Errorf("row2 from account not resolved")
+	}
+	if txs[2].ToAccountID != 0 {
+		t.Errorf("row2 to account = %d, want 0 (目标账户缺失)", txs[2].ToAccountID)
+	}
+}
+
+// ============ 真实钱迹导出格式（sharedStrings）构造器 ============
+// 真实钱迹导出使用 xl/sharedStrings.xml + t="s" 单元格，而非 inlineStr；
+// 现有 buildXLSX / buildQianJiXLSXFull 走 inlineStr，未覆盖共享字符串读取路径。
+// 这里按真实文件结构构造，用于端到端校验 readXLSXBytes 的 sharedStrings 分支。
+func buildQianJiSharedXLSX(t *testing.T, rows [][]string) []byte {
+	t.Helper()
+	idx := map[string]int{}
+	var shared []string
+	for _, row := range rows {
+		for _, cell := range row {
+			if _, ok := idx[cell]; !ok {
+				idx[cell] = len(shared)
+				shared = append(shared, cell)
+			}
+		}
+	}
+	var ssb strings.Builder
+	ssb.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`)
+	ssb.WriteString(`<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="` +
+		strconv.Itoa(len(shared)) + `" uniqueCount="` + strconv.Itoa(len(shared)) + `">`)
+	for _, s := range shared {
+		ssb.WriteString(`<si><t xml:space="preserve">` + xmlEscape(s) + `</t></si>`)
+	}
+	ssb.WriteString(`</sst>`)
+
+	var sb strings.Builder
+	sb.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`)
+	sb.WriteString(`<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>`)
+	for ri, row := range rows {
+		sb.WriteString(fmt.Sprintf(`<row r="%d">`, ri+1))
+		for ci, cell := range row {
+			sb.WriteString(fmt.Sprintf(`<c r="%s%d" t="s"><v>%d</v></c>`, colLetter(ci), ri+1, idx[cell]))
+		}
+		sb.WriteString(`</row>`)
+	}
+	sb.WriteString(`</sheetData></worksheet>`)
+
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	write := func(name, content string) {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.Write([]byte(content))
+	}
+	write("[Content_Types].xml", ctTypes)
+	write("_rels/.rels", relsRoot)
+	write("xl/workbook.xml", wbXML)
+	write("xl/_rels/workbook.xml.rels", wbRels)
+	write("xl/sharedStrings.xml", ssb.String())
+	write("xl/worksheets/sheet1.xml", sb.String())
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+// TestParseQianJi_RealExportShape 以真实钱迹导出格式（sharedStrings + 19 列表头）
+// 端到端校验解析，覆盖此前测试缺失的取值：
+//   - 类型「还款」→ 转账（真实导出高频类型）
+//   - 手续费 / 优惠券 → TransferFee / TransferDiscount（此前优惠券无任何断言）
+//   - 大整数金额（12345）与小数金额（13805.7）
+//   - 无备注行、单标签行（真实导出常见）
+//   - readXLSXBytes 的共享字符串读取分支（真实文件即此格式）
+func TestParseQianJi_RealExportShape(t *testing.T) {
+	uid, bookID := qjSetup(t)
+	rows := [][]string{
+		{"ID", "时间", "账本", "分类", "二级分类", "类型", "金额", "币种", "账户1", "账户2", "备注", "已报销", "手续费", "优惠券", "记账者", "账单标记", "标签", "账单图片", "关联账单"},
+		// 还款：储蓄卡 -> 信用卡
+		{"qj-r1", "2026-09-15 10:15:57", "日常账本", "其它", "", "还款", "180.59", "CNY", "交通银行储蓄卡", "交通银行万事达信用卡", "", "", "", "", "子翼", "", "", ""},
+		// 还款：储蓄卡 -> 花呗，带优惠券 0.15
+		{"qj-r2", "2026-09-15 10:14:44", "日常账本", "其它", "", "还款", "470.57", "CNY", "民生银行储蓄卡", "花呗", "", "", "", "0.15", "子翼", "", "", ""},
+		// 转账：同时带手续费 1.7 与优惠券 0.15
+		{"qj-t1", "2026-09-16 11:22:07", "日常账本", "其它", "", "转账", "8", "CNY", "招商银行信用卡", "市政府饭卡", "", "", "1.7", "0.15", "子翼", "", "", ""},
+		// 支出：大整数金额 + 无备注 + 二级分类
+		{"qj-e1", "2026-09-15 11:00:00", "日常账本", "住房", "房贷", "支出", "12345", "CNY", "房贷", "", "111", "", "", "", "子翼", "", "", ""},
+		// 收入：小数金额 + 单标签
+		{"qj-i1", "2026-09-15 15:11:29", "日常账本", "工资", "", "收入", "13805.7", "CNY", "民生银行储蓄卡", "", "", "", "", "", "子翼", "", "京东", ""},
+	}
+	data := buildQianJiSharedXLSX(t, rows)
+	txs, err := parseQianJi(bytes.NewReader(data), uid, bookID)
+	if err != nil {
+		t.Fatalf("parseQianJi error: %v", err)
+	}
+	if len(txs) != 5 {
+		t.Fatalf("want 5 txs, got %d", len(txs))
+	}
+
+	// 1) 还款 → 转账；优惠券写入 TransferDiscount
+	if txs[0].Type != models.TxTransfer {
+		t.Errorf("row0 type = %s, want transfer (还款)", txs[0].Type)
+	}
+	if txs[1].Type != models.TxTransfer {
+		t.Errorf("row1 type = %s, want transfer (还款->花呗)", txs[1].Type)
+	}
+	if txs[1].TransferDiscount != models.FromYuan(0.15) {
+		t.Errorf("row1 transfer discount = %v, want 0.15", txs[1].TransferDiscount)
+	}
+	var hb models.Account
+	if err := database.DB.First(&hb, txs[1].ToAccountID).Error; err != nil {
+		t.Fatalf("row1 to account not resolved: %v", err)
+	}
+	if hb.Type != models.AccLiability {
+		t.Errorf("row1 to account type = %s, want liability (花呗)", hb.Type)
+	}
+
+	// 2) 转账：手续费 + 优惠券 同时落库
+	if txs[2].TransferFee != models.FromYuan(1.7) {
+		t.Errorf("row2 transfer fee = %v, want 1.7", txs[2].TransferFee)
+	}
+	if txs[2].TransferDiscount != models.FromYuan(0.15) {
+		t.Errorf("row2 transfer discount = %v, want 0.15", txs[2].TransferDiscount)
+	}
+
+	// 3) 支出：大整数金额守恒，二级分类挂到一级「住房」下
+	if txs[3].Type != models.TxExpense {
+		t.Errorf("row3 type = %s, want expense", txs[3].Type)
+	}
+	if txs[3].Amount != models.FromYuan(12345) {
+		t.Errorf("row3 amount = %v, want 12345", txs[3].Amount)
+	}
+	if txs[3].Description != "111" {
+		t.Errorf("row3 description = %q, want 111", txs[3].Description)
+	}
+	var sub3 models.Category
+	if err := database.DB.First(&sub3, txs[3].CategoryID).Error; err != nil {
+		t.Fatalf("row3 category: %v", err)
+	}
+	if sub3.Name != "房贷" || sub3.ParentID == 0 {
+		t.Errorf("row3 category = %s (parent=%d), want 房贷 under 住房", sub3.Name, sub3.ParentID)
+	}
+	// 真实导出里「房贷」账户既作支出账户、又作还款目标账户，必须识别为负债
+	var mort models.Account
+	if err := database.DB.First(&mort, txs[3].AccountID).Error; err != nil {
+		t.Fatalf("row3 account: %v", err)
+	}
+	if mort.Name != "房贷" || mort.Type != models.AccLiability {
+		t.Errorf("row3 account = %s/%s, want 房贷/liability", mort.Name, mort.Type)
+	}
+
+	// 4) 收入：小数金额守恒 + 单标签
+	if txs[4].Type != models.TxIncome {
+		t.Errorf("row4 type = %s, want income", txs[4].Type)
+	}
+	if txs[4].Amount != models.FromYuan(13805.7) {
+		t.Errorf("row4 amount = %v, want 13805.7", txs[4].Amount)
+	}
+	if len(txs[4].Tags) != 1 || txs[4].Tags[0].Name != "京东" {
+		t.Errorf("row4 tags = %v, want [京东]", txs[4].Tags)
+	}
+}
+
+// guessAccountType 依据账户名猜测类型。各类贷款（房贷/车贷/××贷）必须归为负债
+// —— 与 AccLiability 注释「花呗/借呗/贷款」一致；否则会被当成现金资产，
+// 而负债账户在余额引擎里方向系数取反（debtSign = -1），误判会让还款/支出的
+// 欠款增减方向算反。
+func TestGuessAccountType(t *testing.T) {
+	cases := []struct {
+		name string
+		want models.AccountType
+	}{
+		// 负债：互联网金融 + 各类贷款
+		{"花呗", models.AccLiability},
+		{"借呗", models.AccLiability},
+		{"京东白条", models.AccLiability},
+		{"房贷", models.AccLiability},
+		{"车贷", models.AccLiability},
+		{"消费贷款", models.AccLiability},
+		{"助学贷", models.AccLiability},
+		// 信用卡：必须先于负债的「贷」字命中
+		{"信用卡", models.AccCredit},
+		{"招行贷记卡", models.AccCredit},
+		{"交通银行万事达信用卡", models.AccCredit},
+		// 储蓄卡 / 银行
+		{"招商银行储蓄卡", models.AccBank},
+		{"交通银行储蓄卡", models.AccBank},
+		{"民生银行储蓄卡", models.AccBank},
+		// 储值卡
+		{"市政府饭卡", models.AccPrepaid},
+		// 虚拟账户
+		{"支付宝", models.AccVirtual},
+		{"微信零钱", models.AccVirtual},
+		// 现金
+		{"现金", models.AccCash},
+	}
+	for _, c := range cases {
+		if got := guessAccountType(c.name); got != c.want {
+			t.Errorf("guessAccountType(%q) = %s, want %s", c.name, got, c.want)
+		}
+	}
+
+	// 房贷须为债务账户：余额方向取反，保证还款/支出时欠款正确增减
+	mortgage := &models.Account{Type: guessAccountType("房贷")}
+	if !isDebtAccount(mortgage) {
+		t.Errorf("房贷应识别为债务账户")
+	}
+	if debtSign(mortgage) != -1 {
+		t.Errorf("房贷 debtSign = %d, want -1", debtSign(mortgage))
 	}
 }

@@ -141,7 +141,11 @@ func parseQianJiRows(rows [][]string, rowImgs map[int][]string, uid, bookID uint
 			tx.Type = models.TxRefund
 			parentID := matchTopCategoryAny(uid, rowBookID, get(row, "分类"), incomeCat)
 			tx.CategoryID = resolveSubCategory(uid, parentID, subName)
-		case "转账":
+		// 「还款」本质是一笔转账：从储蓄卡等资金账户转到信用卡 / 花呗 / 房贷等
+		// （互联网金融）账户，与「转账」共用同一套处理（手续费 / 优惠券同样生效）。
+		// 必须显式匹配，否则会落到 default 分支，仅在「账户1、账户2 同时存在」时
+		// 才被识别成转账 —— 一旦缺少目标账户就会被误判为支出。
+		case "转账", "还款":
 			tx.Type = models.TxTransfer
 			tx.CategoryID = resolveSubCategory(uid, transferCat.ID, subName)
 			if fee := parseFloat(get(row, "手续费")); fee > 0 {
@@ -343,7 +347,10 @@ func guessAccountType(name string) models.AccountType {
 	case strings.Contains(name, "信用卡") || strings.Contains(name, "贷记") || strings.Contains(n, "credit"):
 		return models.AccCredit
 	case strings.Contains(name, "花呗") || strings.Contains(name, "借呗") || strings.Contains(name, "白条") ||
-		strings.Contains(name, "负债") || strings.Contains(n, "loan"):
+		strings.Contains(name, "负债") || strings.Contains(n, "loan") ||
+		// 房贷 / 车贷 / 各种「××贷」本质都是负债（钱迹里常作为还款的目标账户）；
+		// 「信用卡 / 贷记卡」已在上一个 case 优先命中，这里按「贷」字兜住各类贷款账户。
+		strings.Contains(name, "贷"):
 		return models.AccLiability
 	case strings.Contains(name, "银行") || strings.Contains(name, "储蓄") || strings.Contains(name, "借记"):
 		return models.AccBank

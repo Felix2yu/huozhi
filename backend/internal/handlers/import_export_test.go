@@ -344,3 +344,53 @@ func TestImportQianJiIdempotentAndRefundLink(t *testing.T) {
 		t.Fatalf("expected 0 created on reimport (idempotent by external_id), got %v", data2)
 	}
 }
+
+// TestImportQianJiRepaymentIsTransfer 验证「还款」在导入全链路中落成转账并正确更新余额：
+// 储蓄卡 -> 信用卡 的还款，应减少储蓄卡余额、同时减少信用卡欠款（方向系数取反）。
+// 这条路径覆盖 解析器 -> 导入入库 -> updateAccountBalances 的完整串联。
+func TestImportQianJiRepaymentIsTransfer(t *testing.T) {
+	uid, tok, bookID := registerRealUser(t)
+	rows := [][]string{
+		{"ID", "时间", "账本", "分类", "二级分类", "类型", "金额", "币种", "账户1", "账户2", "备注", "已报销", "手续费", "优惠券", "记账者", "账单标记", "标签", "账单图片", "关联账单"},
+		{"rep-1", "2026-09-15 10:15:57", "日常账本", "其它", "", "还款", "180.59", "CNY", "交通银行储蓄卡", "交通银行万事达信用卡", "", "", "", "", "子翼", "", "", ""},
+	}
+	xlsx := buildQianJiXLSXFull(t, rows)
+	w := do(authMultipartReq(t, "POST",
+		"/api/io/import?source=qianji&book_id="+itoa(bookID), tok,
+		"file", "qianji.xlsx", string(xlsx)))
+	if w.Code != 200 {
+		t.Fatalf("import %d %s", w.Code, w.Body.String())
+	}
+	m := decode(t, w)
+	if int(m["data"].(map[string]interface{})["created"].(float64)) != 1 {
+		t.Fatalf("expected 1 created, got %v", m["data"])
+	}
+
+	var tx models.Transaction
+	if err := database.DB.Where("user_id = ? AND external_id = ?", uid, "rep-1").First(&tx).Error; err != nil {
+		t.Fatalf("tx by external_id: %v", err)
+	}
+	if tx.Type != models.TxTransfer {
+		t.Fatalf("type = %s, want transfer (还款 应识别为转账)", tx.Type)
+	}
+	if tx.ToAccountID == 0 {
+		t.Fatalf("ToAccountID not resolved")
+	}
+
+	var from, to models.Account
+	database.DB.First(&from, tx.AccountID)
+	database.DB.First(&to, tx.ToAccountID)
+	if from.Name != "交通银行储蓄卡" {
+		t.Errorf("from account = %s, want 交通银行储蓄卡", from.Name)
+	}
+	if to.Name != "交通银行万事达信用卡" || to.Type != models.AccCredit {
+		t.Errorf("to account = %s/%s, want 交通银行万事达信用卡/credit", to.Name, to.Type)
+	}
+	// 储蓄卡余额减少；信用卡（债务类，方向系数取反）欠款同步减少
+	if from.Balance != models.FromYuan(-180.59) {
+		t.Errorf("savings balance = %v, want -180.59", from.Balance.String())
+	}
+	if to.Balance != models.FromYuan(-180.59) {
+		t.Errorf("credit debt = %v, want -180.59 (欠款减少)", to.Balance.String())
+	}
+}
