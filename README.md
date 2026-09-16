@@ -1,6 +1,6 @@
 # 货殖 —— 个人记账应用
 
-一个使用 Go + React/TypeScript/TailwindCSS 构建的现代个人记账系统，
+一个使用 Go + Svelte/SvelteKit/TailwindCSS 构建的现代个人记账系统，
 支持 Docker 一键部署，响应式界面 + PWA 支持，手机/桌面皆可良好使用。
 
 ---
@@ -16,7 +16,7 @@
 | 交易记账 | 收入/支出/转账/退款/报销/调整，标签、图片、商家、地点、记账日期任意选 |
 | 标签中心 | 标签云、使用次数统计、标签筛选流水 |
 | 预算管理 | 总预算/分类预算，月/年/自定义周期，进度条、日均、超支预警 |
-| 统计分析 | 饼图/折线图/柱状图，分类/账户/标签/日/月维度，Top支出，资产净值曲线 |
+| 统计分析 | 饼图/折线图/柱状图，分类/账户/标签/日/月维度，Top支出，资产净值曲线，收支趋势 |
 | 存钱计划 | 目标金额+目标日期，进度条、存钱记录、日均需要存 |
 | 周期记账 | 日/周/两周/月/年/自定义间隔到期自动入账 |
 | 分期管理 | 消费分期，自动生成每期还款日历 |
@@ -28,12 +28,13 @@
 
 | 层 | 技术 |
 |----|------|
-| 后端 | Go 1.22 + Gin + GORM + JWT (golang-jwt/v5) + bcrypt |
+| 后端 | Go 1.27 + Gin + GORM + JWT (golang-jwt/v5) + bcrypt |
 | 数据库 | SQLite（本地/零依赖）/ PostgreSQL 16（生产） |
-| 前端 | React 18 + TypeScript 5 + Vite 5 + TailwindCSS 3 |
-| 状态 | Zustand |
-| 图表 | Recharts 2 |
-| UI 组件 | 自研轻量 + lucide-react 图标 + Sonner Toast |
+| 前端 | Svelte 5 + SvelteKit 2 + TypeScript 7 + Vite 8 + TailwindCSS 4 |
+| 状态 | Svelte stores（响应式） |
+| 图表 | Chart.js 4 + svelte-chartjs |
+| UI 组件 | 自研轻量 + vaul-svelte 抽屉 + svelte-sonner Toast + @lucide/svelte 图标 |
+| 虚拟滚动 | @tanstack/svelte-virtual（大数据量列表优化） |
 | PWA | vite-plugin-pwa（可安装离线访问） |
 | 部署 | Docker 多阶段，单进程 Go 托管前后端（可前置反向代理） |
 | 周期调度器 | Go 内置 Tick（每日资产快照 / 周期记账） |
@@ -96,15 +97,21 @@ huozhi/
 │       └── jwt/                    # JWT 签发/解析
 ├── frontend/
 │   ├── src/
-│   │   ├── api/index.ts            # 模块式 HTTP API 封装
-│   │   ├── stores/app.ts           # zustand: user/book/category/tag/account
-│   │   ├── components/layout/      # AppLayout + 侧边栏/顶栏/移动Tab
-│   │   ├── components/common/      # Modal/Drawer/Empty/Progress/TagChip 等
-│   │   ├── pages/{auth,dashboard,transactions,accounts,categories,
-│   │              budgets,statistics,tags,savings,shared,settings}/
-│   │   ├── utils/                  # formatMoney/formatDate/pct/cn
-│   │   └── types/                  # 全部类型定义
-│   └── vite.config.ts + tailwind.config.js
+│   │   ├── lib/
+│   │   │   ├── api/                # 模块式 HTTP API 封装
+│   │   │   ├── stores/             # Svelte stores: user/book/category/tag/account
+│   │   │   ├── components/
+│   │   │   │   ├── ui/             # Button/Card/Dialog/Input/Select 等基础组件
+│   │   │   │   ├── layout/         # AppLayout + 侧边栏/顶栏/移动Tab
+│   │   │   │   ├── charts/         # CategoryPie/TrendLine/MonthlyBars 图表组件
+│   │   │   │   └── business/       # 业务组件（交易表单、账户选择等）
+│   │   │   ├── utils/              # formatMoney/formatDate/pct/cn
+│   │   │   └── types.ts            # 全部类型定义
+│   │   └── routes/
+│   │       ├── (auth)/             # 需认证的页面（dashboard/transactions/accounts...）
+│   │       ├── login/              # 登录页
+│   │       └── register/           # 注册页
+│   └── vite.config.ts + svelte.config.js
 ├── scripts/entrypoint.sh           # Docker 入口脚本（自动生成JWT密钥）
 ├── Dockerfile                      # 多阶段镜像：Go build → Vite build → 单进程 Go 托管前后端
 └── docker-compose.yaml             # 零依赖一键启动（SQLite）
@@ -112,7 +119,7 @@ huozhi/
 
 ---
 
-## API 一览（略）
+## API 一览
 
 全部 REST 接口定义在 `backend/internal/router/router.go`：
 
@@ -124,7 +131,7 @@ GET|POST|PUT|DELETE  /api/books        /api/accounts         /api/categories
                      /api/saving-plans /api/recurring        /api/installments
                      /api/reimbursements
 
-GET  /api/statistics                   # 综合统计
+GET  /api/statistics                   # 综合统计（支持 dimension=category|account|book|all）
 GET  /api/statistics/assets            # 资产总览
 GET  /api/statistics/assets/timeline   # 资产净值曲线
 
