@@ -161,4 +161,52 @@ describe('HTTP client - Bug #5 offline queue conditions', () => {
 		expect(typeof cancel).toBe('function');
 		cancel();
 	});
+
+	it('PATCH 请求成功', async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: () => Promise.resolve({ code: 0, data: { patched: true } })
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		const result = await http.patch('/transactions/1', { amount: 200 });
+		expect(result).toEqual({ patched: true });
+	});
+
+	it('带空params的GET请求不追加查询字符串', async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: () => Promise.resolve({ code: 0, data: [] })
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		await http.get('/transactions', { params: {} });
+		const url = fetchMock.mock.calls[0][0] as string;
+		expect(url).toBe('/api/transactions');
+	});
+
+	it('401错误移除token', async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: false,
+			status: 401,
+			json: () => Promise.resolve({ code: 401, message: '未授权' })
+		});
+		vi.stubGlobal('fetch', fetchMock);
+		vi.stubGlobal('localStorage', {
+			getItem: vi.fn(() => 'token-123'),
+			setItem: vi.fn(),
+			removeItem: vi.fn()
+		});
+
+		await expect(http.get('/auth/me')).rejects.toThrow();
+	});
+
+	it('replayQueue在离线时中断', async () => {
+		vi.stubGlobal('navigator', { onLine: false });
+		const { replayQueue } = await import('$lib/api/http');
+		const result = await replayQueue();
+		expect(result.remaining).toBe(0);
+	});
 });
