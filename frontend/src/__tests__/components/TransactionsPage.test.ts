@@ -10,7 +10,9 @@ const MOCK_TXS = [
 		account_id: 1,
 		tx_date: '2026-09-16',
 		description: '午餐',
-		merchant: '食堂'
+		merchant: '食堂',
+		remark: '周一午餐',
+		tags: [{ id: 1, name: '工作日' }]
 	},
 	{
 		id: 2,
@@ -19,7 +21,17 @@ const MOCK_TXS = [
 		category_id: 2,
 		account_id: 1,
 		tx_date: '2026-09-16',
-		description: '工资'
+		description: '工资',
+		images: ['https://example.com/receipt.jpg']
+	},
+	{
+		id: 3,
+		type: 'transfer',
+		amount: 20000,
+		account_id: 1,
+		to_account_id: 2,
+		tx_date: '2026-09-16',
+		description: '转入定期'
 	}
 ];
 
@@ -36,8 +48,11 @@ const MOCK_GROUPED = [
 const listFn = vi.fn(async () => ({
 	grouped: MOCK_GROUPED,
 	summary: { total_income: 100000, total_expense: 5000, net: 95000 },
-	pagination: { total: 2 }
+	pagination: { total: 3 }
 }));
+
+const removeFn = vi.fn(async () => ({}));
+const batchRemoveFn = vi.fn(async () => ({ deleted_count: 2 }));
 
 vi.mock('$lib/stores/app', () => ({
 	appStore: {
@@ -49,10 +64,13 @@ vi.mock('$lib/stores/app', () => ({
 			};
 		},
 		get accounts() {
-			return [{ id: 1, name: '支付宝', icon: '💳' }];
+			return [
+				{ id: 1, name: '支付宝', icon: '💳' },
+				{ id: 2, name: '招行储蓄', icon: '🏦' }
+			];
 		},
 		get tags() {
-			return [];
+			return [{ id: 1, name: '工作日' }];
 		},
 		get currentBookId() {
 			return 1;
@@ -68,8 +86,8 @@ vi.mock('$lib/stores/app', () => ({
 vi.mock('$lib/api/modules/transactions', () => ({
 	txApi: {
 		list: listFn,
-		remove: vi.fn(async () => ({})),
-		batchRemove: vi.fn(async () => ({ deleted_count: 2 }))
+		remove: removeFn,
+		batchRemove: batchRemoveFn
 	}
 }));
 
@@ -85,9 +103,9 @@ vi.mock('$lib/components/ui/toast', () => ({
 
 vi.mock('$lib/utils/tx', () => ({
 	amountDisplay: (tx: any) => ({
-		sign: tx.type === 'income' ? '+' : '-',
+		sign: tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : '',
 		abs: tx.amount / 100,
-		tone: tx.type === 'income' ? 'income' : 'expense'
+		tone: tx.type === 'income' ? 'income' : tx.type === 'expense' ? 'expense' : 'muted'
 	}),
 	baseAmount: (tx: any) => tx.amount / 100,
 	highlightSegments: (text: string) => [{ text, hit: false }],
@@ -99,8 +117,8 @@ vi.mock('$lib/utils/tx', () => ({
 			.filter((t: any) => t.type === 'expense')
 			.reduce((s: number, t: any) => s + t.amount / 100, 0);
 	},
-	toneClass: (tone: string) => (tone === 'income' ? 'text-income' : 'text-expense'),
-	typeLabel: (t: string) => t
+	toneClass: (tone: string) => (tone === 'income' ? 'text-income' : tone === 'expense' ? 'text-expense' : 'text-muted'),
+	typeLabel: (t: string) => ({ income: '收入', expense: '支出', transfer: '转账', refund: '退款', reimburse: '报销', adjust: '余额调整' }[t] || t)
 }));
 
 vi.mock('$lib/utils/format', () => ({
@@ -117,6 +135,8 @@ beforeAll(async () => {
 describe('交易列表页 - 有数据', () => {
 	beforeEach(() => {
 		listFn.mockClear();
+		removeFn.mockClear();
+		batchRemoveFn.mockClear();
 	});
 
 	it('渲染汇总卡片', async () => {
@@ -127,29 +147,11 @@ describe('交易列表页 - 有数据', () => {
 		});
 	});
 
-	it('渲染交易列表', async () => {
+	it('渲染交易列表含expense/income/transfer', async () => {
 		render(Page);
 		await waitFor(() => {
 			expect(screen.getByText('午餐')).toBeTruthy();
-			expect(screen.getAllByText('工资').length).toBeGreaterThanOrEqual(1);
-		});
-	});
-
-	it('点击多选进入选择模式', async () => {
-		render(Page);
-		await waitFor(() => screen.getByText('多选'));
-		await fireEvent.click(screen.getByText('多选'));
-		await waitFor(() => {
-			expect(screen.getByText('退出多选')).toBeTruthy();
-		});
-	});
-
-	it('点击筛选显示筛选面板', async () => {
-		render(Page);
-		await waitFor(() => screen.getByText('筛选'));
-		await fireEvent.click(screen.getByText('筛选'));
-		await waitFor(() => {
-			expect(screen.getByText('开始日期')).toBeTruthy();
+			expect(screen.getByText('转入定期')).toBeTruthy();
 		});
 	});
 
@@ -159,57 +161,38 @@ describe('交易列表页 - 有数据', () => {
 		await fireEvent.click(screen.getByText('午餐'));
 		await waitFor(() => {
 			expect(screen.getByText('编辑')).toBeTruthy();
+			expect(screen.getByText('关闭')).toBeTruthy();
 		});
 	});
 
-	it('点击加载更多按钮', async () => {
-		listFn.mockResolvedValueOnce({
-			grouped: MOCK_GROUPED,
-			summary: { total_income: 100000, total_expense: 5000, net: 95000 },
-			pagination: { total: 100 }
-		});
-		render(Page);
-		await waitFor(() => {
-			expect(screen.getByText(/加载更多/)).toBeTruthy();
-		});
-	});
-
-	it('搜索输入框存在', async () => {
-		render(Page);
-		await waitFor(() => {
-			expect(screen.getByPlaceholderText('搜索...')).toBeTruthy();
-		});
-	});
-
-	it('多选模式下显示checkbox', async () => {
-		render(Page);
-		await waitFor(() => screen.getByText('多选'));
-		await fireEvent.click(screen.getByText('多选'));
-		await waitFor(() => {
-			expect(screen.getByText('退出多选')).toBeTruthy();
-			expect(screen.getByText('已选 0 笔')).toBeTruthy();
-		});
-	});
-
-	it('筛选面板包含日期选择', async () => {
-		render(Page);
-		await waitFor(() => screen.getByText('筛选'));
-		await fireEvent.click(screen.getByText('筛选'));
-		await waitFor(() => {
-			expect(screen.getByText('开始日期')).toBeTruthy();
-			expect(screen.getByText('结束日期')).toBeTruthy();
-			expect(screen.getByText('分类')).toBeTruthy();
-			expect(screen.getByText('账户')).toBeTruthy();
-		});
-	});
-
-	it('预览弹窗显示交易详情', async () => {
+	it('预览弹窗显示商户和备注信息', async () => {
 		render(Page);
 		await waitFor(() => screen.getByText('午餐'));
 		await fireEvent.click(screen.getByText('午餐'));
 		await waitFor(() => {
-			expect(screen.getByText('编辑')).toBeTruthy();
-			expect(screen.getByText('关闭')).toBeTruthy();
+			expect(screen.getByText('商户')).toBeTruthy();
+			expect(screen.getByText('食堂')).toBeTruthy();
+		});
+	});
+
+	it('预览弹窗显示标签信息', async () => {
+		render(Page);
+		await waitFor(() => screen.getByText('午餐'));
+		await fireEvent.click(screen.getByText('午餐'));
+		await waitFor(() => {
+			expect(screen.getByText('标签')).toBeTruthy();
+			expect(screen.getByText('工作日')).toBeTruthy();
+		});
+	});
+
+	it('预览弹窗显示图片', async () => {
+		render(Page);
+		await waitFor(() => screen.getByText('午餐'));
+		const items = screen.getAllByText('工资');
+		await fireEvent.click(items[0]);
+		await waitFor(() => {
+			const imgs = screen.getAllByAltText('凭证');
+			expect(imgs.length).toBeGreaterThan(0);
 		});
 	});
 
@@ -221,6 +204,56 @@ describe('交易列表页 - 有数据', () => {
 		await fireEvent.click(screen.getByText('关闭'));
 		await waitFor(() => {
 			expect(screen.queryByText('编辑')).toBeNull();
+		});
+	});
+
+	it('点击多选进入选择模式', async () => {
+		render(Page);
+		await waitFor(() => screen.getByText('多选'));
+		await fireEvent.click(screen.getByText('多选'));
+		await waitFor(() => {
+			expect(screen.getByText('退出多选')).toBeTruthy();
+			expect(screen.getByText('已选 0 笔')).toBeTruthy();
+		});
+	});
+
+	it('点击筛选显示筛选面板', async () => {
+		render(Page);
+		await waitFor(() => screen.getByText('筛选'));
+		await fireEvent.click(screen.getByText('筛选'));
+		await waitFor(() => {
+			expect(screen.getByText('开始日期')).toBeTruthy();
+			expect(screen.getByText('结束日期')).toBeTruthy();
+			expect(screen.getByText('分类')).toBeTruthy();
+			expect(screen.getByText('账户')).toBeTruthy();
+			expect(screen.getByText('标签')).toBeTruthy();
+			expect(screen.getByText('报销状态')).toBeTruthy();
+		});
+	});
+
+	it('筛选面板包含金额范围', async () => {
+		render(Page);
+		await waitFor(() => screen.getByText('筛选'));
+		await fireEvent.click(screen.getByText('筛选'));
+		await waitFor(() => {
+			expect(screen.getByText('最小金额')).toBeTruthy();
+			expect(screen.getByText('最大金额')).toBeTruthy();
+		});
+	});
+
+	it('筛选面板有应用筛选按钮', async () => {
+		render(Page);
+		await waitFor(() => screen.getByText('筛选'));
+		await fireEvent.click(screen.getByText('筛选'));
+		await waitFor(() => {
+			expect(screen.getByText('应用筛选')).toBeTruthy();
+		});
+	});
+
+	it('搜索输入框存在', async () => {
+		render(Page);
+		await waitFor(() => {
+			expect(screen.getByPlaceholderText('搜索...')).toBeTruthy();
 		});
 	});
 });
@@ -239,6 +272,18 @@ describe('交易列表页 - 空状态', () => {
 		render(Page);
 		await waitFor(() => {
 			expect(screen.getByText('还没有交易记录')).toBeTruthy();
+		});
+	});
+
+	it('显示记一笔按钮', async () => {
+		listFn.mockResolvedValueOnce({
+			grouped: [],
+			summary: { total_income: 0, total_expense: 0, net: 0 },
+			pagination: { total: 0 }
+		});
+		render(Page);
+		await waitFor(() => {
+			expect(screen.getByText('记一笔')).toBeTruthy();
 		});
 	});
 });

@@ -327,3 +327,145 @@ describe('分类管理页 - 二级瓦片移动端可读性', () => {
 		expect(screen.getByTestId('dialog-delete')).toBeTruthy();
 	});
 });
+
+describe('分类管理页 - 新增分类', () => {
+	it('点击新增分类打开弹窗', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('新增分类'));
+		await fireEvent.click(screen.getByText('新增分类'));
+		await waitFor(() => {
+			expect(screen.getByText('名称')).toBeTruthy();
+			expect(screen.getByText('归属层级')).toBeTruthy();
+		});
+	});
+
+	it('弹窗显示保存和取消按钮', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('新增分类'));
+		await fireEvent.click(screen.getByText('新增分类'));
+		await waitFor(() => {
+			expect(screen.getByText('保存')).toBeTruthy();
+			expect(screen.getByText('取消')).toBeTruthy();
+		});
+	});
+
+	it('弹窗显示图标选择区域', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('新增分类'));
+		await fireEvent.click(screen.getByText('新增分类'));
+		await waitFor(() => {
+			expect(screen.getByText('图标')).toBeTruthy();
+		});
+	});
+
+	it('弹窗显示颜色选择区域', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('新增分类'));
+		await fireEvent.click(screen.getByText('新增分类'));
+		await waitFor(() => {
+			expect(screen.getByText('标识色（用于统计图表）')).toBeTruthy();
+		});
+	});
+
+	it('点击取消关闭弹窗', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('新增分类'));
+		await fireEvent.click(screen.getByText('新增分类'));
+		await waitFor(() => screen.getByText('取消'));
+		await fireEvent.click(screen.getByText('取消'));
+		await waitFor(() => {
+			expect(screen.queryByText('名称')).toBeNull();
+		});
+	});
+
+	it('可以输入分类名称', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('新增分类'));
+		await fireEvent.click(screen.getByText('新增分类'));
+		await waitFor(() => screen.getByText('名称'));
+		const nameInput = screen.getByPlaceholderText('例如：餐饮、交通、房租');
+		await fireEvent.input(nameInput, { target: { value: '奶茶' } });
+		expect(nameInput).toHaveValue('奶茶');
+	});
+
+	it('选择作为一级分类', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('新增分类'));
+		await fireEvent.click(screen.getByText('新增分类'));
+		await waitFor(() => screen.getByText('作为一级分类'));
+		await fireEvent.click(screen.getByText('作为一级分类'));
+		expect(screen.getByText('作为一级分类')).toBeTruthy();
+	});
+});
+
+describe('分类管理页 - 搜索结果', () => {
+	it('搜索无结果时显示提示', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('餐饮'));
+		const input = screen.getByPlaceholderText('搜索分类名称…');
+		await fireEvent.input(input, { target: { value: '不存在的分类xyz' } });
+		await waitFor(() => {
+			expect(screen.getByText(/没有匹配/)).toBeTruthy();
+		});
+	});
+
+	it('点击搜索结果可打开编辑', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('餐饮'));
+		const input = screen.getByPlaceholderText('搜索分类名称…');
+		await fireEvent.input(input, { target: { value: '早餐' } });
+		await waitFor(() => {
+			expect(screen.getByTestId('category-search-results')).toBeTruthy();
+		});
+		const items = screen.getAllByTestId('category-search-item');
+		expect(items.length).toBeGreaterThan(0);
+		await fireEvent.click(items[0]);
+		await waitFor(() => {
+			expect(screen.getByText('保存')).toBeTruthy();
+		});
+	});
+
+	it('搜索框可清空', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('餐饮'));
+		const input = screen.getByPlaceholderText('搜索分类名称…');
+		await fireEvent.input(input, { target: { value: '早餐' } });
+		await waitFor(() => {
+			expect(screen.getByTestId('category-search-results')).toBeTruthy();
+		});
+		await fireEvent.click(screen.getByLabelText('清空搜索'));
+		await waitFor(() => {
+			expect(screen.queryByTestId('category-search-results')).toBeNull();
+		});
+	});
+});
+
+describe('分类管理页 - 编辑分类', () => {
+	it('点击编辑按钮打开编辑弹窗', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('餐饮'));
+		await fireEvent.click(toggleOf(groupAt(0)));
+		await waitFor(() => screen.getByTestId('category-child'));
+		const child = screen.getByTestId('category-child');
+		const editBtn = within(child).getByTitle('编辑');
+		await fireEvent.click(editBtn);
+		await waitFor(() => {
+			expect(screen.getByText('保存')).toBeTruthy();
+			expect(screen.getByText('取消')).toBeTruthy();
+		});
+	});
+
+	it('编辑弹窗预填分类名称', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('餐饮'));
+		await fireEvent.click(toggleOf(groupAt(0)));
+		await waitFor(() => screen.getByTestId('category-child'));
+		const child = screen.getByTestId('category-child');
+		const editBtn = within(child).getByTitle('编辑');
+		await fireEvent.click(editBtn);
+		await waitFor(() => {
+			const nameInput = screen.getByPlaceholderText('例如：餐饮、交通、房租');
+			expect(nameInput).toHaveValue('早餐');
+		});
+	});
+});
