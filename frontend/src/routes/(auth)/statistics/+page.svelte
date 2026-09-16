@@ -10,7 +10,7 @@
 	import TrendLine from '$lib/components/charts/TrendLine.svelte';
 	import MonthlyBars from '$lib/components/charts/MonthlyBars.svelte';
 	import type { StatisticsData, AssetOverview } from '$lib/types';
-	import { BarChart3, ArrowUpRight, ArrowDownRight } from '@lucide/svelte';
+	import { BarChart3, ArrowUpRight, ArrowDownRight, TrendingUp, Wallet } from '@lucide/svelte';
 
 	let data = $state<StatisticsData | null>(null);
 	let assets = $state<AssetOverview | null>(null);
@@ -19,6 +19,25 @@
 	let loading = $state(true);
 	// 图表与排行榜切换：趋势图更适合长周期，排行榜便于精确读数
 	let trendView = $state<'chart' | 'list'>('chart');
+
+	// 账户维度数据：将 by_account 对象转为排序后的数组
+	const accountStats = $derived.by(() => {
+		if (!data?.by_account) return [];
+		const accounts = appStore.accounts || [];
+		const result = Object.entries(data.by_account).map(([id, info]: [string, any]) => {
+			const acc = accounts.find((a) => a.id === Number(id));
+			return {
+				id: Number(id),
+				name: acc?.name || `账户${id}`,
+				icon: acc?.icon || '💰',
+				income: info.income || 0,
+				expense: info.expense || 0,
+				net: (info.income || 0) - (info.expense || 0)
+			};
+		});
+		result.sort((a, b) => Math.abs(b.expense) - Math.abs(a.expense));
+		return result;
+	});
 
 	function getDateRange(r: string) {
 		const now = new Date();
@@ -54,7 +73,7 @@
 	async function loadData() {
 		loading = true;
 		try {
-			const params: any = { book_id: appStore.currentBookId };
+			const params: any = { book_id: appStore.currentBookId, dimension: 'all' };
 			const { start, end } = getDateRange(range);
 			params.start_date = start;
 			params.end_date = end;
@@ -73,6 +92,7 @@
 				d.by_category_income = d.by_category_income ?? [];
 				d.trend = d.trend ?? [];
 				d.top_expense = d.top_expense ?? [];
+				d.by_account = d.by_account ?? {};
 				data = d;
 			}
 		} catch {}
@@ -119,7 +139,7 @@
 						<div class="mt-1 text-lg font-bold text-[var(--color-income)] tabular-nums">
 							{formatMoney(data.summary.total_income)}
 						</div>
-						<div class="text-[11px] text-muted-foreground">{data.summary.income_count} 笔</div>
+						<div class="text-[11px] text-muted-foreground">{data.summary.income_count} 笔 · 日均 {formatMoney(data.summary.avg_daily_income || 0)}</div>
 					</CardContent>
 				</Card>
 				<Card>
@@ -131,14 +151,20 @@
 						<div class="mt-1 text-lg font-bold text-[var(--color-expense)] tabular-nums">
 							{formatMoney(data.summary.total_expense)}
 						</div>
-						<div class="text-[11px] text-muted-foreground">{data.summary.expense_count} 笔</div>
+						<div class="text-[11px] text-muted-foreground">{data.summary.expense_count} 笔 · 日均 {formatMoney(data.summary.avg_daily_expense)}</div>
 					</CardContent>
 				</Card>
 				<Card>
 					<CardContent class="pt-4">
-						<div class="text-xs text-muted-foreground">日均支出</div>
-						<div class="mt-1 text-lg font-bold tabular-nums">
-							{formatMoney(data.summary.avg_daily_expense)}
+						<div class="text-xs text-muted-foreground flex items-center gap-1">
+							<TrendingUp size={12} class="text-primary" />
+							净结余
+						</div>
+						<div class="mt-1 text-lg font-bold tabular-nums {data.summary.net >= 0 ? 'text-[var(--color-income)]' : 'text-[var(--color-expense)]'}">
+							{data.summary.net >= 0 ? '+' : ''}{formatMoney(data.summary.net)}
+						</div>
+						<div class="text-[11px] text-muted-foreground">
+							储蓄率 {data.summary.total_income > 0 ? ((data.summary.net / data.summary.total_income) * 100).toFixed(1) : 0}%
 						</div>
 					</CardContent>
 				</Card>
@@ -148,39 +174,106 @@
 						<div class="mt-1 text-lg font-bold tabular-nums">
 							{data.summary.transaction_count}
 						</div>
+						<div class="text-[11px] text-muted-foreground">
+							日均 {data.range?.days ? (data.summary.transaction_count / data.range.days).toFixed(1) : 0} 笔
+						</div>
 					</CardContent>
 				</Card>
 			</section>
 
 			<!-- 分类占比（A2：改用饼图，右侧保留精确读数） -->
 			<section>
-				<h2 class="text-sm font-medium mb-3">支出分类占比</h2>
-				<Card>
-					<CardContent class="p-4">
-						{#if data.by_category_expense.length === 0}
-							<p class="text-center text-muted-foreground py-8 text-sm">暂无数据</p>
-						{:else}
-							<div class="grid md:grid-cols-2 gap-4 items-center">
-								<CategoryPie items={data.by_category_expense} limit={8} />
-								<div class="space-y-2">
-									{#each data.by_category_expense.slice(0, 8) as item (item.id)}
-										<div class="flex items-center gap-2 text-sm">
-											<span class="w-6 h-6 rounded bg-muted grid place-items-center text-xs">
-												{item.icon || '📁'}
-											</span>
-											<span class="flex-1 truncate">{item.name}</span>
-											<span class="tabular-nums text-muted-foreground">
-												{formatMoney(item.amount)}
-												<span class="ml-1 text-[11px]">({item.percent.toFixed(1)}%)</span>
-											</span>
+				<div class="grid md:grid-cols-2 gap-4">
+					<!-- 支出分类占比 -->
+					<div>
+						<h2 class="text-sm font-medium mb-3">支出分类占比</h2>
+						<Card>
+							<CardContent class="p-4">
+								{#if data.by_category_expense.length === 0}
+									<p class="text-center text-muted-foreground py-8 text-sm">暂无数据</p>
+								{:else}
+									<div class="grid grid-cols-2 gap-4 items-center">
+										<CategoryPie items={data.by_category_expense} limit={8} />
+										<div class="space-y-2">
+											{#each data.by_category_expense.slice(0, 8) as item (item.id)}
+												<div class="flex items-center gap-2 text-sm">
+													<span class="w-6 h-6 rounded bg-muted grid place-items-center text-xs">
+														{item.icon || '📁'}
+													</span>
+													<span class="flex-1 truncate">{item.name}</span>
+													<span class="tabular-nums text-muted-foreground">
+														{formatMoney(item.amount)}
+														<span class="ml-1 text-[11px]">({item.percent.toFixed(1)}%)</span>
+													</span>
+												</div>
+											{/each}
 										</div>
-									{/each}
-								</div>
-							</div>
-						{/if}
-					</CardContent>
-				</Card>
+									</div>
+								{/if}
+							</CardContent>
+						</Card>
+					</div>
+
+					<!-- 收入分类占比 -->
+					<div>
+						<h2 class="text-sm font-medium mb-3">收入分类占比</h2>
+						<Card>
+							<CardContent class="p-4">
+								{#if data.by_category_income.length === 0}
+									<p class="text-center text-muted-foreground py-8 text-sm">暂无数据</p>
+								{:else}
+									<div class="grid grid-cols-2 gap-4 items-center">
+										<CategoryPie items={data.by_category_income} limit={8} />
+										<div class="space-y-2">
+											{#each data.by_category_income.slice(0, 8) as item (item.id)}
+												<div class="flex items-center gap-2 text-sm">
+													<span class="w-6 h-6 rounded bg-muted grid place-items-center text-xs">
+														{item.icon || '📁'}
+													</span>
+													<span class="flex-1 truncate">{item.name}</span>
+													<span class="tabular-nums text-muted-foreground">
+														{formatMoney(item.amount)}
+														<span class="ml-1 text-[11px]">({item.percent.toFixed(1)}%)</span>
+													</span>
+												</div>
+											{/each}
+										</div>
+									</div>
+								{/if}
+							</CardContent>
+						</Card>
+					</div>
+				</div>
 			</section>
+
+			<!-- 支出 TOP 5 -->
+			{#if data.top_expense.length > 0}
+				<section>
+					<h2 class="text-sm font-medium mb-3">支出 TOP 5</h2>
+					<Card>
+						<CardContent class="p-0 divide-y">
+							{#each data.top_expense.slice(0, 5) as tx, i (tx.id)}
+								<div class="flex items-center gap-3 px-4 py-3">
+									<span class="text-xs font-bold text-muted-foreground w-5 text-center tabular-nums">
+										{i + 1}
+									</span>
+									<div class="flex-1 min-w-0">
+										<div class="text-sm font-medium truncate">
+											{tx.description || tx.merchant || '未命名'}
+										</div>
+										<div class="text-[11px] text-muted-foreground">
+											{tx.tx_date?.split('T')[0] || ''}
+										</div>
+									</div>
+									<div class="text-sm font-semibold text-[var(--color-expense)] tabular-nums">
+										-{formatMoney(tx.amount)}
+									</div>
+								</div>
+							{/each}
+						</CardContent>
+					</Card>
+				</section>
+			{/if}
 
 			<!-- 收支趋势（A2：默认折线图，可切回列表看逐日读数） -->
 			<section>
@@ -223,6 +316,43 @@
 					</CardContent>
 				</Card>
 			</section>
+
+			<!-- 账户维度分析 -->
+			{#if accountStats.length > 0}
+				<section>
+					<h2 class="text-sm font-medium mb-3">账户收支分布</h2>
+					<Card>
+						<CardContent class="p-0 divide-y">
+							{#each accountStats as acc (acc.id)}
+								{@const total = Math.max(acc.income + acc.expense, 1)}
+								<div class="px-4 py-3">
+									<div class="flex items-center gap-3 mb-2">
+										<span class="text-lg">{acc.icon}</span>
+										<span class="text-sm font-medium flex-1 truncate">{acc.name}</span>
+										<span class="text-xs text-muted-foreground tabular-nums">
+											收 {formatMoney(acc.income)} · 支 {formatMoney(acc.expense)}
+										</span>
+									</div>
+									<div class="h-2 rounded-full bg-muted/50 flex overflow-hidden">
+										{#if acc.income > 0}
+											<div
+												class="h-full bg-[var(--color-income)]"
+												style={`width: ${(acc.income / total) * 100}%`}
+											></div>
+										{/if}
+										{#if acc.expense > 0}
+											<div
+												class="h-full bg-[var(--color-expense)]"
+												style={`width: ${(acc.expense / total) * 100}%`}
+											></div>
+										{/if}
+									</div>
+								</div>
+							{/each}
+						</CardContent>
+					</Card>
+				</section>
+			{/if}
 
 			<!-- 资产走势（A2） -->
 			{#if timeline.length > 0}
