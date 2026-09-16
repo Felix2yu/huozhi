@@ -1,15 +1,21 @@
 package handlers
 
 import (
+	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"huozhi/internal/database"
 	"huozhi/internal/dto"
 	"huozhi/internal/middleware"
 	"huozhi/internal/models"
+	"huozhi/internal/storage"
 	"huozhi/pkg/auth"
+	"io"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -339,10 +345,10 @@ type backupSnapshot struct {
 	Reimbursements []models.Reimbursement `json:"reimbursements"`
 }
 
-// ExportBackup GET /io/backup —— 导出当前用户全量数据（JSON 快照）
+// ExportBackup GET /io/backup —— 导出当前用户全量数据（ZIP 快照，含图片）
 func ExportBackup(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	snap := backupSnapshot{Version: "1.0", ExportedAt: time.Now()}
+	snap := backupSnapshot{Version: "2.0", ExportedAt: time.Now()}
 	database.DB.Where("user_id = ?", uid).Find(&snap.Books)
 	database.DB.Where("user_id = ?", uid).Find(&snap.Accounts)
 	database.DB.Where("user_id = ?", uid).Find(&snap.Categories)
@@ -355,12 +361,85 @@ func ExportBackup(c *gin.Context) {
 	database.DB.Where("user_id = ?", uid).Find(&snap.Installments)
 	database.DB.Where("user_id = ?", uid).Find(&snap.Reimbursements)
 
-	c.Header("Content-Disposition", "attachment; filename=huozhi-backup-"+time.Now().Format("20060102")+".json")
-	c.JSON(200, snap)
+	// 收集所有图片文件
+	type imageEntry struct {
+		zipPath string // ZIP内的路径
+		key     string // 存储key
+	}
+	var images []imageEntry
+	seen := map[string]bool{}
+
+	for _, tx := range snap.Transactions {
+		for _, imgPath := range tx.Images {
+			key, ok := storage.KeyFromURL(imgPath)
+			if !ok || seen[key] {
+				continue
+			}
+			seen[key] = true
+			// ZIP内路径: images/{key}
+			images = append(images, imageEntry{
+				zipPath: "images/" + key,
+				key:     key,
+			})
+		}
+	}
+
+	// 创建ZIP
+	var buf bytes.Buffer
+	zipWriter := zip.NewWriter(&buf)
+
+	// 写入 backup.json
+	jsonData, err := json.MarshalIndent(snap, "", "  ")
+	if err != nil {
+		InternalErr(c, "序列化备份失败: "+err.Error())
+		return
+	}
+	f, err := zipWriter.Create("backup.json")
+	if err != nil {
+		InternalErr(c, "创建backup.json失败: "+err.Error())
+		return
+	}
+	if _, err := f.Write(jsonData); err != nil {
+		InternalErr(c, "写入备份失败: "+err.Error())
+		return
+	}
+
+	// 写入图片文件
+	for _, img := range images {
+		rc, _, err := storage.Open(img.key)
+		if err != nil {
+			log.Printf("备份图片跳过 %s: %v", img.key, err)
+			continue
+		}
+		data, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			log.Printf("读取图片跳过 %s: %v", img.key, err)
+			continue
+		}
+		f, err := zipWriter.Create(img.zipPath)
+		if err != nil {
+			log.Printf("创建ZIP条目跳过 %s: %v", img.key, err)
+			continue
+		}
+		if _, err := f.Write(data); err != nil {
+			log.Printf("写入ZIP跳过 %s: %v", img.key, err)
+		}
+	}
+
+	if err := zipWriter.Close(); err != nil {
+		InternalErr(c, "关闭ZIP失败: "+err.Error())
+		return
+	}
+
+	c.Header("Content-Type", "application/zip")
+	c.Header("Content-Disposition", "attachment; filename=huozhi-backup-"+time.Now().Format("20060102")+".zip")
+	c.Data(200, "application/zip", buf.Bytes())
 }
 
 // ImportBackup POST /io/restore?mode=replace|merge —— 从全量快照恢复
 // replace（默认）：先清空当前用户业务数据再导入；merge：按 ID 冲突则跳过。
+// 支持 ZIP 格式（v2.0，含图片）和 JSON 格式（v1.0，兼容旧版本）。
 func ImportBackup(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	mode := c.DefaultQuery("mode", "replace")
@@ -370,16 +449,99 @@ func ImportBackup(c *gin.Context) {
 		Bad(c, "未读到备份内容")
 		return
 	}
+
 	var snap backupSnapshot
-	if err := json.Unmarshal(body, &snap); err != nil {
-		Bad(c, "备份文件解析失败: "+err.Error())
-		return
+	var zipImages map[string][]byte // zipPath -> file data
+
+	// 检测是否为ZIP格式
+	isZip := len(body) > 4 && body[0] == 'P' && body[1] == 'K' && body[2] == 3 && body[3] == 4
+	if isZip {
+		// 解析ZIP
+		zipReader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+		if err != nil {
+			Bad(c, "ZIP文件解析失败: "+err.Error())
+			return
+		}
+
+		zipImages = make(map[string][]byte)
+		var jsonData []byte
+
+		for _, file := range zipReader.File {
+			if file.Name == "backup.json" {
+				rc, err := file.Open()
+				if err != nil {
+					Bad(c, "读取backup.json失败: "+err.Error())
+					return
+				}
+				jsonData, err = io.ReadAll(rc)
+				rc.Close()
+				if err != nil {
+					Bad(c, "读取backup.json失败: "+err.Error())
+					return
+				}
+			} else if strings.HasPrefix(file.Name, "images/") {
+				rc, err := file.Open()
+				if err != nil {
+					continue
+				}
+				data, err := io.ReadAll(rc)
+				rc.Close()
+				if err != nil {
+					continue
+				}
+				zipImages[file.Name] = data
+			}
+		}
+
+		if jsonData == nil {
+			Bad(c, "ZIP中未找到backup.json")
+			return
+		}
+
+		if err := json.Unmarshal(jsonData, &snap); err != nil {
+			Bad(c, "备份数据解析失败: "+err.Error())
+			return
+		}
+	} else {
+		// 兼容旧版本JSON格式
+		if err := json.Unmarshal(body, &snap); err != nil {
+			Bad(c, "备份文件解析失败: "+err.Error())
+			return
+		}
 	}
 
 	db := database.DB.Begin()
 	if mode == "replace" {
 		// 硬删当前用户业务数据（账号本身保留）
 		purgeUserBusinessData(db, uid)
+	}
+
+	// 还原图片文件并更新路径
+	imageCount := 0
+	if zipImages != nil {
+		for i := range snap.Transactions {
+			var newImages []string
+			for _, imgPath := range snap.Transactions[i].Images {
+				// 从完整路径提取文件名
+				imgName := filepath.Base(imgPath)
+				// 尝试从ZIP中找到对应图片
+				zipPath := "images/" + imgName
+				if data, ok := zipImages[zipPath]; ok {
+					// 保存图片到存储
+					newPath, err := storage.SaveBytes(data, imgName, uid)
+					if err != nil {
+						log.Printf("还原图片失败 %s: %v", imgName, err)
+						continue
+					}
+					newImages = append(newImages, newPath)
+					imageCount++
+				} else {
+					// 图片不在ZIP中，保留原路径（可能是指向当前服务器的路径）
+					newImages = append(newImages, imgPath)
+				}
+			}
+			snap.Transactions[i].Images = newImages
+		}
 	}
 
 	counts := map[string]int{}
@@ -459,7 +621,7 @@ func ImportBackup(c *gin.Context) {
 		InternalErr(c, "恢复失败: "+err.Error())
 		return
 	}
-	OK(c, gin.H{"mode": mode, "imported": counts})
+	OK(c, gin.H{"mode": mode, "imported": counts, "images_restored": imageCount})
 }
 
 // ---------- B9：清空数据 ----------
