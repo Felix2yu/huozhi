@@ -40,7 +40,7 @@ export const ioApi = {
 			`/io/bill?month=${params.month}${params.book_id ? `&book_id=${params.book_id}` : ''}`
 		),
 
-	// B8：全量备份（JSON 快照，含分类/预算/账户/周期等，CSV 导不出的都在这里）
+	// B8：全量备份（ZIP 快照，含 backup.json + 图片文件）
 	backup: async () => {
 		const res = await fetch('/api/io/backup', {
 			headers: { Authorization: `Bearer ${http.getToken()}` || '' }
@@ -49,20 +49,20 @@ export const ioApi = {
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
-		a.download = `huozhi-backup-${new Date().toISOString().slice(0, 10)}.json`;
+		a.download = `huozhi-backup-${new Date().toISOString().slice(0, 10)}.zip`;
 		a.click();
 		URL.revokeObjectURL(url);
 	},
-	// B8：从快照恢复（mode=replace 先清空再导入；merge 按 ID 追加）
+	// B8：从备份恢复（支持 ZIP 和旧版 JSON，自动检测格式）
 	restore: async (file: File, mode: 'replace' | 'merge' = 'replace') => {
-		const text = await file.text();
+		const fd = new FormData();
+		fd.append('file', file);
 		const res = await fetch(`/api/io/restore?mode=${mode}`, {
 			method: 'POST',
 			headers: {
-				Authorization: `Bearer ${http.getToken()}` || '',
-				'Content-Type': 'application/json'
+				Authorization: `Bearer ${http.getToken()}` || ''
 			},
-			body: text
+			body: fd
 		});
 		const data = await res.json();
 		if (data.code !== 0) throw new Error(data.message || '恢复失败');

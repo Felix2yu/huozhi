@@ -35,7 +35,8 @@
 		CloudOff,
 		ChevronDown,
 		Check,
-		MinusCircle
+		MinusCircle,
+		Database
 	} from '@lucide/svelte';
 
 	let { children } = $props();
@@ -190,10 +191,13 @@
 				{ to: '/shared-books', label: '共享账本', icon: Users }
 			]
 		},
-		{
-			title: '系统',
-			items: [{ to: '/settings', label: '系统设置', icon: Settings }]
-		}
+	{
+		title: '系统',
+		items: [
+			{ to: '/data', label: '数据管理', icon: Database },
+			{ to: '/settings', label: '系统设置', icon: Settings }
+		]
+	}
 	];
 
 	// 兼容旧引用（pageTitle 等处使用）
@@ -272,6 +276,7 @@
 	const pageTitle = $derived.by(() => {
 		if (currentPath === '/transactions/add') return '记一笔';
 		if (currentPath.startsWith('/bill-export')) return '账单导出';
+		if (currentPath.startsWith('/data')) return '数据管理';
 		const found = navItems.find((it) => currentPath.startsWith(it.to));
 		return found?.label || '货殖';
 	});
