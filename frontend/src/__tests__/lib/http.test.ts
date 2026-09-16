@@ -108,4 +108,57 @@ describe('HTTP client - Bug #5 offline queue conditions', () => {
 		await expect(http.post('/auth/register', {})).rejects.toThrow(/用户名已存在/);
 		expect(queueCount()).toBe(0);
 	});
+
+	it('PUT 请求成功', async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: () => Promise.resolve({ code: 0, data: { updated: true } })
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		const result = await http.put('/transactions/1', { amount: 100 });
+		expect(result).toEqual({ updated: true });
+	});
+
+	it('DELETE 请求成功', async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: () => Promise.resolve({ code: 0, data: null })
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		const result = await http.delete('/transactions/1');
+		expect(result).toBeNull();
+	});
+
+	it('带 params 的 GET 请求', async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: () => Promise.resolve({ code: 0, data: [] })
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		await http.get('/transactions', { params: { type: 'expense', page: 1 } });
+		expect(fetchMock).toHaveBeenCalledWith(
+			expect.stringContaining('type=expense'),
+			expect.anything()
+		);
+	});
+
+	it('setToken/removeToken/getToken', () => {
+		http.setToken('test-token-123');
+		expect(http.getToken()).toBe('test-token-123');
+		http.removeToken();
+		expect(http.getToken()).toBeNull();
+	});
+
+	it('subscribeQueue 返回取消订阅函数', async () => {
+		const { subscribeQueue } = await import('$lib/api/http');
+		const cancel = subscribeQueue(() => {});
+		expect(typeof cancel).toBe('function');
+		cancel();
+	});
 });
