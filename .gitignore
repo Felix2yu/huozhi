@@ -40,7 +40,7 @@ docker/.env
 
 # Uploads / Data
 backend/uploads/
-data/
+/data/
 *.db
 *.sqlite
 
