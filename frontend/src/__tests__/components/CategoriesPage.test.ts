@@ -258,6 +258,27 @@ describe('分类管理页 - 类型切换', () => {
 		const expenseTab = screen.getByText('支出').closest('[role="tab"]');
 		expect(expenseTab).toHaveAttribute('data-state', 'active');
 	});
+
+	it('支出标签下显示支出分类', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('餐饮'));
+		expect(screen.getByText('餐饮')).toBeTruthy();
+		expect(screen.getByText('交通')).toBeTruthy();
+	});
+});
+
+describe('分类管理页 - 概览卡片', () => {
+	it('显示一级分类数量', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('餐饮'));
+		expect(screen.getByText('一级分类')).toBeTruthy();
+	});
+
+	it('显示二级分类数量', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('餐饮'));
+		expect(screen.getByText('二级分类')).toBeTruthy();
+	});
 });
 
 /**
