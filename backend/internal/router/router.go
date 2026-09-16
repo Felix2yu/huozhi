@@ -194,9 +194,10 @@ func New(mode string, staticDir string) *gin.Engine {
 				io.POST("/import", handlers.ImportTransactions)
 				io.GET("/template", handlers.DownloadImportTemplate)
 				io.GET("/bill", handlers.GetBill)
-				io.GET("/backup", handlers.ExportBackup)   // 全量 JSON 快照（B8）
-				io.POST("/restore", handlers.ImportBackup) // 从快照恢复（B8）
-				io.POST("/reset", handlers.ClearUserData)  // 清空全部业务数据（B9，需密码）
+				io.GET("/backup", handlers.ExportBackup)         // 全量 JSON 快照（B8）
+				io.POST("/restore", handlers.ImportBackup)       // 从快照恢复（B8）
+				io.POST("/reset", handlers.ClearUserData)        // 清空全部业务数据（B9，需密码）
+				io.GET("/auto-backups", handlers.ListAutoBackup) // 自动备份列表
 			}
 		}
 	}

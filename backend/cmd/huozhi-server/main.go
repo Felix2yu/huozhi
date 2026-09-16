@@ -118,6 +118,9 @@ func main() {
 	// 孤儿附件清理（上传后未关联交易的图片等，宽限期后自动删除）
 	go orphanCleanupRunner()
 
+	// 自动备份（每分钟检查，匹配用户设定的备份时间）
+	go handlers.AutoBackupRunner()
+
 	// WebSocket Hub
 	go ws.DefaultHub.Run()
 	log.Println("[WS] WebSocket Hub 已启动，监听 /api/ws")

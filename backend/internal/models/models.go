@@ -34,6 +34,13 @@ type User struct {
 	Status       int       `gorm:"default:1" json:"status"` // 1正常 0禁用
 	APIKey       *string   `gorm:"size:64;uniqueIndex" json:"-"` // 外部API访问密钥（NULL=未生成，避免SQLite唯一索引空字符串冲突）
 	APIKeyEnabled bool     `gorm:"default:false" json:"api_key_enabled"` // API密钥是否启用
+
+	// 自动备份设置
+	AutoBackupEnabled  bool      `gorm:"default:false" json:"auto_backup_enabled"`
+	AutoBackupFrequency string  `gorm:"size:20;default:daily" json:"auto_backup_frequency"` // daily / weekly / monthly
+	AutoBackupTime     string   `gorm:"size:5;default:03:00" json:"auto_backup_time"`       // HH:MM
+	AutoBackupKeepCount int     `gorm:"default:7" json:"auto_backup_keep_count"`            // 保留份数
+	AutoBackupLastRun  time.Time `json:"auto_backup_last_run"`
 }
 
 // ==================== 账本 ====================

@@ -8,6 +8,7 @@
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import { appStore } from '$lib/stores/app';
 	import { ioApi } from '$lib/api/modules/io';
+	import { authApi } from '$lib/api/modules/auth';
 	import { accountApi } from '$lib/api/modules/accounts';
 	import { hzToast } from '$lib/components/ui/toast';
 	import {
@@ -20,7 +21,10 @@
 		RefreshCw,
 		AlertTriangle,
 		Trash2,
-		DatabaseZap
+		DatabaseZap,
+		Clock,
+		CalendarClock,
+		Save
 	} from '@lucide/svelte';
 
 	// 备份 / 恢复
@@ -38,6 +42,62 @@
 	// 导入
 	let importLoading = $state(false);
 	let importSource = $state<'qianji' | 'alipay' | 'wechat'>('qianji');
+
+	// 自动备份设置
+	let autoBackupEnabled = $state(false);
+	let autoBackupFrequency = $state<'daily' | 'weekly' | 'monthly'>('daily');
+	let autoBackupTime = $state('03:00');
+	let autoBackupKeepCount = $state(7);
+	let autoBackupSaving = $state(false);
+	let autoBackupList = $state<any[]>([]);
+	let autoBackupListLoading = $state(false);
+
+	// 初始化自动备份设置（从用户信息加载）
+	$effect(() => {
+		const user = appStore.user;
+		if (user) {
+			autoBackupEnabled = (user as any).auto_backup_enabled ?? false;
+			autoBackupFrequency = (user as any).auto_backup_frequency ?? 'daily';
+			autoBackupTime = (user as any).auto_backup_time ?? '03:00';
+			autoBackupKeepCount = (user as any).auto_backup_keep_count ?? 7;
+		}
+	});
+
+	// 保存自动备份设置
+	async function saveAutoBackupSettings() {
+		autoBackupSaving = true;
+		try {
+			await authApi.updateMe({
+				auto_backup_enabled: autoBackupEnabled,
+				auto_backup_frequency: autoBackupFrequency,
+				auto_backup_time: autoBackupTime,
+				auto_backup_keep_count: autoBackupKeepCount
+			} as any);
+			hzToast.success('自动备份设置已保存');
+		} catch (e: any) {
+			hzToast.error(e.message || '保存失败');
+		} finally {
+			autoBackupSaving = false;
+		}
+	}
+
+	// 加载自动备份列表
+	async function loadAutoBackupList() {
+		autoBackupListLoading = true;
+		try {
+			autoBackupList = await ioApi.listAutoBackups();
+		} catch {
+			autoBackupList = [];
+		} finally {
+			autoBackupListLoading = false;
+		}
+	}
+
+	function formatFileSize(bytes: number) {
+		if (bytes < 1024) return bytes + ' B';
+		if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+		return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+	}
 
 	// B8：全量备份（ZIP 快照，含 backup.json + 图片）
 	async function handleBackup() {
@@ -205,6 +265,106 @@
 					全量备份为 ZIP 压缩包，包含快照数据（backup.json）和所有交易凭证图片。
 					恢复时支持 ZIP 和旧版 JSON 格式。
 				</p>
+			</CardContent>
+		</Card>
+	</section>
+
+	<!-- 自动备份 -->
+	<section>
+		<div class="flex items-center gap-2 mb-3">
+			<CalendarClock size={16} />
+			<h2 class="text-sm font-medium">自动备份</h2>
+		</div>
+		<Card>
+			<CardContent class="p-4 space-y-4">
+				<div class="flex items-center justify-between">
+					<div>
+						<p class="text-sm font-medium">启用自动备份</p>
+						<p class="text-xs text-muted-foreground">定期自动保存全量数据到服务器</p>
+					</div>
+					<button
+						class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+						class:bg-primary={autoBackupEnabled}
+						class:bg-input={!autoBackupEnabled}
+						onclick={() => (autoBackupEnabled = !autoBackupEnabled)}
+						aria-label={autoBackupEnabled ? '关闭自动备份' : '开启自动备份'}
+					>
+						<span
+							class="pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform"
+							class:translate-x-4={autoBackupEnabled}
+							class:translate-x-0={!autoBackupEnabled}
+						></span>
+					</button>
+				</div>
+
+				{#if autoBackupEnabled}
+					<div class="grid grid-cols-2 gap-3">
+						<div class="space-y-1.5">
+							<Label class="text-xs">备份频率</Label>
+							<select
+								class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+								bind:value={autoBackupFrequency}
+							>
+								<option value="daily">每天</option>
+								<option value="weekly">每周日</option>
+								<option value="monthly">每月1号</option>
+							</select>
+						</div>
+						<div class="space-y-1.5">
+							<Label class="text-xs">备份时间</Label>
+							<Input
+								type="time"
+								bind:value={autoBackupTime}
+								class="h-9"
+							/>
+						</div>
+					</div>
+
+					<div class="space-y-1.5">
+						<Label class="text-xs">保留份数</Label>
+						<Input
+							type="number"
+							min={1}
+							max={30}
+							bind:value={autoBackupKeepCount}
+							class="h-9 w-24"
+						/>
+						<p class="text-[11px] text-muted-foreground">超出份数的旧备份将自动删除</p>
+					</div>
+
+					{#if autoBackupList.length > 0}
+						<div class="space-y-1.5">
+							<div class="flex items-center justify-between">
+								<Label class="text-xs">历史备份</Label>
+								<button
+									class="text-xs text-muted-foreground hover:text-foreground transition"
+									onclick={loadAutoBackupList}
+									disabled={autoBackupListLoading}
+									aria-label="刷新备份列表"
+								>
+									<RefreshCw size={12} class={autoBackupListLoading ? 'animate-spin' : ''} />
+								</button>
+							</div>
+							<div class="max-h-32 overflow-y-auto space-y-1">
+								{#each autoBackupList as b (b.name)}
+									<div class="flex items-center justify-between text-xs py-1 px-2 rounded bg-muted/50">
+										<span class="truncate">{b.name}</span>
+										<span class="text-muted-foreground ml-2 shrink-0">{formatFileSize(b.size)}</span>
+									</div>
+								{/each}
+							</div>
+						</div>
+					{/if}
+
+					<Button
+						size="sm"
+						onclick={saveAutoBackupSettings}
+						disabled={autoBackupSaving}
+					>
+						<Save size={14} />
+						{autoBackupSaving ? '保存中...' : '保存设置'}
+					</Button>
+				{/if}
 			</CardContent>
 		</Card>
 	</section>

@@ -265,16 +265,32 @@ func UpdateMe(c *gin.Context) {
 		return
 	}
 
-	if err := database.DB.Model(&models.User{}).Where("id = ?", uid).Updates(map[string]interface{}{
-		"nickname": req.Nickname,
-		"avatar":   req.Avatar,
-		"email":    strPtrOrNil(req.Email),
-		"phone":    strPtrOrNil(req.Phone),
-		"locale":   req.Locale,
-		"timezone": req.Timezone,
+	updates := map[string]interface{}{
+		"nickname":   req.Nickname,
+		"avatar":     req.Avatar,
+		"email":      strPtrOrNil(req.Email),
+		"phone":      strPtrOrNil(req.Phone),
+		"locale":     req.Locale,
+		"timezone":   req.Timezone,
 		"month_start": req.MonthStart,
-		"currency":    req.Currency,
-	}).Error; err != nil {
+		"currency":   req.Currency,
+	}
+
+	// 自动备份设置（指针类型，仅在传入时更新）
+	if req.AutoBackupEnabled != nil {
+		updates["auto_backup_enabled"] = *req.AutoBackupEnabled
+	}
+	if req.AutoBackupFrequency != nil {
+		updates["auto_backup_frequency"] = *req.AutoBackupFrequency
+	}
+	if req.AutoBackupTime != nil {
+		updates["auto_backup_time"] = *req.AutoBackupTime
+	}
+	if req.AutoBackupKeepCount != nil {
+		updates["auto_backup_keep_count"] = *req.AutoBackupKeepCount
+	}
+
+	if err := database.DB.Model(&models.User{}).Where("id = ?", uid).Updates(updates).Error; err != nil {
 		InternalErr(c, "更新失败: "+err.Error())
 		return
 	}

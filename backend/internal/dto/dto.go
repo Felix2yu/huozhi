@@ -146,6 +146,12 @@ type UpdateUserRequest struct {
 	Timezone   string `json:"timezone" binding:"omitempty,max=50"`
 	MonthStart int    `json:"month_start" binding:"omitempty,min=1,max=28"`
 	Currency   string `json:"currency" binding:"omitempty,max=10"`
+
+	// 自动备份设置
+	AutoBackupEnabled   *bool   `json:"auto_backup_enabled" binding:"omitempty"`
+	AutoBackupFrequency *string `json:"auto_backup_frequency" binding:"omitempty,oneof=daily weekly monthly"`
+	AutoBackupTime      *string `json:"auto_backup_time" binding:"omitempty,max=5"`
+	AutoBackupKeepCount *int    `json:"auto_backup_keep_count" binding:"omitempty,min=1,max=30"`
 }
 
 type ChangePasswordRequest struct {

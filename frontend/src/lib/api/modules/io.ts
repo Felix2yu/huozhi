@@ -82,5 +82,8 @@ export const ioApi = {
 		const data = await res.json();
 		if (data.code !== 0) throw new Error(data.message || '清空失败');
 		return data.data;
-	}
+	},
+
+	// 自动备份列表
+	listAutoBackups: () => http.get<Array<{ name: string; size: number; time: string }>>('/io/auto-backups')
 };
