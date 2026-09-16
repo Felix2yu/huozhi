@@ -16,13 +16,12 @@
 	import {
 		amountDisplay,
 		baseAmount,
-		firstGrapheme,
 		highlightSegments,
 		recomputeDaySubtotal,
 		toneClass,
 		typeLabel
 	} from '$lib/utils/tx';
-	import type { DayGroup, Transaction, TransactionListData } from '$lib/types';
+	import type { Category, DayGroup, Transaction, TransactionListData } from '$lib/types';
 	import { Plus, Search, Filter, X, Trash2, CheckSquare, Loader2, Copy } from '@lucide/svelte';
 
 	type TabType = 'all' | 'expense' | 'income' | 'transfer';
@@ -329,20 +328,31 @@
 		return () => clearTimeout(timer);
 	});
 
-	function getCategoryName(tx: Transaction): string {
-		return (
-			tx.category_name ||
-			[...appStore.categories.expense, ...appStore.categories.income].find(
-				(c) => c.id === tx.category_id
-			)?.name ||
-			'未分类'
+	function getCategory(tx: Transaction): Category | undefined {
+		return [...appStore.categories.expense, ...appStore.categories.income].find(
+			(c) => c.id === tx.category_id
 		);
+	}
+
+	function getCategoryName(tx: Transaction): string {
+		return tx.category_name || getCategory(tx)?.name || '未分类';
 	}
 
 	function getAccountName(tx: Transaction): string {
 		return (
 			tx.account_name || appStore.accounts.find((a) => a.id === tx.account_id)?.name || '—'
 		);
+	}
+
+	function getAccountDisplay(tx: Transaction): string {
+		if (tx.type === 'transfer' && tx.to_account_id) {
+			const to =
+				tx.to_account_name ||
+				appStore.accounts.find((a) => a.id === tx.to_account_id)?.name ||
+				'—';
+			return `${getAccountName(tx)} → ${to}`;
+		}
+		return getAccountName(tx);
 	}
 
 	// ========== 虚拟滚动（原 P-05） ==========
@@ -614,6 +624,8 @@
 								<Card class="divide-y">
 									{#each dayGroup.transactions as tx (tx.id)}
 										{@const disp = amountDisplay(tx)}
+										{@const category = getCategory(tx)}
+										{@const note = tx.description || tx.merchant || tx.remark}
 										<div class="w-full flex items-center gap-3 p-3 hover:bg-accent/50 transition">
 											{#if selectMode}
 												<input
@@ -628,50 +640,43 @@
 												onclick={() => showPreview(tx)}
 											>
 												<div
-													class="w-10 h-10 rounded-lg bg-muted grid place-items-center text-sm font-semibold shrink-0"
-												>
-													{firstGrapheme(tx.description || tx.merchant || '¥')}
-												</div>
+													class="w-2 h-2 rounded-full shrink-0"
+													class:bg-muted-foreground={!category?.color}
+													style={category?.color ? `background-color: ${category.color}` : ''}
+												></div>
 												<div class="flex-1 min-w-0">
 													<div class="text-sm font-medium truncate">
-														{#each highlightSegments(
-															tx.description || tx.merchant || '未分类',
-															keyword
-														) as seg}
+														{#each highlightSegments(getCategoryName(tx), keyword) as seg}
 															{#if seg.hit}<mark
 																	class="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5"
 																	>{seg.text}</mark
 																>{:else}{seg.text}{/if}
 														{/each}
 													</div>
-													<div class="text-xs text-muted-foreground truncate">
-														{#each highlightSegments(getCategoryName(tx), keyword) as seg}
-															{#if seg.hit}<mark
-																	class="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5"
-																	>{seg.text}</mark
-																>{:else}{seg.text}{/if}
-														{/each} · {#each highlightSegments(
-															getAccountName(tx),
-															keyword
-														) as seg}
-															{#if seg.hit}<mark
-																	class="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5"
-																	>{seg.text}</mark
-																>{:else}{seg.text}{/if}
-														{/each}{#if tx.merchant}· {#each highlightSegments(
-																tx.merchant,
-																keyword
-															) as seg}
+													{#if note}
+														<div class="text-xs text-muted-foreground truncate">
+															{#each highlightSegments(note, keyword) as seg}
 																{#if seg.hit}<mark
 																		class="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5"
 																		>{seg.text}</mark
 																	>{:else}{seg.text}{/if}
-															{/each}{/if}
-													</div>
+															{/each}
+														</div>
+													{/if}
 												</div>
 												<!-- F-02：与日小计、详情弹窗共用同一套符号/颜色口径 -->
-												<div class="font-semibold tabular-nums text-sm {toneClass(disp.tone)}">
-													{disp.sign}{formatMoney(disp.abs)}
+												<div class="text-right shrink-0 ml-2">
+													<div class="font-semibold tabular-nums text-sm {toneClass(disp.tone)}">
+														{disp.sign}{formatMoney(disp.abs)}
+													</div>
+													<div class="text-xs text-muted-foreground truncate max-w-[120px]">
+														{#each highlightSegments(getAccountDisplay(tx), keyword) as seg}
+															{#if seg.hit}<mark
+																	class="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5"
+																	>{seg.text}</mark
+																>{:else}{seg.text}{/if}
+														{/each}
+													</div>
 												</div>
 											</button>
 											<!-- B3：单笔删除入口 -->
