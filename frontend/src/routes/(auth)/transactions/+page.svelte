@@ -626,7 +626,7 @@
 										{@const disp = amountDisplay(tx)}
 										{@const category = getCategory(tx)}
 										{@const note = tx.description || tx.merchant || tx.remark}
-										<div class="w-full flex items-center gap-3 p-3 hover:bg-accent/50 transition">
+										<div class="w-full flex items-center gap-3 py-2.5 px-3 hover:bg-accent/50 transition">
 											{#if selectMode}
 												<input
 													type="checkbox"
@@ -669,7 +669,7 @@
 													<div class="font-semibold tabular-nums text-sm {toneClass(disp.tone)}">
 														{disp.sign}{formatMoney(disp.abs)}
 													</div>
-													<div class="text-xs text-muted-foreground truncate max-w-[120px]">
+													<div class="text-xs text-muted-foreground truncate">
 														{#each highlightSegments(getAccountDisplay(tx), keyword) as seg}
 															{#if seg.hit}<mark
 																	class="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5"

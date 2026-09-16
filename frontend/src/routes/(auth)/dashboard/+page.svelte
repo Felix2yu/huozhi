@@ -266,7 +266,7 @@ import CardTitle from '$lib/components/ui/CardTitle.svelte';
 					{#each recentTxs as tx (tx.id)}
 						<button
 							type="button"
-							class="flex items-center gap-3 p-3 hover:bg-accent/50 transition cursor-pointer text-left w-full"
+							class="flex items-center gap-3 py-2.5 px-3 hover:bg-accent/50 transition cursor-pointer text-left w-full"
 							onclick={() => goto(`/transactions/edit/${tx.id}`)}
 						>
 							<!-- C19：class 属性为空（重构残留），图标没有底色 -->
