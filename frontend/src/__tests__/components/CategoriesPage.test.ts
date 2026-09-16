@@ -156,6 +156,47 @@ describe('分类管理页 - 层级展示', () => {
 			expect(within(panelOf(3)).getByText('地铁')).toBeTruthy();
 		});
 	});
+
+	it('「收起全部」一次性收起所有一级分类', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('餐饮'));
+		// 先展开全部
+		await fireEvent.click(screen.getByRole('button', { name: /展开全部/ }));
+		await waitFor(() => {
+			expect(screen.queryAllByTestId('category-children-panel').length).toBeGreaterThan(0);
+		});
+		// 再收起全部
+		await fireEvent.click(screen.getByRole('button', { name: /收起全部/ }));
+		await waitFor(() => {
+			expect(screen.queryAllByTestId('category-children-panel')).toHaveLength(0);
+		});
+	});
+});
+
+describe('分类管理页 - 搜索功能', () => {
+	it('搜索框显示占位符', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('餐饮'));
+		expect(screen.getByPlaceholderText('搜索分类名称…')).toBeTruthy();
+	});
+
+	it('输入关键词后显示搜索结果', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('餐饮'));
+		const input = screen.getByPlaceholderText('搜索分类名称…');
+		await fireEvent.input(input, { target: { value: '早餐' } });
+		await waitFor(() => {
+			expect(screen.getByTestId('category-search-results')).toBeTruthy();
+		});
+	});
+});
+
+describe('分类管理页 - 新增按钮', () => {
+	it('显示新增分类按钮', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('餐饮'));
+		expect(screen.getByText('新增分类')).toBeTruthy();
+	});
 });
 
 describe('分类管理页 - 图标选择器', () => {
