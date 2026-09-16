@@ -560,7 +560,7 @@
 		</Card>
 	{:else}
 		<!-- 一级分类：全部平铺一屏可见，点击即在同屏展开二级 -->
-		<div class="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5" data-testid="category-roots">
+		<div class="grid grid-cols-4 gap-2 sm:grid-cols-5 lg:grid-cols-6" data-testid="category-roots">
 			{#each rootsView as r (r.id)}
 				{@const kids = childrenOf(r.id)}
 				{@const open = !!expanded[r.id]}
@@ -570,7 +570,7 @@
 					data-testid="category-group"
 					data-parent-id={r.id}
 					class={cn(
-						'flex flex-col items-center gap-1.5 rounded-xl border px-1 py-3 transition',
+						'flex flex-col items-center gap-1 rounded-xl border px-2 py-1.5 transition',
 						open
 							? 'border-primary/40 bg-primary/5 ring-1 ring-primary/30'
 							: 'hover:border-primary/30 hover:bg-accent/50',
@@ -579,20 +579,10 @@
 					onclick={() => toggleExpand(r.id)}
 				>
 					<span
-						class="relative grid h-11 w-11 place-items-center rounded-full text-xl"
+						class="grid h-11 w-11 place-items-center rounded-full text-xl"
 						style={tint(r.color) ? `background-color:${tint(r.color)}` : ''}
 					>
 						{r.icon || '📁'}
-						<!-- 展开指示 / 含子级角标 -->
-						<span
-							data-testid="group-toggle"
-							class={cn(
-								'absolute -bottom-0.5 -right-0.5 grid h-4 w-4 place-items-center rounded-full bg-card text-muted-foreground ring-1 ring-border transition-transform',
-								open && 'rotate-90 bg-primary text-primary-foreground ring-primary'
-							)}
-						>
-							<ChevronRight size={11} strokeWidth={2.5} />
-						</span>
 					</span>
 					<span class="w-full truncate text-center text-xs font-medium leading-tight">
 						{r.name}
