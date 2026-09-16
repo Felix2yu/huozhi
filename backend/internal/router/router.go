@@ -1,7 +1,9 @@
 package router
 
 import (
+	"huozhi/internal/config"
 	"huozhi/internal/handlers"
+	"huozhi/internal/mcp"
 	"huozhi/internal/middleware"
 	"huozhi/internal/ws"
 	"log"
@@ -11,6 +13,40 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
+
+// mcpServer 进程内唯一的 MCP 服务端实例（工具注册表无状态，可安全共享）
+var mcpServer = func() *mcp.Server {
+	s := mcp.New()
+	if err := mcp.RegisterTools(s); err != nil {
+		log.Printf("[MCP] 工具注册失败: %v", err)
+	}
+	return s
+}()
+
+// mountMCP 挂载 MCP 端点。
+//
+// 同时挂两个路径是有意为之：/api/mcp 与既有 REST API 同前缀，反向代理只需一条
+// location 规则；/mcp 则是多数 MCP 客户端文档里的默认写法，少一次试错。
+func mountMCP(r *gin.Engine) {
+	if config.AppConfig != nil && !config.AppConfig.MCP.IsEnabled() {
+		log.Println("[MCP] 已在配置中禁用（mcp.disabled=true 或 HZ_MCP_DISABLED），跳过挂载")
+		return
+	}
+	path := "/mcp"
+	if config.AppConfig != nil && config.AppConfig.MCP.Path != "" {
+		path = config.AppConfig.MCP.Path
+	}
+	handler := func(c *gin.Context) { mcpServer.HandleHTTP(c) }
+
+	r.GET(path, middleware.MCPAuth(), handler)
+	r.POST(path, middleware.MCPAuth(), handler)
+	r.DELETE(path, middleware.MCPAuth(), handler)
+	r.GET("/api"+path, middleware.MCPAuth(), handler)
+	r.POST("/api"+path, middleware.MCPAuth(), handler)
+	r.DELETE("/api"+path, middleware.MCPAuth(), handler)
+
+	log.Printf("[MCP] 端点已挂载: %s 与 /api%s（Streamable HTTP，需 API 密钥或 JWT 鉴权）", path, path)
+}
 
 func New(mode string, staticDir string) *gin.Engine {
 	if mode == "release" {
@@ -209,6 +245,10 @@ func New(mode string, staticDir string) *gin.Engine {
 		public.GET("/bills/:id", handlers.GetPublicBill)
 		public.GET("/bills", handlers.ListPublicBills)
 	}
+
+	// MCP（Model Context Protocol）：让 AI 助手用自然语言读写账单。
+	// 内部实现见 internal/mcp，与 HTTP API 共用同一套业务核心层。
+	mountMCP(r)
 
 	// 前端静态托管（配置了 static_dir 时启用；未配置则仅提供 API，开发时由 vite dev server 承担）
 	if staticDir != "" {

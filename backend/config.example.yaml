@@ -28,6 +28,14 @@ jwt:
   expire_hours: 168     # 7天
   issuer: "huozhi"
 
+# ========== MCP（AI 助手接入） ==========
+# 内置 MCP 服务端：接入后 AI 助手可用自然语言搜索 / 分析 / 增删改账单。
+# 默认启用（本段缺失即为启用）；设为 true 关闭，端点不再注册。
+# path 同时挂载 /mcp 与 /api/mcp 两个路径。环境变量：HZ_MCP_DISABLED / HZ_MCP_PATH
+mcp:
+  disabled: false
+  # path: "/mcp"
+
 # ========== 上传 ==========
 # 容器部署时可用环境变量 HZ_UPLOAD_PATH 覆盖 path（Docker 镜像已默认指向 /app/data/uploads）
 upload:

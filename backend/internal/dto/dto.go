@@ -381,6 +381,15 @@ type QueryTransactionRequest struct {
 	ReimburseStatus string `form:"reimburse_status"`
 	Page       int       `form:"page,default=1"`
 	PageSize   int       `form:"page_size,default=20"`
+	// 多值筛选（MCP 自然语言检索用）：把「餐饮」这类名称解析后可能命中多个分类，
+	// 只有单值 ID 会让模糊匹配结果被迫二选一。单值字段优先，多值为空时忽略。
+	CategoryIDs []uint `form:"category_ids"`
+	AccountIDs  []uint `form:"account_ids"`
+	BookIDs     []uint `form:"book_ids"`
+	TagIDs      []uint `form:"tag_ids"`
+	// IncludeDeleted 只查回收站（软删除）里的流水。为 false 时按 GORM 默认行为
+	// 自动带 deleted_at IS NULL。
+	IncludeDeleted bool `form:"include_deleted"`
 	// 游标分页（原 F-04）：与此同时 offset 分页在「加载更多」时会被数据位移
 	// 打乱（新插入一条 → 下一页首条与上一页末条重复 → 前端去重后永远加载不到新数据）。
 	// 传了 cursor_* 时忽略 page，改为从「上一页最后一条的 (tx_date, id)」继续往前取。

@@ -12,7 +12,23 @@
 	import { http } from '$lib/api/http';
 	import { hzToast } from '$lib/components/ui/toast';
 	import { onMount } from 'svelte';
-	import { User, Palette, LogOut, CloudOff, Moon, Sun, Monitor, Key, Copy, Eye, EyeOff, Lock, Heart } from '@lucide/svelte';
+	import { browser } from '$app/environment';
+	import {
+		User,
+		Palette,
+		LogOut,
+		CloudOff,
+		Moon,
+		Sun,
+		Monitor,
+		Key,
+		Copy,
+		Eye,
+		EyeOff,
+		Lock,
+		Heart,
+		Bot
+	} from '@lucide/svelte';
 
 	let nickname = $state('');
 	let email = $state('');
@@ -82,6 +98,81 @@
 			navigator.clipboard.writeText(apiKeyInfo.api_key);
 			hzToast.success('已复制到剪贴板');
 		}
+	}
+
+	// ====== AI 助手（MCP）======
+	// MCP 端点与 REST API 同前缀，直接由当前页面来源推导，
+	// 避免用户在反向代理 / 自定义域名下还要手拼地址。
+	let mcpClient = $state('generic');
+	const mcpEndpoint = browser ? `${window.location.origin}/api/mcp` : '/api/mcp';
+
+	const mcpClients = [
+		{
+			key: 'generic',
+			label: '通用 / Cursor',
+			hint: '把上面的 JSON 填进客户端的 MCP 配置（Cursor 为 ~/.cursor/mcp.json），重启客户端生效。'
+		},
+		{
+			key: 'claude',
+			label: 'Claude Desktop',
+			hint: '写入 claude_desktop_config.json。Claude Desktop 走 stdio，用 mcp-remote 做桥接。'
+		},
+		{
+			key: 'cherry',
+			label: 'Cherry Studio',
+			hint: '在「设置 → MCP 服务器」里添加，类型选「可流式传输的 HTTP」，URL 与请求头按上面填写。'
+		}
+	];
+
+	const maskedKey = $derived(
+		apiKeyInfo?.api_key && showApiKey ? apiKeyInfo.api_key : 'YOUR_API_KEY'
+	);
+
+	const mcpSnippet = $derived(
+		mcpClient === 'claude'
+			? JSON.stringify(
+					{
+						mcpServers: {
+							huozhi: {
+								command: 'npx',
+								args: [
+									'-y',
+									'mcp-remote',
+									mcpEndpoint,
+									'--header',
+									`X-API-Key:${maskedKey}`
+								]
+							}
+						}
+					},
+					null,
+					2
+				)
+			: JSON.stringify(
+					{
+						mcpServers: {
+							huozhi: {
+								url: mcpEndpoint,
+								headers: { 'X-API-Key': maskedKey }
+							}
+						}
+					},
+					null,
+					2
+				)
+	);
+
+	const currentMcpClient = $derived(
+		mcpClients.find((c) => c.key === mcpClient) ?? {
+			key: 'generic',
+			label: '通用',
+			hint: '把上面的 JSON 填进客户端的 MCP 配置文件即可。'
+		}
+	);
+
+	function copyText(text: string, label: string) {
+		navigator.clipboard.writeText(text);
+		hzToast.success(`已复制${label}`);
 	}
 
 	async function handleChangePassword() {
@@ -415,6 +506,72 @@
 						</div>
 					</div>
 				{/if}
+			</CardContent>
+		</Card>
+	</section>
+
+	<!-- AI 助手（MCP） -->
+	<section>
+		<div class="flex items-center gap-2 mb-3">
+			<Bot size={16} />
+			<h2 class="text-sm font-medium">AI 助手（MCP）</h2>
+		</div>
+		<Card>
+			<CardContent class="p-4 space-y-3">
+				<p class="text-sm text-muted-foreground">
+					接入 MCP 后，AI 助手可以用自然语言查询、分析和修改你的账单（搜索流水、统计消费趋势与分类占比、
+					记账 / 改账 / 删账）。数据只在你自己的服务器上流转。
+				</p>
+
+				<div class="space-y-2">
+					<Label>MCP 服务地址</Label>
+					<div class="flex items-center gap-2">
+						<Input readonly value={mcpEndpoint} class="font-mono text-xs" />
+						<Button size="icon" variant="outline" onclick={() => copyText(mcpEndpoint, '地址')}>
+							<Copy size={14} />
+						</Button>
+					</div>
+				</div>
+
+				{#if !apiKeyInfo?.has_api_key}
+					<p class="text-xs text-amber-600 dark:text-amber-400">
+						请先在上方「API密钥」处生成并启用密钥，MCP 使用它作为鉴权凭据。
+					</p>
+				{:else if !apiKeyInfo.api_key_enabled}
+					<p class="text-xs text-amber-600 dark:text-amber-400">API密钥当前已禁用，MCP 将无法连接。</p>
+				{/if}
+
+				<div class="space-y-2">
+					<Label>客户端配置</Label>
+					<div class="flex flex-wrap gap-2">
+						{#each mcpClients as c}
+							<Button
+								size="sm"
+								variant={mcpClient === c.key ? 'default' : 'outline'}
+								onclick={() => (mcpClient = c.key)}
+							>
+								{c.label}
+							</Button>
+						{/each}
+					</div>
+					<pre
+						class="bg-muted rounded-lg p-3 text-xs overflow-x-auto font-mono leading-relaxed">{mcpSnippet}</pre>
+					<div class="flex gap-2">
+						<Button size="sm" variant="outline" onclick={() => copyText(mcpSnippet, '配置')}>
+							<Copy size={14} />
+							复制配置
+						</Button>
+					</div>
+					<p class="text-xs text-muted-foreground">{currentMcpClient.hint}</p>
+				</div>
+
+				<div class="text-xs text-muted-foreground space-y-1">
+					<div class="font-medium text-foreground">可以这样对 AI 说：</div>
+					<div>· 「上个月我在餐饮上花了多少？比前一个月涨了还是降了？」</div>
+					<div>· 「查一下最近 30 天超过 200 元的支出」</div>
+					<div>· 「记一笔：今天午饭 42.5 元，餐饮，现金」</div>
+					<div>· 「把昨天那笔地铁改成 5 元」</div>
+				</div>
 			</CardContent>
 		</Card>
 	</section>

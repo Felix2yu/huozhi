@@ -86,6 +86,24 @@ func InternalErr(c *gin.Context, message string) {
 	})
 }
 
+// FailFromCore 把核心层（tx_core.go）返回的错误翻译成对应的 HTTP 响应。
+// MCP 侧对同一个 *CoreError 走 JSON-RPC 错误码映射，两边判定保持一致。
+func FailFromCore(c *gin.Context, err *CoreError) {
+	if err == nil {
+		return
+	}
+	switch {
+	case err.Status >= 500:
+		InternalErr(c, err.Message)
+	case err.Status == 404:
+		NotFound(c, err.Message)
+	case err.Status == 403:
+		Forbidden(c, err.Message)
+	default:
+		Bad(c, err.Message)
+	}
+}
+
 // PagedOK 分页响应
 func PagedOK(c *gin.Context, list interface{}, page, pageSize int, total int64) {
 	OK(c, dto.PagedResponse{

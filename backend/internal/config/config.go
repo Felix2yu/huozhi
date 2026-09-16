@@ -14,7 +14,22 @@ type Config struct {
 	JWT      JWTConfig      `yaml:"jwt"`
 	Upload   UploadConfig   `yaml:"upload"`
 	S3       S3Config       `yaml:"s3"`
+	MCP      MCPConfig      `yaml:"mcp"`
 }
+
+// MCPConfig MCP（Model Context Protocol）服务端配置。
+// 让 AI 助手通过 MCP 工具读写账单；disabled=true 时 /mcp 端点不注册。
+//
+// 用「disabled」而不是「enabled」是刻意的：本项目大量既有部署的 config.yaml
+// 里没有 mcp 段，若用 enabled bool，零值会被解析成 false 而静默关掉新功能，
+// 用户升级后完全不知道为什么 AI 连不上。取反后缺失配置 = 启用，符合预期。
+type MCPConfig struct {
+	Disabled bool   `yaml:"disabled"` // 默认 false（即默认启用）
+	Path     string `yaml:"path"`     // 挂载路径，默认 /mcp（同时挂载 /api/mcp 便于反向代理）
+}
+
+// IsEnabled 是否启用 MCP 端点
+func (c MCPConfig) IsEnabled() bool { return !c.Disabled }
 
 // S3Config 对象存储配置（S3 兼容：AWS S3 / MinIO / 阿里云 OSS 等）。
 // 当 Enabled=true 时，账单图片等附件上传至 S3；否则存储到本地 Upload.Path。
@@ -139,6 +154,19 @@ func Load(configPath string) (*Config, error) {
 		}
 	}
 
+	// MCP 开关：默认启用，HZ_MCP_DISABLED=true 关闭
+	if v := os.Getenv("HZ_MCP_DISABLED"); v != "" {
+		switch v {
+		case "true", "1", "on", "yes":
+			cfg.MCP.Disabled = true
+		default:
+			cfg.MCP.Disabled = false
+		}
+	}
+	if v := os.Getenv("HZ_MCP_PATH"); v != "" {
+		cfg.MCP.Path = v
+	}
+
 	AppConfig = cfg
 	return cfg, nil
 }
@@ -177,6 +205,10 @@ func Default() *Config {
 			AccessKey: "",
 			SecretKey: "",
 			UseSSL:    true,
+		},
+		MCP: MCPConfig{
+			Disabled: false,
+			Path:     "/mcp",
 		},
 	}
 }

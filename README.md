@@ -22,7 +22,40 @@
 | 分期管理 | 消费分期，自动生成每期还款日历 |
 | 报销管理 | 报销单管理，关联账单并自动标记 |
 | 导入/导出 | CSV 模板下载，微信/支付宝账单自动解析并入库 |
+| **AI 助手（MCP）** | 内置 MCP 服务端，AI 可用自然语言搜索/分析/增删改账单，详见 [docs/MCP.md](docs/MCP.md) |
 | 其他 | 资产快照（每日），自定义月起始日，多币种，多设备云同步（按用户） |
+
+## MCP：让 AI 直接操作账单
+
+货殖内置 MCP（Model Context Protocol）服务端，接入后 AI 助手（Claude Desktop / Cursor /
+Cherry Studio 等）可以直接用自然语言记账、查账、做消费分析，无需手动调用接口。
+
+```bash
+# 1) 设置页生成 API 密钥 → 2) 在 AI 客户端里加一条 MCP 配置
+{
+  "mcpServers": {
+    "huozhi": {
+      "url": "https://your-domain.com/api/mcp",
+      "headers": { "X-API-Key": "你的API密钥" }
+    }
+  }
+}
+```
+
+然后就可以直接问：
+
+```
+「上个月我在餐饮上花了多少？比前一个月涨了还是降了？」
+「查一下最近 30 天超过 200 元的支出」
+「记一笔：今天午饭 42.5 元，餐饮，现金」
+「把昨天那笔地铁改成 5 元」
+```
+
+内置 13 个工具：搜索账单、消费分析（趋势 + 分类占比 + 环比）、预算状态、字典查询、
+增删改与回收站恢复。支持 `今天 / 上月 / 最近30天` 等自然语言时间，分类账户可直接给名称；
+删除为软删除可恢复，批量删除需显式确认，写操作支持 `dry_run` 预演。
+
+完整说明见 **[docs/MCP.md](docs/MCP.md)**。
 
 ## 技术栈
 
@@ -89,8 +122,10 @@ huozhi/
 │   │   ├── database/               # GORM + SQLite/PostgreSQL
 │   │   ├── models/                 # 全部数据模型（User,Book,Account,Category,Tx...）
 │   │   ├── handlers/               # 每个 handler 对应 REST 资源
+│   │   │   └── tx_core.go          # 与 gin 解耦的交易核心层（Web / MCP / 定时任务共用）
+│   │   ├── mcp/                    # MCP 服务端（协议 + 传输 + 13 个账单工具）
 │   │   ├── router/                 # Gin 路由定义
-│   │   ├── middleware/             # JWT 鉴权
+│   │   ├── middleware/             # JWT / API Key / MCP 鉴权
 │   │   └── dto/                    # 请求/响应 DTO
 │   └── pkg/
 │       ├── auth/                   # bcrypt 密码
@@ -138,6 +173,8 @@ GET  /api/statistics/assets/timeline   # 资产净值曲线
 GET  /api/io/export                    # 导出CSV
 POST /api/io/import                    # 导入CSV/微信/支付宝
 GET  /api/io/template                  # 下载模板
+
+POST|GET|DELETE /api/mcp               # MCP 端点（Streamable HTTP，供 AI 助手接入）
 ```
 
 ---
@@ -156,6 +193,7 @@ GET  /api/io/template                  # 下载模板
 - [ ] 真正的移动端 App（Capacitor 打包）
 - [x] WebSocket 多端实时同步
 - [x] AI 智能分类 / 智能记账
+- [x] MCP 服务端：AI 通过自然语言搜索 / 分析 / 增删改账单
 
 ## License
 

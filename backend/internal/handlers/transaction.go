@@ -10,7 +10,6 @@ import (
 	"huozhi/internal/ws"
 	"math"
 	"sort"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -27,130 +26,12 @@ func CreateTransaction(c *gin.Context) {
 		Bad(c, "参数错误: "+err.Error())
 		return
 	}
-
-	// 转账类型必须有目标账户
-	if req.Type == "transfer" && req.ToAccountID == 0 {
-		Bad(c, "转账需要指定目标账户")
+	tx, cerr := CreateTx(uid, req)
+	if cerr != nil {
+		FailFromCore(c, cerr)
 		return
 	}
-	// 汇率兜底：0 / 负数一律按 1（1 单位原币 = 1 单位基准币）。
-	// 放任 0 入库会让后续任何折算都得到 0。
-	if req.ExchangeRate <= 0 || math.IsNaN(req.ExchangeRate) || math.IsInf(req.ExchangeRate, 0) {
-		req.ExchangeRate = 1
-	}
-	if req.ReimburseStatus == "" {
-		req.ReimburseStatus = "none"
-	}
-
-	dbtx := database.DB.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			dbtx.Rollback()
-		}
-	}()
-
-	// 读取账户（加乐观锁，余额操作要谨慎）。
-	// 共享账本里的账户可能由他人创建，不能只按 user_id 校验（C5）。
-	var fromAcc, toAcc models.Account
-	ids := bookIDsOf(c, uid)
-	accQuery := func(id uint, out *models.Account) error {
-		if len(ids) > 0 {
-			return dbtx.Where("id = ? AND (user_id = ? OR book_id IN ?)", id, uid, ids).First(out).Error
-		}
-		return dbtx.Where("id = ? AND user_id = ?", id, uid).First(out).Error
-	}
-	if err := accQuery(req.AccountID, &fromAcc); err != nil {
-		dbtx.Rollback()
-		Bad(c, "来源账户不存在")
-		return
-	}
-	if req.ToAccountID > 0 {
-		if err := accQuery(req.ToAccountID, &toAcc); err != nil {
-			dbtx.Rollback()
-			Bad(c, "目标账户不存在")
-			return
-		}
-	}
-	// 归属校验：必须对该账本有写权限（本人账本或共享账本的 editor/owner）
-	if !canWriteBook(c, uid, req.BookID) {
-		dbtx.Rollback()
-		Forbidden(c, "对该账本无写入权限")
-		return
-	}
-
-	// 构建交易
-	newTx := models.Transaction{
-		UserID:           uid,
-		BookID:           req.BookID,
-		Type:             models.TransactionType(req.Type),
-		Amount:           models.FromYuan(req.Amount),
-		Currency:         firstNotEmpty(req.Currency, "CNY"),
-		ExchangeRate:     req.ExchangeRate,
-		CategoryID:       req.CategoryID,
-		AccountID:        req.AccountID,
-		ToAccountID:      req.ToAccountID,
-		TransferFee:      models.FromYuan(req.TransferFee),
-		TransferDiscount: models.FromYuan(req.TransferDiscount),
-		RefundOfID:       req.RefundOfID,
-		TxDate:           req.TxDate.T(),
-		Description:      req.Description,
-		Images:           req.Images,
-		Merchant:         req.Merchant,
-		Location:         req.Location,
-		// C3/C12：未显式传值时默认 true，显式传 false 时尊重客户端
-		// （旧实现强制改回 true，导致 DTO 暴露的字段永远无效）
-		IncludeInBalance: req.BalanceFlag(),
-		IncludeInBudget:  req.BudgetFlag(),
-		RecurringID:      req.RecurringID,
-		InstallmentID:    req.InstallmentID,
-		Remark:           req.Remark,
-		ReimburseStatus:  req.ReimburseStatus,
-	}
-	if err := dbtx.Create(&newTx).Error; err != nil {
-		dbtx.Rollback()
-		InternalErr(c, "创建交易失败: "+err.Error())
-		return
-	}
-
-	// 标签关联
-	if len(req.TagIDs) > 0 {
-		for _, tid := range req.TagIDs {
-			dbtx.Create(&models.TransactionTag{TransactionID: newTx.ID, TagID: tid})
-		}
-		adjustTagCounts(dbtx, req.TagIDs, 1)
-		var tags []models.Tag
-		dbtx.Where("id IN ?", req.TagIDs).Find(&tags)
-		tagPtrs := make([]*models.Tag, len(tags))
-		for i := range tags {
-			tagPtrs[i] = &tags[i]
-		}
-		newTx.Tags = tagPtrs
-	}
-
-	// 更新账户余额（内部按 AmountInBase() 折算到基准币种）
-	updateAccountBalances(dbtx, &newTx, &fromAcc, &toAcc, true)
-
-	// C8：转账手续费生成独立支出交易，保证「每笔资金变动都有流水」
-	syncTransferFeeDerived(dbtx, &newTx, &fromAcc)
-
-	applyBudgetUsed(dbtx, uid, newTx.BookID, newTx.CategoryID, newTx.TxDate,
-		newTx.AmountInBase(), newTx.Type, newTx.IncludeInBudget, 1)
-
-	if err := dbtx.Commit().Error; err != nil {
-		dbtx.Rollback()
-		InternalErr(c, "提交失败")
-		return
-	}
-
-	// 预算提醒：只针对本次支出真正相关的预算，且只在跨过阈值那一刻推送（原 B-11）
-	broadcastBudgetAlerts(c, uid, newTx)
-
-	// 重新加载完整信息（同样要走切片，否则派生字段填不到返回值上）
-	database.DB.Preload("Tags").First(&newTx, newTx.ID)
-	enriched := []models.Transaction{newTx}
-	fillTxViewFields(enriched)
-	Broadcast(c, "transactions", "create", newTx.ID)
-	Created(c, enriched[0])
+	Created(c, tx)
 }
 
 // broadcastBudgetAlerts 预算超限提醒。
@@ -161,7 +42,7 @@ func CreateTransaction(c *gin.Context) {
 //  1. 只看本次支出的分类预算 + 该账本总预算；
 //  2. 按 alert_rate 判断；
 //  3. 只在「使用率由 below → above 跨过阈值」那一刻提醒，后续同类消费不再打扰。
-func broadcastBudgetAlerts(c *gin.Context, uid uint, t models.Transaction) {
+func broadcastBudgetAlerts(uid uint, t models.Transaction) {
 	if t.Type != models.TxExpense || !t.IncludeInBudget || t.BookID == 0 {
 		return
 	}
@@ -448,21 +329,13 @@ func GetTransaction(c *gin.Context) {
 		Bad(c, "参数错误")
 		return
 	}
-	// 读权限与列表一致：本人 或 可见共享账本（原 B-05）。
-	// 此前只按 user_id 过滤，共享账本成员能看见却读不到详情。
-	var tx models.Transaction
-	if err := applyBookScope(c, database.DB.Model(&models.Transaction{}), uid).
-		Preload("Tags").Where("id = ?", req.ID).First(&tx).Error; err != nil {
-		NotFound(c, "交易不存在")
+	tx, cerr := GetTx(uid, req.ID)
+	if cerr != nil {
+		FailFromCore(c, cerr)
 		return
 	}
-	// 注意：必须先把 tx 放进切片再填充 —— 直接传 []T{tx} 是传值副本，
-	// 填充的是副本，返回值里拿不到 category_name / account_name。
-	list := []models.Transaction{tx}
-	fillTxViewFields(list)
-	OK(c, list[0])
+	OK(c, tx)
 }
-
 // ListTransactions 交易列表（分页+按日分组）
 func ListTransactions(c *gin.Context) {
 	uid := middleware.GetUID(c)
@@ -471,175 +344,16 @@ func ListTransactions(c *gin.Context) {
 		Bad(c, err.Error())
 		return
 	}
-	if req.Page < 1 {
-		req.Page = 1
+	res, cerr := ListTx(uid, req)
+	if cerr != nil {
+		FailFromCore(c, cerr)
+		return
 	}
-	if req.PageSize < 1 || req.PageSize > 200 {
-		req.PageSize = 20
-	}
-
-	// buildBase 是列表 / 计数 / 汇总**共用的唯一**筛选构造器。
-	// 此前汇总查询单独搭了一条只有 book_id + 日期的 SQL，其余 7 类筛选全丢，
-	// 顶部「收支结余」与筛选后的列表完全对不上（原 B-03）。
-	// withBalanceOnly=true 时额外加 include_in_balance 过滤，
-	// 使汇总口径与统计页（statistics.go）一致。
-	buildBase := func(withBalanceOnly bool) *gorm.DB {
-		q := applyBookScope(c, database.DB.Model(&models.Transaction{}), uid)
-		if req.BookID > 0 {
-			q = q.Where("book_id = ?", req.BookID)
-		}
-		if req.Type != "" {
-			q = q.Where("type = ?", req.Type)
-		}
-		if req.CategoryID > 0 {
-			q = q.Where("category_id = ?", req.CategoryID)
-		}
-		if req.AccountID > 0 {
-			q = q.Where("account_id = ? OR to_account_id = ?", req.AccountID, req.AccountID)
-		}
-		if !req.StartDate.IsZero() {
-			q = q.Where("tx_date >= ?", req.StartDate.T())
-		}
-		// 半开区间 [start, end+1d)：此前用 `<= end+1d`，会把次日 00:00:00 的记录
-		// 一并纳入结果，与统计页的 `<` 口径不一致（原 B-09）。
-		if !req.EndDate.IsZero() {
-			q = q.Where("tx_date < ?", req.EndDate.T().AddDate(0, 0, 1))
-		}
-		if req.Keyword != "" {
-			k := "%" + req.Keyword + "%"
-			like := database.LikeExpr()
-
-			args := []interface{}{k, k, k, k, k}
-			amountCond := ""
-			// 数字关键词：按 ±10% 区间近似匹配，而不是精确等值。
-			// 精确等值会让房间号「302」把所有恰好 302.00 元的流水翻出来（原 B-10）；
-			// ParseFloat 会接受 NaN / ±Inf，必须先做有限性校验。
-			// 数字关键词的健壮性校验：ParseFloat 接受 NaN / ±Inf，
-			// 直接参与金额比较会得到无意义谓词，先做有限性校验。
-			if n, err := strconv.ParseFloat(req.Keyword, 64); err == nil && isFiniteFloat(n) && n > 0 {
-				amountCond = " OR (amount >= ? AND amount <= ?)"
-				args = append(args, models.FromYuan(n*0.9), models.FromYuan(n*1.1))
-			}
-			q = q.Where(
-				"(description "+like+" ? OR merchant "+like+" ? OR remark "+like+
-					" ? OR location "+like+" ? OR category_id IN (SELECT id FROM categories WHERE name "+
-					like+" ?)"+amountCond+")",
-				args...,
-			)
-		}
-		if req.MinAmount > 0 {
-			q = q.Where("amount >= ?", models.FromYuan(req.MinAmount))
-		}
-		if req.MaxAmount > 0 {
-			q = q.Where("amount <= ?", models.FromYuan(req.MaxAmount))
-		}
-		if req.TagID > 0 {
-			q = q.Joins("JOIN transaction_tags tt ON transactions.id = tt.transaction_id").
-				Where("tt.tag_id = ?", req.TagID)
-		}
-		if req.ReimburseStatus != "" {
-			q = q.Where("reimburse_status = ?", req.ReimburseStatus)
-		}
-		if withBalanceOnly {
-			q = q.Where("include_in_balance = ?", true)
-		}
-		return q
-	}
-
-	var total int64
-	buildBase(false).Count(&total)
-
-	var list []models.Transaction
-	q := buildBase(false).Preload("Tags")
-	if req.UseCursor() {
-		// 游标分页：从上一页最后一条的 (tx_date, id) 继续，天然免疫插入位移。
-		// offset 分页在「已加载第 1 页 → 后台新插入一笔」的场景下会整页错位，
-		// 前端去重后 hasMore 恒真、按钮永远加载不到新数据（原 F-04）。
-		cd := req.CursorDate.T()
-		q = q.Where("(tx_date < ? OR (tx_date = ? AND id < ?))", cd, cd, req.CursorID)
-	} else {
-		q = q.Offset((req.Page - 1) * req.PageSize)
-	}
-	q.Order("tx_date DESC, id DESC").Limit(req.PageSize).Find(&list)
-
-	fillTxViewFields(list)
-
-	// 按日分组
-	dayMap := make(map[string][]models.Transaction)
-	var dayOrder []string
-	for _, t := range list {
-		day := t.TxDate.Format("2006-01-02")
-		if _, ok := dayMap[day]; !ok {
-			dayOrder = append(dayOrder, day)
-		}
-		dayMap[day] = append(dayMap[day], t)
-	}
-	type dayGroup struct {
-		Date         string               `json:"date"`
-		DayIncome    models.Money         `json:"day_income"`
-		DayExpense   models.Money         `json:"day_expense"`
-		DayBalance   models.Money         `json:"day_balance"`
-		Transactions []models.Transaction `json:"transactions"`
-	}
-	// 用非 nil 空切片初始化：数据量 0 时 JSON 序列化为 [] 而非 null，
-	// 否则前端 group.length 会因 null 抛错。
-	grouped := make([]dayGroup, 0, len(dayOrder))
-	for _, d := range dayOrder {
-		g := dayGroup{Date: d, Transactions: dayMap[d]}
-		for i := range dayMap[d] {
-			t := dayMap[d][i]
-			if !t.IncludeInBalance {
-				continue
-			}
-			// 收支口径与资金方向同源：models.TxStatsBucket。
-			// 此前这里漏掉 reimburse —— 它真实扣了余额却不进任何小计，
-			// 造成「当日明细加总 ≠ 当日小计」（原 B-04）。
-			switch models.TxStatsBucket(t.Type) {
-			case models.StatsBucketIncome:
-				g.DayIncome += t.AmountInBase()
-			case models.StatsBucketExpense:
-				g.DayExpense += t.AmountInBase()
-			}
-		}
-		g.DayBalance = g.DayIncome - g.DayExpense
-		grouped = append(grouped, g)
-	}
-
-	// 汇总 —— 只在首页计算。
-	// 「加载更多」每翻一页都重复一遍全表聚合、结果完全相同，白白多一条 SQL（原 P-01）。
-	var sumIn, sumOut models.Money
-	summary := gin.H{"total_income": sumIn, "total_expense": sumOut, "net": sumIn - sumOut}
-	if !req.UseCursor() && req.Page == 1 {
-		type sumRow struct {
-			Type string  `gorm:"column:type"`
-			Amt  float64 `gorm:"column:amt"`
-		}
-		var sums []sumRow
-		// 外币笔设在 SQL 层折算，避免先累加再乘导致精度失真
-		err := buildBase(true).
-			Select("type, SUM(CASE WHEN exchange_rate > 0 THEN amount * exchange_rate ELSE amount END) as amt").
-			Group("type").Scan(&sums).Error
-		if err == nil {
-			for _, s := range sums {
-				switch models.TxStatsBucket(models.TransactionType(s.Type)) {
-				case models.StatsBucketIncome:
-					sumIn += models.FromCents(s.Amt)
-				case models.StatsBucketExpense:
-					sumOut += models.FromCents(s.Amt)
-				}
-			}
-		}
-		summary = gin.H{"total_income": sumIn, "total_expense": sumOut, "net": sumIn - sumOut}
-	}
-
-	// flat_list 已移除：它与 grouped 承载完全相同的数据，整份交易被 JSON 序列化两次，
-	// 响应体与序列化 CPU 都翻倍（原 P-02）。前端如需平铺列表请用 grouped.flatMap。
 	PagedOK(c, gin.H{
-		"grouped": grouped,
-		"summary": summary,
-	}, req.Page, req.PageSize, total)
+		"grouped": res.Grouped,
+		"summary": res.Summary,
+	}, res.Page, res.PageSize, res.Total)
 }
-
 // UpdateTransaction 更新交易（补丁语义）
 func UpdateTransaction(c *gin.Context) {
 	uid := middleware.GetUID(c)
@@ -653,248 +367,13 @@ func UpdateTransaction(c *gin.Context) {
 		Bad(c, "参数错误: "+err.Error())
 		return
 	}
-
-	db := database.DB.Begin()
-
-	// 读范围与列表一致（原 B-05）
-	var old models.Transaction
-	if err := applyBookScope(c, db.Model(&models.Transaction{}), uid).
-		Where("id = ?", reqUri.ID).First(&old).Error; err != nil {
-		db.Rollback()
-		NotFound(c, "交易不存在")
+	tx, cerr := UpdateTx(uid, reqUri.ID, req)
+	if cerr != nil {
+		FailFromCore(c, cerr)
 		return
 	}
-	if !canWriteTx(c, uid, &old) {
-		db.Rollback()
-		Forbidden(c, "对该账本无写入权限")
-		return
-	}
-
-	// 目标状态 = 旧值 + 补丁。未出现在请求体里的字段保持原样。
-	target := old
-	if req.BookID != nil && *req.BookID > 0 {
-		target.BookID = *req.BookID
-	}
-	if req.Type != nil {
-		target.Type = models.TransactionType(*req.Type)
-	}
-	if req.Amount != nil {
-		target.Amount = models.FromYuan(*req.Amount)
-	}
-	if req.Currency != nil && *req.Currency != "" {
-		target.Currency = *req.Currency
-	}
-	if req.ExchangeRate != nil {
-		target.ExchangeRate = *req.ExchangeRate
-	}
-	if target.ExchangeRate <= 0 || math.IsNaN(target.ExchangeRate) || math.IsInf(target.ExchangeRate, 0) {
-		target.ExchangeRate = 1
-	}
-	if req.CategoryID != nil {
-		target.CategoryID = *req.CategoryID
-	}
-	if req.AccountID != nil {
-		target.AccountID = *req.AccountID
-	}
-	if req.ToAccountID != nil {
-		target.ToAccountID = *req.ToAccountID
-	}
-	if req.TransferFee != nil {
-		target.TransferFee = models.FromYuan(*req.TransferFee)
-	}
-	if req.TransferDiscount != nil {
-		target.TransferDiscount = models.FromYuan(*req.TransferDiscount)
-	}
-	if req.RefundOfID != nil {
-		target.RefundOfID = *req.RefundOfID
-	}
-	if req.TxDate != nil {
-		target.TxDate = req.TxDate.T()
-	}
-	if req.Description != nil {
-		target.Description = *req.Description
-	}
-	if req.Images != nil {
-		target.Images = *req.Images
-	}
-	if req.Merchant != nil {
-		target.Merchant = *req.Merchant
-	}
-	if req.Location != nil {
-		target.Location = *req.Location
-	}
-	if req.IncludeInBalance != nil {
-		target.IncludeInBalance = *req.IncludeInBalance
-	}
-	if req.IncludeInBudget != nil {
-		target.IncludeInBudget = *req.IncludeInBudget
-	}
-	if req.Remark != nil {
-		target.Remark = *req.Remark
-	}
-	// 报销状态：空串是非法值，会让该笔流水在按状态筛选时永远查不到
-	target.ReimburseStatus = req.NormalizedReimburseStatus(old.ReimburseStatus)
-
-	// C14：类型白名单
-	switch target.Type {
-	case models.TxExpense, models.TxIncome, models.TxTransfer,
-		models.TxRefund, models.TxReimburse, models.TxAdjust:
-	default:
-		db.Rollback()
-		Bad(c, "非法交易类型: "+string(target.Type))
-		return
-	}
-	// C14：归属校验 —— 账户/目标账户/分类必须属于当前用户（或共享账本）
-	if !ownsOrSharesAccount(c, uid, target.AccountID) {
-		db.Rollback()
-		Bad(c, "来源账户不存在或无权限")
-		return
-	}
-	if target.ToAccountID > 0 && !ownsOrSharesAccount(c, uid, target.ToAccountID) {
-		db.Rollback()
-		Bad(c, "目标账户不存在或无权限")
-		return
-	}
-	if target.CategoryID > 0 {
-		var cnt int64
-		db.Model(&models.Category{}).
-			Where("id = ? AND (user_id = ? OR book_id IN ?)",
-				target.CategoryID, uid, append(bookIDsOf(c, uid), 0)).Count(&cnt)
-		if cnt == 0 {
-			db.Rollback()
-			Bad(c, "分类不存在或无权限")
-			return
-		}
-	}
-	if target.Type == models.TxTransfer && target.ToAccountID == 0 {
-		db.Rollback()
-		Bad(c, "转账需要指定目标账户")
-		return
-	}
-	if !canWriteBook(c, uid, target.BookID) && old.UserID != uid {
-		db.Rollback()
-		Forbidden(c, "对该账本无写入权限")
-		return
-	}
-
-	// 撤销该交易派生出的子交易（手续费）
-	revertDerivedTransactions(db, old.ID)
-
-	// 先撤销原交易对余额的影响
-	var from, to models.Account
-	db.First(&from, old.AccountID)
-	if old.ToAccountID > 0 {
-		db.First(&to, old.ToAccountID)
-	}
-	updateAccountBalances(db, &old, &from, &to, false)
-	// 撤销旧预算 used_amount
-	applyBudgetUsed(db, uid, old.BookID, old.CategoryID, old.TxDate,
-		old.AmountInBase(), old.Type, old.IncludeInBudget, -1)
-
-	// 只写本次真正提交的字段（补丁语义），其余字段保持库里的原值。
-	// 此前用一张 20 键的固定 map 无条件覆盖，把所有没传的字段一律写零值，
-	// 静默销毁手续费 / 退款关联 / 凭证图片 / 报销状态（原 B-01）。
-	updates := map[string]interface{}{}
-	if req.BookID != nil {
-		updates["book_id"] = target.BookID
-	}
-	if req.Type != nil {
-		updates["type"] = target.Type
-	}
-	if req.Amount != nil {
-		updates["amount"] = target.Amount
-	}
-	if req.Currency != nil {
-		updates["currency"] = target.Currency
-	}
-	if req.ExchangeRate != nil || old.ExchangeRate != target.ExchangeRate {
-		updates["exchange_rate"] = target.ExchangeRate
-	}
-	if req.CategoryID != nil {
-		updates["category_id"] = target.CategoryID
-	}
-	if req.AccountID != nil {
-		updates["account_id"] = target.AccountID
-	}
-	if req.ToAccountID != nil {
-		updates["to_account_id"] = target.ToAccountID
-	}
-	if req.TransferFee != nil {
-		updates["transfer_fee"] = target.TransferFee
-	}
-	if req.TransferDiscount != nil {
-		updates["transfer_discount"] = target.TransferDiscount
-	}
-	if req.RefundOfID != nil {
-		updates["refund_of_id"] = target.RefundOfID
-	}
-	if req.TxDate != nil {
-		updates["tx_date"] = target.TxDate
-	}
-	if req.Description != nil {
-		updates["description"] = target.Description
-	}
-	if req.Images != nil {
-		updates["images"] = target.Images
-	}
-	if req.Merchant != nil {
-		updates["merchant"] = target.Merchant
-	}
-	if req.Location != nil {
-		updates["location"] = target.Location
-	}
-	if req.IncludeInBalance != nil {
-		updates["include_in_balance"] = target.IncludeInBalance
-	}
-	if req.IncludeInBudget != nil {
-		updates["include_in_budget"] = target.IncludeInBudget
-	}
-	if req.Remark != nil {
-		updates["remark"] = target.Remark
-	}
-	if req.ReimburseStatus != nil || old.ReimburseStatus != target.ReimburseStatus {
-		updates["reimburse_status"] = target.ReimburseStatus
-	}
-	if len(updates) > 0 {
-		if err := db.Model(&models.Transaction{}).Where("id = ?", old.ID).Updates(updates).Error; err != nil {
-			db.Rollback()
-			InternalErr(c, "更新失败: "+err.Error())
-			return
-		}
-	}
-
-	// 标签按差集同步（此前整删再增，对未变更的标签也做一次「减再加」，计数漂移）
-	if req.HasTagIDs() {
-		syncTxTags(db, old.ID, req.TagIDsOrNil())
-	}
-
-	// 应用新余额 / 预算影响
-	var newTx models.Transaction
-	db.Preload("Tags").First(&newTx, old.ID)
-	var from2, to2 models.Account
-	db.First(&from2, newTx.AccountID)
-	if newTx.ToAccountID > 0 {
-		db.First(&to2, newTx.ToAccountID)
-	}
-	updateAccountBalances(db, &newTx, &from2, &to2, true)
-	applyBudgetUsed(db, uid, newTx.BookID, newTx.CategoryID, newTx.TxDate,
-		newTx.AmountInBase(), newTx.Type, newTx.IncludeInBudget, 1)
-
-	// 转账手续费派生交易：旧的已在前面回滚，这里统一按最新状态重建
-	syncTransferFeeDerived(db, &newTx, &from2)
-
-	if err := db.Commit().Error; err != nil {
-		InternalErr(c, "提交失败: "+err.Error())
-		return
-	}
-
-	database.DB.Preload("Tags").First(&newTx, old.ID)
-	updated := []models.Transaction{newTx}
-	fillTxViewFields(updated)
-	Broadcast(c, "transactions", "update", old.ID)
-	OK(c, updated[0])
+	OK(c, tx)
 }
-
 // DeleteTransaction 删除交易（软删除+回滚余额）
 func DeleteTransaction(c *gin.Context) {
 	uid := middleware.GetUID(c)
@@ -903,47 +382,12 @@ func DeleteTransaction(c *gin.Context) {
 		Bad(c, "参数错误")
 		return
 	}
-
-	db := database.DB.Begin()
-	var tx models.Transaction
-	if err := applyBookScope(c, db.Model(&models.Transaction{}), uid).
-		Where("id = ?", req.ID).First(&tx).Error; err != nil {
-		db.Rollback()
-		NotFound(c, "交易不存在")
+	if cerr := DeleteTx(uid, req.ID); cerr != nil {
+		FailFromCore(c, cerr)
 		return
 	}
-	if !canWriteTx(c, uid, &tx) {
-		db.Rollback()
-		Forbidden(c, "对该账本无写入权限")
-		return
-	}
-
-	// 撤销派生交易（手续费）
-	revertDerivedTransactions(db, tx.ID)
-
-	var from, to models.Account
-	db.First(&from, tx.AccountID)
-	if tx.ToAccountID > 0 {
-		db.First(&to, tx.ToAccountID)
-	}
-	updateAccountBalances(db, &tx, &from, &to, false)
-	applyBudgetUsed(db, uid, tx.BookID, tx.CategoryID, tx.TxDate,
-		tx.AmountInBase(), tx.Type, tx.IncludeInBudget, -1)
-	adjustTagCounts(db, txTagIDs(db, tx.ID), -1)
-
-	// 注意：**不再删除 transaction_tags 关联行**。
-	// 此前这里硬删了关联，而 RecoverTransaction 又依赖 txTagIDs 读回标签 → 必然返回空切片，
-	// 回收站恢复后标签绑定永久丢失（原 B-06）。保留关联不影响任何查询，
-	// 因为主记录本身已被软删除，只在回收站里带上 Tags 展示。
-	db.Delete(&tx)
-	if err := db.Commit().Error; err != nil {
-		InternalErr(c, "删除失败: "+err.Error())
-		return
-	}
-	Broadcast(c, "transactions", "delete", req.ID)
 	OK(c, nil)
 }
-
 // ========== 批量操作 ==========
 
 type BatchDeleteRequest struct {
@@ -962,126 +406,13 @@ func BatchDeleteTransactions(c *gin.Context) {
 		Bad(c, err.Error())
 		return
 	}
-	if len(req.IDs) == 0 {
-		Bad(c, "请选择要删除的交易")
+	n, cerr := BatchDeleteTx(uid, req.IDs)
+	if cerr != nil {
+		FailFromCore(c, cerr)
 		return
 	}
-	// 去重 + 限流
-	seen := make(map[uint]struct{}, len(req.IDs))
-	ids := make([]uint, 0, len(req.IDs))
-	for _, id := range req.IDs {
-		if id == 0 {
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		ids = append(ids, id)
-	}
-	if len(ids) > maxBatchDelete {
-		Bad(c, fmt.Sprintf("单次最多删除 %d 笔，请分批操作", maxBatchDelete))
-		return
-	}
-
-	db := database.DB.Begin()
-
-	var txs []models.Transaction
-	applyBookScope(c, db.Model(&models.Transaction{}), uid).Where("id IN ?", ids).Find(&txs)
-	// 写权限过滤（原 B-05）：共享账本里他人所记、且自己只有 viewer 角色的流水跳过
-	writable := make([]models.Transaction, 0, len(txs))
-	writableIDs := make([]uint, 0, len(txs))
-	for i := range txs {
-		if !canWriteTx(c, uid, &txs[i]) {
-			continue
-		}
-		writable = append(writable, txs[i])
-		writableIDs = append(writableIDs, txs[i].ID)
-	}
-	if len(writable) == 0 {
-		db.Rollback()
-		Forbidden(c, "没有可删除的交易")
-		return
-	}
-
-	// ---- 一次性预取：标签关联 / 账户（含方向系数）/ 派生交易 ----
-	tagMap := txTagIDsBatch(db, writableIDs)
-
-	accSet := make(map[uint]struct{}, len(writable)*2)
-	for i := range writable {
-		accSet[writable[i].AccountID] = struct{}{}
-		if writable[i].ToAccountID > 0 {
-			accSet[writable[i].ToAccountID] = struct{}{}
-		}
-	}
-	accMap := make(map[uint]models.Account, len(accSet))
-	if len(accSet) > 0 {
-		var accs []models.Account
-		db.Where("id IN ?", idSetKeys(accSet)).Find(&accs)
-		for i := range accs {
-			accMap[accs[i].ID] = accs[i]
-		}
-	}
-
-	// 派生交易回滚（每条单独处理，但派生交易只有转账手续费，数量极少）
-	for i := range writable {
-		revertDerivedTransactions(db, writable[i].ID)
-	}
-
-	// ---- 聚合增量，最后统一落库 ----
-	type budgetKey struct {
-		bookID uint
-		catID  uint
-		date   string
-	}
-	balanceDeltas := make(map[uint]int64, len(accSet))
-	budgetDeltas := make(map[budgetKey]models.Money, len(writable))
-	tagCount := make(map[uint]int, len(writable))
-	for i := range writable {
-		t := writable[i]
-		for _, tid := range tagMap[t.ID] {
-			tagCount[tid]++
-		}
-		from := accMap[t.AccountID]
-		var to *models.Account
-		if t.ToAccountID > 0 {
-			if a, ok := accMap[t.ToAccountID]; ok {
-				to = &a
-			}
-		}
-		accumulateBalanceDelta(&t, &from, to, balanceDeltas, -1)
-		// 预算只汇总真正计入的部分，避免把转账/退款也算进去
-		if models.TxStatsBucket(t.Type) == models.StatsBucketExpense && t.IncludeInBudget {
-			k := budgetKey{bookID: t.BookID, catID: t.CategoryID, date: t.TxDate.Format("2006-01-02")}
-			budgetDeltas[k] += t.AmountInBase()
-		}
-	}
-	flushBalanceDeltas(db, balanceDeltas)
-	if len(budgetDeltas) > 0 {
-		keys := make([]budgetKey, 0, len(budgetDeltas))
-		for k := range budgetDeltas {
-			keys = append(keys, k)
-		}
-		sort.Slice(keys, func(i, j int) bool { return keys[i].date < keys[j].date })
-		for _, k := range keys {
-			d, err := time.Parse("2006-01-02", k.date)
-			if err != nil {
-				continue
-			}
-			applyBudgetUsed(db, uid, k.bookID, k.catID, d, budgetDeltas[k], models.TxExpense, true, -1)
-		}
-	}
-	adjustTagCountsBatch(db, tagCount, -1)
-
-	db.Where("id IN ?", writableIDs).Delete(&models.Transaction{})
-	if err := db.Commit().Error; err != nil {
-		InternalErr(c, "批量删除失败: "+err.Error())
-		return
-	}
-	Broadcast(c, "transactions", "delete", 0)
-	OK(c, gin.H{"deleted_count": len(writable)})
+	OK(c, gin.H{"deleted_count": n})
 }
-
 // RecoverTransaction 撤销软删除（回收站恢复）。
 // 后端早已是软删除（BaseModel.DeletedAt），这里提供按 ID 恢复，并回滚余额与预算。
 func RecoverTransaction(c *gin.Context) {
@@ -1091,63 +422,23 @@ func RecoverTransaction(c *gin.Context) {
 		Bad(c, "参数错误")
 		return
 	}
-	db := database.DB.Begin()
-	var tx models.Transaction
-	if err := applyBookScope(c, db.Unscoped().Model(&models.Transaction{}), uid).
-		Where("id = ? AND deleted_at IS NOT NULL", req.ID).First(&tx).Error; err != nil {
-		db.Rollback()
-		NotFound(c, "未找到已删除的交易")
+	if _, cerr := RecoverTx(uid, req.ID); cerr != nil {
+		FailFromCore(c, cerr)
 		return
 	}
-	if !canWriteTx(c, uid, &tx) {
-		db.Rollback()
-		Forbidden(c, "对该账本无写入权限")
-		return
-	}
-	if err := db.Unscoped().Model(&models.Transaction{}).Where("id = ?", req.ID).
-		Update("deleted_at", nil).Error; err != nil {
-		db.Rollback()
-		InternalErr(c, "恢复失败: "+err.Error())
-		return
-	}
-	var from, to models.Account
-	db.First(&from, tx.AccountID)
-	if tx.ToAccountID > 0 {
-		db.First(&to, tx.ToAccountID)
-	}
-	updateAccountBalances(db, &tx, &from, &to, true)
-	applyBudgetUsed(db, uid, tx.BookID, tx.CategoryID, tx.TxDate,
-		tx.AmountInBase(), tx.Type, tx.IncludeInBudget, 1)
-	// 标签关联在删除时被刻意保留，这里一定能读回来（原 B-06）
-	adjustTagCounts(db, txTagIDs(db, tx.ID), 1)
-	// 重建派生交易（转账手续费）：删除时被硬删以保证回收站不留系统垃圾（原 B-07）
-	syncTransferFeeDerived(db, &tx, &from)
-	if err := db.Commit().Error; err != nil {
-		InternalErr(c, "恢复失败: "+err.Error())
-		return
-	}
-	Broadcast(c, "transactions", "recover", req.ID)
 	OK(c, gin.H{"recovered": req.ID})
 }
-
 // ListDeletedTransactions 回收站：列出软删除的交易
 func ListDeletedTransactions(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	page, pageSize := GetPageParams(c)
-	if pageSize > 200 {
-		pageSize = 200
+	list, cerr := ListDeletedTx(uid, page, pageSize)
+	if cerr != nil {
+		FailFromCore(c, cerr)
+		return
 	}
-	var list []models.Transaction
-	applyBookScope(c, database.DB.Unscoped().Model(&models.Transaction{}), uid).
-		Preload("Tags").
-		Where("deleted_at IS NOT NULL").
-		Order("deleted_at DESC").
-		Offset((page - 1) * pageSize).Limit(pageSize).
-		Find(&list)
-	fillTxViewFields(list)
 	OK(c, list)
 }
-
 // ========== 预算 Budget ==========
 
 func ListBudgets(c *gin.Context) {
