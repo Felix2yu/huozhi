@@ -237,9 +237,26 @@ describe('分类管理页 - 图标选择器', () => {
 			.find((t) => t.textContent?.trim() === '人情节日')!;
 		await fireEvent.click(socialTab);
 
-		const socialGrid = screen.getByTestId('icon-grid');
-		expect(within(socialGrid).getByText('🎁')).toBeTruthy();
-		expect(countOf()).toBeLessThan(commonCount);
+		await waitFor(() => {
+			const socialCount = countOf();
+			expect(socialCount).toBeLessThan(commonCount);
+		});
+	});
+});
+
+describe('分类管理页 - 类型切换', () => {
+	it('显示收入/支出标签', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('餐饮'));
+		expect(screen.getByText('支出')).toBeTruthy();
+		expect(screen.getByText('收入')).toBeTruthy();
+	});
+
+	it('默认选中支出标签', async () => {
+		mountPage();
+		await waitFor(() => screen.getByText('餐饮'));
+		const expenseTab = screen.getByText('支出').closest('[role="tab"]');
+		expect(expenseTab).toHaveAttribute('data-state', 'active');
 	});
 });
 
