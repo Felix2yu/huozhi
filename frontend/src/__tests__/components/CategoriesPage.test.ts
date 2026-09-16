@@ -74,9 +74,8 @@ function groupAt(index: number): HTMLElement {
 }
 
 function toggleOf(group: HTMLElement): HTMLElement {
-	const btn = group.querySelector<HTMLElement>('[data-testid="group-toggle"]');
-	if (!btn) throw new Error('未找到分组展开按钮');
-	return btn;
+	// 现在点击整个分组按钮即可展开，不再需要专门的箭头按钮
+	return group;
 }
 
 /** 找到某个一级分类对应的二级面板（按 data-parent-id 匹配） */
