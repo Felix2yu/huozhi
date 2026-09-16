@@ -209,4 +209,37 @@ describe('HTTP client - Bug #5 offline queue conditions', () => {
 		const result = await replayQueue();
 		expect(result.remaining).toBe(0);
 	});
+
+	it('清除队列后queueCount为0', async () => {
+		const { clearQueue, queueCount } = await import('$lib/api/http');
+		clearQueue();
+		expect(queueCount()).toBe(0);
+	});
+
+	it('请求带自定义headers', async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: () => Promise.resolve({ code: 0, data: null })
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		await http.get('/test', { headers: { 'X-Custom': 'value' } });
+		const callHeaders = fetchMock.mock.calls[0][1].headers;
+		expect(callHeaders['X-Custom']).toBe('value');
+		expect(callHeaders['Content-Type']).toBe('application/json');
+	});
+
+	it('GET请求不携带body', async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: () => Promise.resolve({ code: 0, data: null })
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		await http.get('/test');
+		const callOptions = fetchMock.mock.calls[0][1];
+		expect(callOptions.body).toBeUndefined();
+	});
 });
