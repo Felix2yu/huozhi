@@ -25,7 +25,14 @@ beforeEach(() => {
 	vi.unstubAllGlobals();
 });
 
-import http, { ApiError, queueCount, clearQueue } from '$lib/api/http';
+import http, {
+	ApiError,
+	queueCount,
+	clearQueue,
+	ERR_OFFLINE_QUEUED,
+	ERR_TIMEOUT,
+	ERR_BAD_RESPONSE
+} from '$lib/api/http';
 
 describe('HTTP client - Bug #5 offline queue conditions', () => {
 	beforeEach(() => {
@@ -85,8 +92,67 @@ describe('HTTP client - Bug #5 offline queue conditions', () => {
 		const fetchMock = vi.fn().mockRejectedValue(new TypeError('NetworkError'));
 		vi.stubGlobal('fetch', fetchMock);
 
-		await expect(http.post('/transactions', { amount: 100 })).rejects.toThrow('OFFLINE_QUEUED');
+		await expect(http.post('/transactions', { amount: 100 })).rejects.toMatchObject({
+			code: ERR_OFFLINE_QUEUED
+		});
 		expect(queueCount()).toBe(1);
+	});
+
+	// ====== 以下为超时 / 坏响应 / 不可重放端点的回归测试 ======
+	// 历史 bug: 所有「非 ApiError」异常都被当成断网入队。于是请求超时（请求可能
+	// 已在服务端执行）与反向代理返回 HTML 错误页（res.json() 抛 SyntaxError）
+	// 也会被暂存重放，前者造成重复写入，后者把服务端故障伪装成离线。
+
+	it('请求超时 → 不入队（请求可能已执行，重放会重复写入）', async () => {
+		// mock 的 fetch 不响应 signal，自己延迟 50ms 抛出 AbortError；
+		// 而 http 内部 10ms 就会把 timedOut 置位。
+		const fetchMock = vi.fn(
+			() =>
+				new Promise((_resolve, reject) => {
+					setTimeout(() => reject(new DOMException('aborted', 'AbortError')), 50);
+				})
+		);
+		vi.stubGlobal('fetch', fetchMock);
+
+		await expect(
+			http.post('/transactions', { amount: 100 }, { timeout: 10 })
+		).rejects.toMatchObject({ code: ERR_TIMEOUT });
+		expect(queueCount()).toBe(0);
+	});
+
+	it('响应体非 JSON（反向代理 502 页）→ 不入队', async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: false,
+			status: 502,
+			json: () => Promise.reject(new SyntaxError('Unexpected token < in JSON at position 0'))
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		await expect(http.post('/transactions', { amount: 100 })).rejects.toMatchObject({
+			code: ERR_BAD_RESPONSE
+		});
+		expect(queueCount()).toBe(0);
+	});
+
+	it('生成 API Key 失败 → 不入队（结果需当场展示，重放会作废旧 key）', async () => {
+		const fetchMock = vi.fn().mockRejectedValue(new TypeError('NetworkError'));
+		vi.stubGlobal('fetch', fetchMock);
+
+		// 不入队，因此原始 TypeError 会原样抛出（而不是被替换成 OFFLINE_QUEUED）
+		await expect(http.post('/api-key/generate')).rejects.toThrow('NetworkError');
+		expect(queueCount()).toBe(0);
+	});
+
+	it('/api-key 不得被误判为已带 /api 前缀', async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: () => Promise.resolve({ code: 0, data: {} })
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		await http.get('/api-key');
+		expect(fetchMock.mock.calls[0][0]).toBe('/api/api-key');
 	});
 
 	it('GET 请求 → 即使离线也不入队（只读操作）', async () => {

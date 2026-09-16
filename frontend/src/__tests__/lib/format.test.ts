@@ -77,28 +77,36 @@ describe('formatDate', () => {
 	});
 });
 
+// 取本地日历日，不要用 toISOString()：后者是 UTC 日期，
+// 在 GMT+8 的 00:00–08:00 时段比本地日期慢一天，会让相对日期整体偏移 1 天。
+function localDateStr(d: Date): string {
+	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+		d.getDate()
+	).padStart(2, '0')}`;
+}
+
 describe('formatRelativeDate', () => {
 	it('今天', () => {
-		const today = new Date().toISOString().split('T')[0];
+		const today = localDateStr(new Date());
 		expect(formatRelativeDate(today)).toBe('今天');
 	});
 
 	it('昨天', () => {
 		const yesterday = new Date();
 		yesterday.setDate(yesterday.getDate() - 1);
-		expect(formatRelativeDate(yesterday.toISOString().split('T')[0])).toBe('昨天');
+		expect(formatRelativeDate(localDateStr(yesterday))).toBe('昨天');
 	});
 
 	it('最近7天', () => {
 		const threeDaysAgo = new Date();
 		threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-		expect(formatRelativeDate(threeDaysAgo.toISOString().split('T')[0])).toBe('3天前');
+		expect(formatRelativeDate(localDateStr(threeDaysAgo))).toBe('3天前');
 	});
 
 	it('今年的日期', () => {
 		const thisYear = new Date();
 		thisYear.setMonth(thisYear.getMonth() - 1);
-		const dateStr = thisYear.toISOString().split('T')[0];
+		const dateStr = localDateStr(thisYear);
 		const result = formatRelativeDate(dateStr);
 		expect(result).toMatch(/^\d{2}-\d{2}$/);
 	});

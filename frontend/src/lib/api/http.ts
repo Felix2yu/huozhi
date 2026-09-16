@@ -48,6 +48,26 @@ function isMutating(method: string): boolean {
 	return ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method.toUpperCase());
 }
 
+// 负数错误码表示「本地产生」，与服务端返回的 code 区分开
+export const ERR_OFFLINE_QUEUED = -1;
+export const ERR_ABORTED = -2;
+export const ERR_TIMEOUT = -3;
+export const ERR_BAD_RESPONSE = -4;
+
+// 不进离线队列的端点前缀。
+//
+// 判定标准不是「重不重要」，而是「暂存重放有没有意义」：
+//   - /api-key：结果必须当场展示给用户（key 只出现一次），且重放会重新生成、
+//     让已配置到客户端的旧 key 失效；
+//   - /auth：登录/注册/改密的响应是一次性凭证，重放无意义；
+//   - /io/import：重放会造成账单重复导入。
+const NON_QUEUEABLE_PREFIXES = ['/api/api-key', '/api/auth', '/api/io/import'];
+
+function isQueueable(url: string): boolean {
+	const path = url.split('?')[0];
+	return !NON_QUEUEABLE_PREFIXES.some((p) => path.startsWith(p));
+}
+
 // 离线队列 -----------------------------
 
 function loadQueue(): QueueItem[] {
@@ -148,7 +168,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 	const effectiveTimeout = isAuthEndpoint ? AUTH_TIMEOUT : timeout;
 
 	// 构建 URL
-	let url = path.startsWith('/api') ? path : `/api${path}`;
+	// 必须用 '/api/'（带尾斜杠）判断：'/api-key' 同样满足 startsWith('/api')，
+	// 漏掉尾斜杠会让所有 /api-* 开头的请求拼成 /api-key 打到根路径，
+	// 命中后端 SPA fallback 返回 index.html，最终被误判成断网（详见 OFFLINE_QUEUED 事故）。
+	let url = path.startsWith('/api/') ? path : `/api${path}`;
 	if (params && Object.keys(params).length) {
 		const searchParams = new URLSearchParams();
 		for (const [k, v] of Object.entries(params)) {
@@ -178,7 +201,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 		if (external.aborted) controller.abort(external.reason);
 		else external.addEventListener('abort', onExternalAbort, { once: true });
 	}
-	const timer = setTimeout(() => controller.abort(), effectiveTimeout);
+	let timedOut = false;
+	const timer = setTimeout(() => {
+		timedOut = true;
+		controller.abort();
+	}, effectiveTimeout);
 
 	try {
 		const res = await fetch(url, {
@@ -209,7 +236,22 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 		// 被上层主动取消：既不是网络故障也不是业务错误，
 		// 绝不能入离线队列（否则一次筛选切换会凭空产生一串待同步请求）。
 		if (external?.aborted) {
-			throw new ApiError(-2, 'ABORTED');
+			throw new ApiError(ERR_ABORTED, 'ABORTED');
+		}
+
+		// 超时：请求**可能已经到达服务端并执行完毕**，只是响应没赶回来。
+		// 这种情况一旦入队重放就会造成重复写入（重复记一笔账），因此绝不能入队。
+		if (timedOut) {
+			throw new ApiError(
+				ERR_TIMEOUT,
+				`请求超时（${Math.round(effectiveTimeout / 1000)} 秒），请稍后重试`
+			);
+		}
+
+		// 响应体不是合法 JSON：多半是反向代理返回了 HTML 错误页，或后端压根没起来。
+		// 这属于服务端故障而非断网，入队只会把错误拖到恢复后再次爆发。
+		if (err instanceof SyntaxError) {
+			throw new ApiError(ERR_BAD_RESPONSE, '服务响应异常，请检查后端服务是否正常');
 		}
 
 		// 离线写操作入队
@@ -219,14 +261,17 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 		const isNetworkError = !(err instanceof ApiError);
 		if (
 			(isOffline || isNetworkError) &&
-			isMutating(options.method || 'GET')
+			isMutating(options.method || 'GET') &&
+			isQueueable(url)
 		) {
+			// 原始错误只进控制台，便于用 DevTools 区分「真断网」与「代理/证书/跨域」等伪离线
+			console.warn('[http] 请求失败，已暂存到离线队列：', url, err);
 			enqueueOffline({
 				method: (options.method as any) || 'POST',
 				url,
 				data: options.body ? JSON.parse(String(options.body)) : undefined
 			});
-			throw new ApiError(-1, 'OFFLINE_QUEUED');
+			throw new ApiError(ERR_OFFLINE_QUEUED, '网络不可用，操作已暂存，恢复网络后会自动同步');
 		}
 
 		throw err;
