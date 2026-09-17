@@ -11,7 +11,7 @@
 	});
 
 	let {
-		value = '',
+		value = $bindable(''),
 		bankName = '',
 		name = '',
 		type = '',
@@ -52,7 +52,8 @@
 	const selectedIcon = $derived(value || autoIcon);
 
 	function selectIcon(id: string) {
-		onchange(id === autoIcon ? '' : id);
+		value = id === autoIcon ? '' : id;
+		onchange(value);
 		open = false;
 		search = '';
 	}
@@ -67,6 +68,7 @@
 	<div class="flex items-center gap-3">
 		<button
 			type="button"
+			data-testid="icon-trigger"
 			class="flex items-center gap-2 px-3 py-2 border rounded-md hover:bg-accent transition text-sm"
 			onclick={toggleOpen}
 		>
