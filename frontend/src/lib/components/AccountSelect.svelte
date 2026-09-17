@@ -7,19 +7,23 @@
 		value = $bindable<number>(),
 		onChange = (_id: number) => {},
 		exclude = 0,
-		placeholder = '选择账户'
+		placeholder = '选择账户',
+		includeArchived = false,
+		clearable = false
 	}: {
 		value?: number;
 		onChange?: (id: number) => void;
 		exclude?: number;
 		placeholder?: string;
+		includeArchived?: boolean;
+		clearable?: boolean;
 	} = $props();
 
 	let open = $state(false);
 
 	// 排除已归档账户与指定排除项（如转账的对方账户）
 	const list = $derived(
-		appStore.accounts.filter((a) => a.id !== exclude && !a.is_archived)
+		appStore.accounts.filter((a) => a.id !== exclude && (includeArchived || !a.is_archived))
 	);
 	const selected = $derived(list.find((a) => a.id === value) || null);
 
@@ -34,6 +38,7 @@
 	<button
 		type="button"
 		class="flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+		aria-expanded={open}
 		onclick={() => (open = !open)}
 	>
 		{#if selected}
@@ -56,6 +61,16 @@
 		<div
 			class="absolute z-50 mt-1 max-h-72 w-full overflow-auto rounded-md border bg-card p-1 shadow-md"
 		>
+			{#if clearable}
+				<button
+					type="button"
+					class="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-accent"
+					onclick={() => pick(0)}
+				>
+					{placeholder}
+					{#if !value}<Check size={16} class="ml-auto shrink-0 text-primary" />{/if}
+				</button>
+			{/if}
 			{#each list as acc (acc.id)}
 				<button
 					type="button"

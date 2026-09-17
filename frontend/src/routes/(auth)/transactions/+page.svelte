@@ -10,6 +10,7 @@
 	import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
 	import Label from '$lib/components/ui/Label.svelte';
+	import AccountSelect from '$lib/components/AccountSelect.svelte';
 	import { txApi } from '$lib/api/modules/transactions';
 	import { appStore } from '$lib/stores/app';
 	import { hzToast } from '$lib/components/ui/toast';
@@ -532,15 +533,13 @@
 					</div>
 					<div class="space-y-2">
 						<Label>账户</Label>
-						<select
-							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-							bind:value={accountId}
-						>
-							<option value="">全部账户</option>
-							{#each appStore.accounts as acc (acc.id)}
-								<option value={acc.id}>{acc.name}</option>
-							{/each}
-						</select>
+						<AccountSelect
+							value={accountId === '' ? 0 : accountId}
+							onChange={(id) => (accountId = id || '')}
+							placeholder="全部账户"
+							includeArchived
+							clearable
+						/>
 					</div>
 				</div>
 

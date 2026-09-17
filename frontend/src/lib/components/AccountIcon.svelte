@@ -3,7 +3,7 @@
 	import { getBankBrand, getBankIcon } from '$lib/utils/bank-themes';
 
 	// 使用 Vite 的 import.meta.glob 批量导入所有 SVG 文件
-	const bankIcons = import.meta.glob('$lib/assets/bank-icons/*.svg', {
+	const bankIcons = import.meta.glob<string>('$lib/assets/bank-icons/*.svg', {
 		eager: true,
 		query: '?url',
 		import: 'default'
@@ -32,7 +32,7 @@
 		const manualIcon = icon || account?.icon;
 		if (manualIcon) {
 			const key = `/src/lib/assets/bank-icons/${manualIcon}.svg`;
-			return bankIcons[key] || null;
+			if (bankIcons[key]) return bankIcons[key];
 		}
 		if (type === 'cash' || account?.type === 'cash') return null;
 		const src = bankName || account?.bank_name || name || account?.name || '';

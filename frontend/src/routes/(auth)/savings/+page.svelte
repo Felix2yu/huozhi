@@ -263,14 +263,7 @@
 
 		<div class="space-y-2">
 			<Label>账户</Label>
-			<select
-				class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-				bind:value={accountId}
-			>
-				{#each appStore.accounts as acc}
-					<option value={acc.id}>{acc.name}</option>
-				{/each}
-			</select>
+			<AccountSelect bind:value={accountId} includeArchived />
 		</div>
 
 		<div class="grid grid-cols-2 gap-4">
