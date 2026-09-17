@@ -27,10 +27,13 @@
 	import { appStore } from '$lib/stores/app';
 	import { hzToast } from '$lib/components/ui/toast';
 	import { aiApi } from '$lib/api/modules/ai';
-	import { formatDate } from '$lib/utils/format';
+	import { formatDate, formatMoney, currencySymbol } from '$lib/utils/format';
 	import { clampMoneyInput } from '$lib/utils/tx';
+	import { ratesStore } from '$lib/stores/rates.svelte';
+	import { CURRENCIES } from '$lib/types';
+	import { onMount } from 'svelte';
 	import {
-		Sparkles, Save, X, ChevronDown, ChevronUp, ImagePlus, Trash2, Wand2
+		Sparkles, Save, X, ChevronDown, ChevronUp, ImagePlus, Trash2, Wand2, RefreshCw
 	} from '@lucide/svelte';
 
 	interface Props {
@@ -89,6 +92,8 @@
 	let exchangeRate = $state('');
 	// 用户手动改过币种后就不再被「账户默认币种」覆盖（原 F-06）
 	let currencyTouched = $state(false);
+	// 用户手动改过汇率后，不再被自动汇率覆盖（编辑历史账单时必须保留当时的汇率）
+	let rateManual = $state(false);
 	let includeInBalance = $state(true);
 	// 分类按收支种类分别记忆上次选择：切 tab 再切回来时保留用户原选，
 	// 而不是被默认值静默重置（原 F-06）
@@ -100,6 +105,51 @@
 		appStore.accounts.find((a) => a.id === accountId)?.currency || baseCurrency
 	);
 	const isForeign = $derived(currency !== baseCurrency);
+
+	// ===== 汇率折算 =====
+	// 录入外币账单时自动带出当前汇率，并实时给出折算后的基准币金额，
+	// 让用户不必自己心算、也不必先去别处查汇率。
+	const amountNum = $derived(parseFloat(amount) || 0);
+	const rateNum = $derived(parseFloat(exchangeRate) || 0);
+	/** 折算后的基准币金额；无法折算时为 null（不拿原值冒充） */
+	const converted = $derived(
+		isForeign && amountNum > 0 && rateNum > 0 ? Math.round(amountNum * rateNum * 100) / 100 : null
+	);
+	/** 汇率来源与新鲜度，供录入界面提示 */
+	const fxMeta = $derived.by(() => {
+		if (!ratesStore.fetchedAt) return '';
+		const d = new Date(ratesStore.fetchedAt);
+		const stamp = `${d.getMonth() + 1}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+		return `${ratesStore.source || '上游'} · ${stamp}`;
+	});
+
+	// 外币且用户没手填汇率 → 用当前汇率自动填充；切币种时重新带出
+	$effect(() => {
+		if (!isForeign) {
+			if (!rateManual) exchangeRate = '';
+			return;
+		}
+		if (rateManual) return;
+		const r = ratesStore.rate(currency);
+		exchangeRate = r && r !== 1 ? String(r) : '';
+	});
+
+	function onCurrencyChange(next: string) {
+		currency = next;
+		currencyTouched = true;
+		// 主动切换币种 = 要求按新币种折算，账单上锁定的旧汇率已无意义，
+		// 因此解除 rateManual 并重新带出当前汇率（否则编辑一笔本币账单后
+		// 改成外币会留着 1 不动，折算金额直接错掉）。
+		rateManual = false;
+		const r = ratesStore.rate(next);
+		exchangeRate = r && r !== 1 ? String(r) : '';
+		if (next !== baseCurrency) ratesStore.ensure(baseCurrency);
+	}
+
+	onMount(() => {
+		// 进入表单就确保有汇率可用（后端有缓存，只有首次 / 过期才真打上游）
+		ratesStore.ensure(baseCurrency);
+	});
 
 	let categories = $derived.by(() => {
 		if (type === 'income') return appStore.categories.income;
@@ -167,9 +217,11 @@
 				tagIds = (tx.tags || []).map((t: any) => t.id);
 				includeInBudget = tx.include_in_budget !== false;
 				includeInBalance = tx.include_in_balance !== false;
-				// B11：回填币种与汇率
+				// B11：回填币种与汇率。历史账单带的是「当时」的汇率，
+				// 标记 rateManual，避免被当前汇率静默覆盖导致账面金额变化。
 				currency = tx.currency || baseCurrency;
 				exchangeRate = (tx as any).exchange_rate ? String((tx as any).exchange_rate) : '';
+				rateManual = !!(tx as any).exchange_rate;
 				prefilled = true;
 			})
 			.catch(() => {
@@ -197,6 +249,7 @@
 		includeInBudget = clone.include_in_budget !== false;
 		currency = clone.currency || baseCurrency;
 		exchangeRate = clone.exchange_rate ? String(clone.exchange_rate) : '';
+		rateManual = !!clone.exchange_rate;
 		prefilled = true;
 	});
 
@@ -246,14 +299,10 @@
 				include_in_balance: includeInBalance
 			};
 			if (type === 'transfer') data.to_account_id = toAccountId;
-			// B11：币种与汇率
-			if (currency && currency !== baseCurrency) {
-				data.currency = currency;
-				const rate = parseFloat(exchangeRate);
-				if (rate > 0) data.exchange_rate = rate;
-			} else {
-				data.currency = baseCurrency;
-			}
+			// 币种与汇率：未拿到汇率时后端会按当前汇率兜底，这里带上已解析的值即可
+			data.currency = currency || baseCurrency;
+			const rate = parseFloat(exchangeRate);
+			if (rate > 0) data.exchange_rate = rate;
 			if (merchant) data.merchant = merchant;
 			if (location) data.location = location;
 			if (remark) data.remark = remark;
@@ -399,11 +448,13 @@
 				</p>
 			{/if}
 
-			<!-- 金额 -->
+			<!-- 金额 + 币种/汇率折算 -->
 			<div class="space-y-2">
 				<Label>金额</Label>
 				<div class="relative">
-					<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
+					<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+						>{currencySymbol(currency)}</span
+					>
 					<Input
 						class="text-xl h-12 pl-8 font-semibold tabular-nums"
 						type="number"
@@ -414,6 +465,70 @@
 					/>
 				</div>
 			</div>
+
+			<div class="grid grid-cols-2 gap-3">
+				<div class="space-y-2">
+					<Label>币种</Label>
+					<select
+						class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+						value={currency}
+						onchange={(e) => onCurrencyChange((e.currentTarget as HTMLSelectElement).value)}
+					>
+						{#each CURRENCIES as c}
+							<option value={c.code}>{c.code} {c.label}</option>
+						{/each}
+					</select>
+				</div>
+				<div class="space-y-2">
+					<Label>汇率（1 {currency} = ? {baseCurrency}）</Label>
+					<div class="flex gap-1">
+						<Input
+							type="number"
+							step="0.0001"
+							placeholder={isForeign ? '自动获取' : '基准货币'}
+							bind:value={exchangeRate}
+							disabled={!isForeign}
+							oninput={() => (rateManual = true)}
+						/>
+						{#if isForeign}
+							<Button
+								size="icon"
+								variant="outline"
+								title="刷新汇率"
+								disabled={ratesStore.refreshing}
+								onclick={() => ratesStore.refresh(baseCurrency)}
+							>
+								<RefreshCw size={14} class={ratesStore.refreshing ? 'animate-spin' : ''} />
+							</Button>
+						{/if}
+					</div>
+				</div>
+			</div>
+
+			{#if isForeign}
+				<div class="rounded-lg border bg-muted/40 px-3 py-2 text-sm space-y-1">
+					{#if rateNum > 0}
+						<div class="tabular-nums">
+							<span class="text-muted-foreground">当前汇率</span>
+							1 {currency} = {rateNum} {baseCurrency}
+						</div>
+						<div class="font-medium tabular-nums">
+							{currencySymbol(currency)}{amountNum.toFixed(2)} ≈
+							{currencySymbol(baseCurrency)}{converted?.toFixed(2) ?? '0.00'}
+						</div>
+					{:else}
+						<div class="text-muted-foreground">
+							未获取到 {currency} → {baseCurrency} 的汇率，可手动填写；留空则按 1:1 记录。
+						</div>
+					{/if}
+					{#if fxMeta}
+						<div class="text-[11px] text-muted-foreground">
+							{fxMeta}
+							{#if ratesStore.stale}<span class="text-amber-600 dark:text-amber-400">· 已过期</span>{/if}
+						</div>
+					{/if}
+				</div>
+			{/if}
 
 			{#if type !== 'transfer'}
 				<div class="space-y-2">
@@ -475,41 +590,6 @@
 							<Input bind:value={location} placeholder="如 上海·静安" />
 						</div>
 					</div>
-
-					<!-- B11：多币种与原币金额折算 -->
-					<div class="grid grid-cols-2 gap-3">
-						<div class="space-y-2">
-							<Label>币种</Label>
-							<select
-								class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-								bind:value={currency}
-								onchange={() => (currencyTouched = true)}
-							>
-								<option value="CNY">CNY 人民币</option>
-								<option value="USD">USD 美元</option>
-								<option value="EUR">EUR 欧元</option>
-								<option value="HKD">HKD 港元</option>
-								<option value="JPY">JPY 日元</option>
-								<option value="GBP">GBP 英镑</option>
-								<option value="SGD">SGD 新元</option>
-							</select>
-						</div>
-						<div class="space-y-2">
-							<Label>汇率（1 {currency} = ? {baseCurrency}）</Label>
-							<Input
-								type="number"
-								step="0.0001"
-								placeholder={isForeign ? '如 7.1800' : '仅外币需要填写'}
-								bind:value={exchangeRate}
-								disabled={!isForeign}
-							/>
-						</div>
-					</div>
-					{#if isForeign}
-						<p class="text-[11px] text-muted-foreground">
-							金额按所选币种录入，统计时按汇率折算为 {baseCurrency}
-						</p>
-					{/if}
 
 					<div class="space-y-2">
 						<Label>标签</Label>

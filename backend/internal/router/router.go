@@ -179,6 +179,14 @@ func New(mode string, staticDir string) *gin.Engine {
 				budgets.DELETE("/:id", handlers.DeleteBudget)
 			}
 
+			// 汇率（基准货币折算）
+			rates := auth.Group("/exchange-rates")
+			{
+				rates.GET("", handlers.ListExchangeRates)
+				rates.GET("/convert", handlers.ConvertAmount)
+				rates.POST("/refresh", handlers.RefreshExchangeRates)
+			}
+
 			// 统计
 			stats := auth.Group("/statistics")
 			{

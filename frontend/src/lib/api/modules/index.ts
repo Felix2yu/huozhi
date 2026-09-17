@@ -5,6 +5,7 @@ export * from './categories';
 export * from './budgets';
 export * from './statistics';
 export * from './books';
+export * from './exrate';
 export * from './tags';
 export * from './savings';
 export * from './recurring';

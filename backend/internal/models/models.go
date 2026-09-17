@@ -41,6 +41,10 @@ type User struct {
 	AutoBackupTime     string   `gorm:"size:5;default:03:00" json:"auto_backup_time"`       // HH:MM
 	AutoBackupKeepCount int     `gorm:"default:7" json:"auto_backup_keep_count"`            // 保留份数
 	AutoBackupLastRun  time.Time `json:"auto_backup_last_run"`
+
+	// 汇率设置。Currency 同时作为「基准货币」：外币流水按 exchange_rate 折算到它。
+	FxAutoRefresh  bool `gorm:"default:true" json:"fx_auto_refresh"` // 允许后台定时刷新汇率
+	FxRefreshHours int  `gorm:"default:12" json:"fx_refresh_hours"`  // 刷新间隔（小时），0 = 跟随服务端配置
 }
 
 // ==================== 账本 ====================
@@ -464,6 +468,25 @@ type AssetSnapshot struct {
 	Currency   string   `gorm:"size:10;default:CNY" json:"currency"`
 	Detail     string   `gorm:"type:text" json:"detail"` // JSON 各账户余额快照
 	CreatedAt  time.Time `json:"created_at"`
+}
+
+// ==================== 汇率 ====================
+
+// ExchangeRate 汇率快照（按「基准货币 + 目标币种」唯一）。
+//
+// Rate 的语义与 Transaction.ExchangeRate 保持一致：
+// **1 单位 Currency = Rate 单位 Base**，即 `amount * rate = 基准币金额`。
+// 上游汇率站大多给出反向口径（1 单位基准币 = N 单位外币），入库前统一取倒数，
+// 避免调用方每处都要自己换算方向（方向搞反会让金额放大 N² 倍）。
+type ExchangeRate struct {
+	ID        uint      `gorm:"primarykey" json:"id"`
+	Base      string    `gorm:"size:10;not null;uniqueIndex:idx_fx_base_cur" json:"base"`
+	Currency  string    `gorm:"size:10;not null;uniqueIndex:idx_fx_base_cur" json:"currency"`
+	Rate      float64   `gorm:"not null" json:"rate"` // 1 单位 Currency = ? 单位 Base
+	Source    string    `gorm:"size:50" json:"source"`
+	FetchedAt time.Time `gorm:"index" json:"fetched_at"` // 上游数据的发布时间（非本机拉取时间）
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // ==================== 同步 ====================

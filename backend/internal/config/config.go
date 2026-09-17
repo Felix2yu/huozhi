@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -15,7 +16,26 @@ type Config struct {
 	Upload   UploadConfig   `yaml:"upload"`
 	S3       S3Config       `yaml:"s3"`
 	MCP      MCPConfig      `yaml:"mcp"`
+	Fx       FxConfig       `yaml:"fx"`
 }
+
+// FxConfig 汇率配置。
+//
+// 全部数据源都是**免密钥**的公开接口，因此默认即可用；disabled 用于完全离网部署
+// （此时外币记账仍可手工填写汇率，只是不再自动刷新）。
+// 与 MCP 一样用「disabled」而非「enabled」：老配置文件里没有本段时零值=启用。
+type FxConfig struct {
+	Disabled             bool     `yaml:"disabled"`               // true = 关闭汇率拉取与自动折算
+	Provider             string   `yaml:"provider"`               // auto / er-api / currency-api
+	Endpoint             string   `yaml:"endpoint"`               // 自定义端点（自建镜像/代理），留空用各源默认地址
+	TimeoutSeconds       int      `yaml:"timeout_seconds"`        // 单个源的超时（秒），默认 10
+	RefreshIntervalHours int      `yaml:"refresh_interval_hours"` // 自动刷新间隔（小时），默认 12
+	DefaultBase          string   `yaml:"default_base"`           // 兜底基准货币，默认 CNY
+	Symbols              []string `yaml:"symbols"`                // 需要拉取的币种，留空用内置默认清单
+}
+
+// IsEnabled 是否启用汇率功能
+func (c FxConfig) IsEnabled() bool { return !c.Disabled }
 
 // MCPConfig MCP（Model Context Protocol）服务端配置。
 // 让 AI 助手通过 MCP 工具读写账单；disabled=true 时 /mcp 端点不注册。
@@ -154,6 +174,47 @@ func Load(configPath string) (*Config, error) {
 		}
 	}
 
+	// 汇率配置环境变量覆盖（离网部署可整体关闭）
+	if v := os.Getenv("HZ_FX_DISABLED"); v != "" {
+		switch v {
+		case "true", "1", "on", "yes":
+			cfg.Fx.Disabled = true
+		default:
+			cfg.Fx.Disabled = false
+		}
+	}
+	if v := os.Getenv("HZ_FX_PROVIDER"); v != "" {
+		cfg.Fx.Provider = v
+	}
+	if v := os.Getenv("HZ_FX_ENDPOINT"); v != "" {
+		cfg.Fx.Endpoint = v
+	}
+	if v := os.Getenv("HZ_FX_DEFAULT_BASE"); v != "" {
+		cfg.Fx.DefaultBase = v
+	}
+	if v := os.Getenv("HZ_FX_TIMEOUT_SECONDS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.Fx.TimeoutSeconds = n
+		}
+	}
+	if v := os.Getenv("HZ_FX_REFRESH_HOURS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.Fx.RefreshIntervalHours = n
+		}
+	}
+	if v := os.Getenv("HZ_FX_SYMBOLS"); v != "" {
+		parts := strings.Split(v, ",")
+		list := make([]string, 0, len(parts))
+		for _, p := range parts {
+			if s := strings.TrimSpace(p); s != "" {
+				list = append(list, s)
+			}
+		}
+		if len(list) > 0 {
+			cfg.Fx.Symbols = list
+		}
+	}
+
 	// MCP 开关：默认启用，HZ_MCP_DISABLED=true 关闭
 	if v := os.Getenv("HZ_MCP_DISABLED"); v != "" {
 		switch v {
@@ -209,6 +270,13 @@ func Default() *Config {
 		MCP: MCPConfig{
 			Disabled: false,
 			Path:     "/mcp",
+		},
+		Fx: FxConfig{
+			Disabled:             false,
+			Provider:             "auto",
+			TimeoutSeconds:       10,
+			RefreshIntervalHours: 12,
+			DefaultBase:          "CNY",
 		},
 	}
 }

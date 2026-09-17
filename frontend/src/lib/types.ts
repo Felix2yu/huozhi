@@ -31,7 +31,51 @@ export interface User {
   last_login_at: string;
   created_at: string;
   status: number;
+  // 汇率设置（基准货币 = currency，外币流水按 exchange_rate 折算到它）
+  fx_auto_refresh?: boolean;
+  fx_refresh_hours?: number;
 }
+
+// ====== 汇率 ======
+/** 汇率快照：rates 的口径为「1 单位币种 = ? 单位基准币」，与 Transaction.exchange_rate 一致 */
+export interface FxSnapshot {
+  base: string;
+  rates: Record<string, number>;
+  currencies: string[];
+  source?: string;
+  fetched_at?: string;
+  stale: boolean;
+  error?: string;
+  enabled: boolean;
+  auto_refresh: boolean;
+  refresh_hours: number;
+}
+
+/** 常用币种清单：记账表单与设置页共用，避免两处各维护一份（新增币种只改这里） */
+export const CURRENCIES: { code: string; label: string; symbol: string }[] = [
+  { code: 'CNY', label: '人民币', symbol: '¥' },
+  { code: 'USD', label: '美元', symbol: '$' },
+  { code: 'EUR', label: '欧元', symbol: '€' },
+  { code: 'HKD', label: '港元', symbol: 'HK$' },
+  { code: 'JPY', label: '日元', symbol: '¥' },
+  { code: 'GBP', label: '英镑', symbol: '£' },
+  { code: 'SGD', label: '新加坡元', symbol: 'S$' },
+  { code: 'AUD', label: '澳元', symbol: 'A$' },
+  { code: 'CAD', label: '加元', symbol: 'C$' },
+  { code: 'KRW', label: '韩元', symbol: '₩' },
+  { code: 'TWD', label: '新台币', symbol: 'NT$' },
+  { code: 'MOP', label: '澳门元', symbol: 'MOP$' },
+  { code: 'THB', label: '泰铢', symbol: '฿' },
+  { code: 'MYR', label: '马来西亚林吉特', symbol: 'RM' },
+  { code: 'NZD', label: '新西兰元', symbol: 'NZ$' },
+  { code: 'CHF', label: '瑞士法郎', symbol: 'CHF' },
+  { code: 'RUB', label: '俄罗斯卢布', symbol: '₽' },
+  { code: 'INR', label: '印度卢比', symbol: '₹' },
+  { code: 'VND', label: '越南盾', symbol: '₫' },
+  { code: 'PHP', label: '菲律宾比索', symbol: '₱' },
+  { code: 'IDR', label: '印尼盾', symbol: 'Rp' },
+  { code: 'AED', label: '阿联酋迪拉姆', symbol: 'AED' }
+];
 
 // ====== 账本 ======
 export interface Book {

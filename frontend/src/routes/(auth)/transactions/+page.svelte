@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
 	import { createWindowVirtualizer } from '@tanstack/svelte-virtual';
 	import Button from '$lib/components/ui/Button.svelte';
@@ -12,7 +13,8 @@
 	import { txApi } from '$lib/api/modules/transactions';
 	import { appStore } from '$lib/stores/app';
 	import { hzToast } from '$lib/components/ui/toast';
-	import { formatMoney, formatRelativeDate } from '$lib/utils/format';
+	import { formatMoney, formatRelativeDate, currencySymbol } from '$lib/utils/format';
+	import { ratesStore } from '$lib/stores/rates.svelte';
 	import {
 		amountDisplay,
 		baseAmount,
@@ -326,6 +328,33 @@
 			resetAndLoad();
 		}, 300);
 		return () => clearTimeout(timer);
+	});
+
+	// ===== 外币折算展示 =====
+	// 列表行显示的是 amount_base（服务端折算后的基准币金额），
+	// 因此必须同时给出「原币金额 + 汇率」，否则用户会对不上自己记的那笔数。
+	const baseCurrency = $derived((appStore.user as any)?.currency || 'CNY');
+
+	// 少数历史账单可能没存汇率，列表需要一份当前汇率做兜底展示
+	onMount(() => {
+		ratesStore.ensure(baseCurrency);
+	});
+
+	function isForeign(tx: Transaction): boolean {
+		return !!tx.currency && tx.currency !== baseCurrency;
+	}
+
+	/** 汇率：优先用账单上锁定的历史汇率，缺失时才回落到当前汇率 */
+	function fxRateOf(tx: Transaction): number {
+		const r = Number(tx.exchange_rate);
+		if (isFinite(r) && r > 0 && Math.abs(r - 1) > 1e-9) return r;
+		return ratesStore.rate(tx.currency) ?? 1;
+	}
+
+	const previewFx = $derived.by(() => {
+		if (!previewTx || !isForeign(previewTx)) return null;
+		const rate = fxRateOf(previewTx);
+		return { rate, converted: Math.abs(baseAmount(previewTx)) };
 	});
 
 	function getCategory(tx: Transaction): Category | undefined {
@@ -669,6 +698,16 @@
 													<div class="font-semibold tabular-nums text-sm {toneClass(disp.tone)}">
 														{disp.sign}{formatMoney(disp.abs)}
 													</div>
+													{#if isForeign(tx)}
+														<div
+															class="text-[11px] text-muted-foreground tabular-nums truncate"
+															title="原币 {tx.currency} {tx.amount} × 汇率 {fxRateOf(tx)}"
+														>
+															{currencySymbol(tx.currency)}
+															{Math.abs(Number(tx.amount) || 0).toFixed(2)} ×
+															{fxRateOf(tx).toFixed(4)}
+														</div>
+													{/if}
 													<div class="text-xs text-muted-foreground truncate">
 														{#each highlightSegments(getAccountDisplay(tx), keyword) as seg}
 															{#if seg.hit}<mark
@@ -733,10 +772,17 @@
 					<div class="text-3xl font-bold tabular-nums {toneClass(disp.tone)}">
 						{disp.sign}{formatMoney(disp.abs)}
 					</div>
-					{#if baseAmount(previewTx) !== previewTx.amount && previewTx.exchange_rate}
-						<div class="text-xs text-muted-foreground mt-1 tabular-nums">
-							原币 {previewTx.currency}
-							{formatMoney(previewTx.amount)} × {previewTx.exchange_rate}
+					{#if previewFx}
+						<div class="text-xs text-muted-foreground mt-1 tabular-nums space-y-0.5">
+							<div>
+								原币 {previewTx.currency}
+								{currencySymbol(previewTx.currency)}
+								{Math.abs(Number(previewTx.amount) || 0).toFixed(2)}
+							</div>
+							<div>汇率 1 {previewTx.currency} = {previewFx.rate} {baseCurrency}</div>
+							<div class="text-foreground font-medium">
+								折算 {currencySymbol(baseCurrency)}{previewFx.converted.toFixed(2)}
+							</div>
 						</div>
 					{/if}
 				{/if}

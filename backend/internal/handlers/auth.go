@@ -8,6 +8,7 @@ import (
 	"huozhi/pkg/auth"
 	"huozhi/pkg/jwt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -265,15 +266,40 @@ func UpdateMe(c *gin.Context) {
 		return
 	}
 
-	updates := map[string]interface{}{
-		"nickname":   req.Nickname,
-		"avatar":     req.Avatar,
-		"email":      strPtrOrNil(req.Email),
-		"phone":      strPtrOrNil(req.Phone),
-		"locale":     req.Locale,
-		"timezone":   req.Timezone,
-		"month_start": req.MonthStart,
-		"currency":   req.Currency,
+	// 资料字段：只在显式传入时才写库（指针为 nil = 未传 = 保持原值）。
+	// 否则「只保存自动备份设置」这类请求会把昵称 / 邮箱 / 基准货币清零。
+	updates := map[string]interface{}{}
+	if req.Nickname != nil {
+		updates["nickname"] = *req.Nickname
+	}
+	if req.Avatar != nil {
+		updates["avatar"] = *req.Avatar
+	}
+	if req.Email != nil {
+		updates["email"] = strPtrOrNil(*req.Email)
+	}
+	if req.Phone != nil {
+		updates["phone"] = strPtrOrNil(*req.Phone)
+	}
+	if req.Locale != nil {
+		updates["locale"] = *req.Locale
+	}
+	if req.Timezone != nil {
+		updates["timezone"] = *req.Timezone
+	}
+	if req.MonthStart != nil {
+		updates["month_start"] = *req.MonthStart
+	}
+	if req.Currency != nil {
+		updates["currency"] = strings.ToUpper(strings.TrimSpace(*req.Currency))
+	}
+
+	// 汇率设置（指针类型，仅在传入时更新）
+	if req.FxAutoRefresh != nil {
+		updates["fx_auto_refresh"] = *req.FxAutoRefresh
+	}
+	if req.FxRefreshHours != nil {
+		updates["fx_refresh_hours"] = *req.FxRefreshHours
 	}
 
 	// 自动备份设置（指针类型，仅在传入时更新）
@@ -290,9 +316,11 @@ func UpdateMe(c *gin.Context) {
 		updates["auto_backup_keep_count"] = *req.AutoBackupKeepCount
 	}
 
-	if err := database.DB.Model(&models.User{}).Where("id = ?", uid).Updates(updates).Error; err != nil {
-		InternalErr(c, "更新失败: "+err.Error())
-		return
+	if len(updates) > 0 {
+		if err := database.DB.Model(&models.User{}).Where("id = ?", uid).Updates(updates).Error; err != nil {
+			InternalErr(c, "更新失败: "+err.Error())
+			return
+		}
 	}
 
 	var user models.User

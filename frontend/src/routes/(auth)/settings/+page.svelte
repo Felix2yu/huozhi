@@ -8,9 +8,11 @@
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import { appStore } from '$lib/stores/app';
 	import { themeStore } from '$lib/stores/theme';
+	import { ratesStore } from '$lib/stores/rates.svelte';
 	import { authApi } from '$lib/api/modules/auth';
 	import { http } from '$lib/api/http';
 	import { hzToast } from '$lib/components/ui/toast';
+	import { CURRENCIES } from '$lib/types';
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import {
@@ -27,7 +29,9 @@
 		EyeOff,
 		Lock,
 		Heart,
-		Bot
+		Bot,
+		Coins,
+		RefreshCw
 	} from '@lucide/svelte';
 
 	let nickname = $state('');
@@ -40,6 +44,11 @@
 	let currency = $state('CNY');
 	let timezone = $state('Asia/Shanghai');
 	let locale = $state('zh-CN');
+
+	// 基准货币与汇率配置
+	let fxAutoRefresh = $state(true);
+	let fxRefreshHours = $state(12);
+	let fxSaving = $state(false);
 
 	// 修改密码
 	let showChangePwd = $state(false);
@@ -62,12 +71,64 @@
 			currency = appStore.user.currency || 'CNY';
 			timezone = appStore.user.timezone || 'Asia/Shanghai';
 			locale = appStore.user.locale || 'zh-CN';
+			fxAutoRefresh = appStore.user.fx_auto_refresh !== false;
+			fxRefreshHours = appStore.user.fx_refresh_hours || 12;
 		}
+		// 汇率：进入设置页就确保有数据可展示（未过期直接复用缓存）
+		ratesStore.ensure(currency);
 		try {
 			apiKeyInfo = await http.get('/api-key');
 		} catch {}
 		apiKeyLoading = false;
 	});
+
+	// ===== 基准货币与汇率 =====
+	const fxUpdatedAt = $derived.by(() => {
+		if (!ratesStore.fetchedAt) return '';
+		const d = new Date(ratesStore.fetchedAt);
+		const p = (n: number) => String(n).padStart(2, '0');
+		return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+	});
+
+	// 只展示「有汇率」的币种，且基准币自身不列（恒为 1:1，列出来是噪声）
+	const fxRows = $derived(
+		ratesStore.currencies
+			.filter((c) => c !== currency && ratesStore.rate(c))
+			.map((c) => ({ code: c, rate: ratesStore.rate(c) as number }))
+	);
+
+	async function handleSaveFx() {
+		fxSaving = true;
+		try {
+			const updated = await authApi.updateMe({
+				currency,
+				fx_auto_refresh: fxAutoRefresh,
+				fx_refresh_hours: fxRefreshHours
+			});
+			if (appStore.user) {
+				appStore.setTokenAndAuth(http.getToken()!, {
+					...appStore.user,
+					currency: updated.currency || currency,
+					fx_auto_refresh: updated.fx_auto_refresh,
+					fx_refresh_hours: updated.fx_refresh_hours
+				});
+			}
+			// 基准货币可能已变：让汇率缓存失效并按新基准重新拉取
+			ratesStore.invalidate();
+			await ratesStore.ensure(updated.currency || currency, { force: true });
+			hzToast.success('汇率设置已保存');
+		} catch (e: any) {
+			hzToast.error(e.message || '保存失败');
+		} finally {
+			fxSaving = false;
+		}
+	}
+
+	async function handleRefreshFx() {
+		const ok = await ratesStore.refresh(currency);
+		if (ok) hzToast.success('汇率已更新');
+		else hzToast.warning(ratesStore.error || '刷新失败，当前展示的是上次成功获取的汇率');
+	}
 
 	async function handleGenerateApiKey() {
 		try {
@@ -277,33 +338,20 @@
 					<Input type="email" bind:value={email} />
 				</div>
 
-				<!-- B9：账期起始日 / 币种 —— 后端模型早已支持，此前无处配置 -->
-				<div class="grid grid-cols-2 gap-3">
-					<div class="space-y-2">
-						<Label>账期起始日</Label>
-						<select
-							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-							bind:value={monthStart}
-						>
-							{#each Array.from({ length: 28 }, (_, i) => i + 1) as d}
-								<option value={d}>每月 {d} 日</option>
-							{/each}
-						</select>
-						<p class="text-[11px] text-muted-foreground">影响月度预算与统计的周期划分</p>
-					</div>
-					<div class="space-y-2">
-						<Label>默认币种</Label>
-						<select
-							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-							bind:value={currency}
-						>
-							<option value="CNY">CNY 人民币</option>
-							<option value="USD">USD 美元</option>
-							<option value="EUR">EUR 欧元</option>
-							<option value="HKD">HKD 港币</option>
-							<option value="JPY">JPY 日元</option>
-						</select>
-					</div>
+				<!-- B9：账期起始日 —— 后端模型早已支持，此前无处配置。
+				     基准货币已移到下方「基准货币与汇率」专区（同一个 currency 字段，
+				     两处都放会变成两个控件抢同一份状态） -->
+				<div class="space-y-2">
+					<Label>账期起始日</Label>
+					<select
+						class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+						bind:value={monthStart}
+					>
+						{#each Array.from({ length: 28 }, (_, i) => i + 1) as d}
+							<option value={d}>每月 {d} 日</option>
+						{/each}
+					</select>
+					<p class="text-[11px] text-muted-foreground">影响月度预算与统计的周期划分</p>
 				</div>
 
 				<div class="grid grid-cols-2 gap-3">
@@ -325,6 +373,99 @@
 
 				<Button onclick={handleSaveProfile} disabled={loading}>
 					{loading ? '保存中...' : '保存修改'}
+				</Button>
+			</CardContent>
+		</Card>
+	</section>
+
+	<!-- 基准货币与汇率 -->
+	<section>
+		<div class="flex items-center gap-2 mb-3">
+			<Coins size={16} />
+			<h2 class="text-sm font-medium">基准货币与汇率</h2>
+		</div>
+		<Card>
+			<CardContent class="p-4 space-y-4">
+				<div class="grid grid-cols-2 gap-3">
+					<div class="space-y-2">
+						<Label>基准货币</Label>
+						<select
+							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+							bind:value={currency}
+						>
+							{#each CURRENCIES as c}
+								<option value={c.code}>{c.code} {c.label}</option>
+							{/each}
+						</select>
+						<p class="text-[11px] text-muted-foreground">
+							外币账单按汇率折算为基准货币后参与统计
+						</p>
+					</div>
+					<div class="space-y-2">
+						<Label>刷新间隔</Label>
+						<select
+							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+							bind:value={fxRefreshHours}
+						>
+							<option value={6}>每 6 小时</option>
+							<option value={12}>每 12 小时</option>
+							<option value={24}>每 24 小时</option>
+						</select>
+						<label class="flex items-center gap-2 text-[11px] text-muted-foreground pt-2">
+							<input type="checkbox" bind:checked={fxAutoRefresh} class="rounded border-input" />
+							自动刷新汇率
+						</label>
+					</div>
+				</div>
+
+				<div class="flex items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2">
+					<div class="text-xs text-muted-foreground space-y-0.5">
+						{#if ratesStore.error}
+							<div class="text-amber-600 dark:text-amber-400">{ratesStore.error}</div>
+						{:else if fxUpdatedAt}
+							<div>
+								更新于 {fxUpdatedAt}
+								{#if ratesStore.stale}
+									<span class="text-amber-600 dark:text-amber-400">（已过期）</span>
+								{/if}
+							</div>
+						{:else}
+							<div>尚未获取汇率</div>
+						{/if}
+						<div>
+							数据源 {ratesStore.source || '—'}
+							{#if !ratesStore.enabled}
+								<span class="text-amber-600 dark:text-amber-400">（服务端已关闭）</span>
+							{/if}
+						</div>
+					</div>
+					<Button
+						size="sm"
+						variant="outline"
+						disabled={ratesStore.refreshing || !ratesStore.enabled}
+						onclick={handleRefreshFx}
+					>
+						<RefreshCw size={14} class={ratesStore.refreshing ? 'animate-spin' : ''} />
+						{ratesStore.refreshing ? '刷新中…' : '立即刷新'}
+					</Button>
+				</div>
+
+				{#if fxRows.length}
+					<div class="space-y-2">
+						<Label>当前汇率（1 外币 = ? {currency}）</Label>
+						<div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs tabular-nums max-h-48 overflow-y-auto">
+							{#each fxRows as row (row.code)}
+								<div class="flex justify-between border-b border-border/40 py-1">
+									<span class="text-muted-foreground">{row.code}</span>
+									<span>{row.rate.toFixed(4)}</span>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				<Button onclick={handleSaveFx} disabled={fxSaving}>
+					{fxSaving ? '保存中...' : '保存汇率设置'}
 				</Button>
 			</CardContent>
 		</Card>

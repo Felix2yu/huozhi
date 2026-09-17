@@ -1,4 +1,19 @@
 import dayjs from 'dayjs';
+import { CURRENCIES } from '$lib/types';
+
+/** 币种符号：CNY→¥、USD→$ … 未收录的币种直接回显代码，不要猜成 ¥ */
+export function currencySymbol(code?: string): string {
+	const c = (code || '').toUpperCase();
+	if (!c) return '¥';
+	return CURRENCIES.find((x) => x.code === c)?.symbol ?? `${c} `;
+}
+
+/** 币种中文名 */
+export function currencyLabel(code?: string): string {
+	const c = (code || '').toUpperCase();
+	if (!c) return '';
+	return CURRENCIES.find((x) => x.code === c)?.label ?? c;
+}
 
 /** 金额格式化: 1234.56 → "¥1,234.56" */
 export function formatMoney(

@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"huozhi/internal/database"
 	"huozhi/internal/dto"
+	"huozhi/internal/exrate"
 	"huozhi/internal/models"
 	"huozhi/internal/ws"
 	"math"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -338,9 +340,24 @@ func CreateTx(uid uint, req dto.CreateTransactionRequest) (models.Transaction, *
 	if req.Type == "transfer" && req.ToAccountID == 0 {
 		return out, coreBad("转账需要指定目标账户")
 	}
-	// 汇率兜底：0 / 负数 / NaN / ±Inf 一律按 1，放任 0 入库会让后续折算全变 0。
-	if req.ExchangeRate <= 0 || math.IsNaN(req.ExchangeRate) || math.IsInf(req.ExchangeRate, 0) {
+	// 币种与汇率：
+	//  - 未指定币种 → 基准货币（此前硬编码 CNY，用户把基准币改成 USD 后每笔账都变成外币）；
+	//  - 基准货币本身 → 汇率恒为 1；
+	//  - 外币且前端没给汇率（0 表示未传，binding 要求显式传值必须 > 0）→ 取当前汇率自动折算；
+	//  - 外币且汇率查不到 → 兜底 1（保持原币金额），绝不写 0 让统计归零。
+	baseCur := BaseCurrencyOf(uid)
+	if strings.TrimSpace(req.Currency) == "" {
+		req.Currency = baseCur
+	}
+	req.Currency = strings.ToUpper(strings.TrimSpace(req.Currency))
+	if req.Currency == baseCur {
 		req.ExchangeRate = 1
+	} else if req.ExchangeRate <= 0 || math.IsNaN(req.ExchangeRate) || math.IsInf(req.ExchangeRate, 0) {
+		if r, ok := exrate.Get(baseCur, req.Currency); ok && r > 0 {
+			req.ExchangeRate = r
+		} else {
+			req.ExchangeRate = 1
+		}
 	}
 	if req.ReimburseStatus == "" {
 		req.ReimburseStatus = "none"
@@ -382,7 +399,7 @@ func CreateTx(uid uint, req dto.CreateTransactionRequest) (models.Transaction, *
 		BookID:           req.BookID,
 		Type:             models.TransactionType(req.Type),
 		Amount:           models.FromYuan(req.Amount),
-		Currency:         firstNotEmpty(req.Currency, "CNY"),
+		Currency:         req.Currency,
 		ExchangeRate:     req.ExchangeRate,
 		CategoryID:       req.CategoryID,
 		AccountID:        req.AccountID,
@@ -469,11 +486,27 @@ func UpdateTx(uid uint, id uint, req dto.UpdateTransactionRequest) (models.Trans
 	if req.Amount != nil {
 		target.Amount = models.FromYuan(*req.Amount)
 	}
+	currencyChanged := false
 	if req.Currency != nil && *req.Currency != "" {
-		target.Currency = *req.Currency
+		normalized := strings.ToUpper(strings.TrimSpace(*req.Currency))
+		currencyChanged = normalized != old.Currency
+		target.Currency = normalized
 	}
 	if req.ExchangeRate != nil {
 		target.ExchangeRate = *req.ExchangeRate
+	}
+	// 币种被改成另一种外币却没带汇率 → 自动代入当前汇率；
+	// 改成基准货币 → 汇率归 1。两者都与 CreateTx 保持一致。
+	baseCur := BaseCurrencyOf(uid)
+	if currencyChanged && req.ExchangeRate == nil {
+		if target.Currency == baseCur {
+			target.ExchangeRate = 1
+		} else if r, ok := exrate.Get(baseCur, target.Currency); ok && r > 0 {
+			target.ExchangeRate = r
+		}
+	}
+	if target.Currency == baseCur {
+		target.ExchangeRate = 1
 	}
 	if target.ExchangeRate <= 0 || math.IsNaN(target.ExchangeRate) || math.IsInf(target.ExchangeRate, 0) {
 		target.ExchangeRate = 1

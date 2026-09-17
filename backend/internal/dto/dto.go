@@ -137,15 +137,26 @@ type LoginResponse struct {
 	User     interface{} `json:"user"`
 }
 
+// UpdateUserRequest 更新当前用户资料。
+//
+// 所有标量字段都用指针：**不传 = 保持原值**。
+// 此前用值类型，数据管理页只提交「自动备份」三个字段的一次保存就会把
+// 昵称 / 邮箱 / 基准货币全部清零（缺字段被当成显式空串写库），
+// 基准货币一丢，所有外币流水立刻变成「外币」且统计口径错乱。
 type UpdateUserRequest struct {
-	Nickname   string `json:"nickname" binding:"omitempty,max=50"`
-	Avatar     string `json:"avatar" binding:"omitempty,max=255"`
-	Email      string `json:"email" binding:"omitempty,email"`
-	Phone      string `json:"phone" binding:"omitempty,max=20"`
-	Locale     string `json:"locale" binding:"omitempty,oneof=zh-CN en"`
-	Timezone   string `json:"timezone" binding:"omitempty,max=50"`
-	MonthStart int    `json:"month_start" binding:"omitempty,min=1,max=28"`
-	Currency   string `json:"currency" binding:"omitempty,max=10"`
+	Nickname   *string `json:"nickname" binding:"omitempty,max=50"`
+	Avatar     *string `json:"avatar" binding:"omitempty,max=255"`
+	Email      *string `json:"email" binding:"omitempty,email"`
+	Phone      *string `json:"phone" binding:"omitempty,max=20"`
+	Locale     *string `json:"locale" binding:"omitempty,oneof=zh-CN en"`
+	Timezone   *string `json:"timezone" binding:"omitempty,max=50"`
+	MonthStart *int    `json:"month_start" binding:"omitempty,min=1,max=28"`
+	Currency   *string `json:"currency" binding:"omitempty,max=10"`
+
+	// 汇率设置。FxAutoRefresh / FxRefreshHours 用指针：不传则保持原值，
+	// 否则「只改昵称」这类请求会把用户关掉的自动刷新悄悄打开。
+	FxAutoRefresh  *bool `json:"fx_auto_refresh" binding:"omitempty"`
+	FxRefreshHours *int  `json:"fx_refresh_hours" binding:"omitempty,min=0,max=720"`
 
 	// 自动备份设置
 	AutoBackupEnabled   *bool   `json:"auto_backup_enabled" binding:"omitempty"`

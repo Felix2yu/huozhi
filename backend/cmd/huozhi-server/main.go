@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"huozhi/internal/config"
 	"huozhi/internal/database"
+	"huozhi/internal/exrate"
 	"huozhi/internal/handlers"
 	"huozhi/internal/models"
 	"huozhi/internal/router"
@@ -13,6 +14,8 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sort"
+	"strings"
 	"syscall"
 	"time"
 
@@ -80,6 +83,7 @@ func main() {
 		&models.Reimbursement{},
 		&models.AssetSnapshot{},
 		&models.SyncLog{},
+		&models.ExchangeRate{},
 	)
 	if err != nil {
 		log.Fatalf("数据库迁移失败: %v", err)
@@ -120,6 +124,9 @@ func main() {
 
 	// 自动备份（每分钟检查，匹配用户设定的备份时间）
 	go handlers.AutoBackupRunner()
+
+	// 汇率定时刷新（外币记账折算的数据源）
+	go exchangeRateRunner()
 
 	// WebSocket Hub
 	go ws.DefaultHub.Run()
@@ -298,6 +305,63 @@ func runOrphanCleanupOnce() {
 	}
 	if n > 0 {
 		log.Printf("[Cron] 孤儿附件清理完成，删除 %d 个未引用文件", n)
+	}
+}
+
+// exchangeRateRunner 定时刷新汇率。
+//
+// 刷新范围 = 所有用户的基准货币 + 服务端配置的默认基准货币：
+// 单用户自托管场景下这基本只有一个币种，多用户共享实例时也能各自拿到自己的基准。
+// 上游故障只记日志并保留库里上一次的快照，绝不因为拉不到汇率就让服务不可用。
+func exchangeRateRunner() {
+	if !exrate.Enabled() {
+		log.Println("[Cron] 汇率功能已关闭（fx.disabled=true 或 HZ_FX_DISABLED），跳过定时刷新")
+		return
+	}
+	log.Printf("[Cron] 汇率刷新调度器已启动，间隔 %v", exrate.RefreshInterval())
+	// 启动后延迟 5s 补一次，避开与数据库迁移/其它调度器抢资源
+	time.Sleep(5 * time.Second)
+	refreshAllExchangeRates()
+
+	tick := time.NewTicker(30 * time.Minute)
+	defer tick.Stop()
+	for range tick.C {
+		refreshAllExchangeRates()
+	}
+}
+
+func refreshAllExchangeRates() {
+	if database.DB == nil {
+		return
+	}
+	interval := exrate.RefreshInterval()
+	set := map[string]struct{}{exrate.DefaultBase(): {}}
+	var rows []struct{ Currency string }
+	database.DB.Model(&models.User{}).Distinct().Pluck("currency", &rows)
+	for _, r := range rows {
+		if c := strings.ToUpper(strings.TrimSpace(r.Currency)); c != "" {
+			set[c] = struct{}{}
+		}
+	}
+	bases := make([]string, 0, len(set))
+	for b := range set {
+		bases = append(bases, b)
+	}
+	sort.Strings(bases)
+	for _, b := range bases {
+		snap, err := exrate.RefreshIfStale(b)
+		if err != nil {
+			log.Printf("[FX] 刷新 %s 失败: %v", b, err)
+			continue
+		}
+		if snap.FetchedAt.IsZero() {
+			continue
+		}
+		// RefreshIfStale 未过期时不会真的拉取，这里只在真正刷新过时记日志
+		if time.Since(snap.FetchedAt) < interval {
+			log.Printf("[FX] %s 汇率已更新 source=%s at=%v currencies=%d",
+				b, snap.Source, snap.FetchedAt.Format(time.RFC3339), len(snap.Rates))
+		}
 	}
 }
 

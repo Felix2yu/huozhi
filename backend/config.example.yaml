@@ -36,6 +36,21 @@ mcp:
   disabled: false
   # path: "/mcp"
 
+# ========== 汇率（多币种折算） ==========
+# 数据源均为**免密钥**公开接口，默认即可用；全部失败时回退到上次成功拉取的快照。
+# disabled: true 用于完全离网部署（外币记账仍可手工填汇率，只是不再自动刷新）
+# provider: auto（依次尝试 er-api → currency-api）/ er-api / currency-api
+# symbols 留空则使用内置默认币种清单
+# 环境变量：HZ_FX_DISABLED / HZ_FX_PROVIDER / HZ_FX_ENDPOINT / HZ_FX_DEFAULT_BASE
+#          / HZ_FX_TIMEOUT_SECONDS / HZ_FX_REFRESH_HOURS / HZ_FX_SYMBOLS
+fx:
+  disabled: false
+  provider: "auto"
+  timeout_seconds: 10
+  refresh_interval_hours: 12
+  default_base: "CNY"
+  # symbols: ["CNY", "USD", "EUR", "HKD", "JPY", "GBP", "SGD"]
+
 # ========== 上传 ==========
 # 容器部署时可用环境变量 HZ_UPLOAD_PATH 覆盖 path（Docker 镜像已默认指向 /app/data/uploads）
 upload:
