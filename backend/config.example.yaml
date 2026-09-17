@@ -57,3 +57,17 @@ upload:
   path: "./data/uploads"
   max_size_mb: 10
   allowed: "jpg,jpeg,png,gif,webp,pdf,csv,xlsx"
+
+backup:
+  path: "./data/backups"
+
+s3:
+  enabled: false
+  endpoint: ""
+  region: "us-east-1"
+  bucket: ""
+  prefix: "huozhi"
+  access_key: ""
+  secret_key: ""
+  use_ssl: true
+  force_path_style: null

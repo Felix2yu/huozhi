@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Card from '$lib/components/ui/Card.svelte';
@@ -49,8 +50,15 @@
 	let autoBackupTime = $state('03:00');
 	let autoBackupKeepCount = $state(7);
 	let autoBackupSaving = $state(false);
-	let autoBackupList = $state<any[]>([]);
+	let autoBackupList = $state<Array<{ name: string; size: number; time: string }>>([]);
 	let autoBackupListLoading = $state(false);
+	let autoBackupCreating = $state(false);
+	let downloadingBackup = $state<string | null>(null);
+	let autoBackupListRequest = 0;
+
+	onMount(() => {
+		void loadAutoBackupList();
+	});
 
 	// 初始化自动备份设置（从用户信息加载）
 	$effect(() => {
@@ -83,13 +91,42 @@
 
 	// 加载自动备份列表
 	async function loadAutoBackupList() {
+		const request = ++autoBackupListRequest;
 		autoBackupListLoading = true;
 		try {
-			autoBackupList = await ioApi.listAutoBackups();
+			const backups = await ioApi.listAutoBackups();
+			if (request === autoBackupListRequest) autoBackupList = backups;
 		} catch {
-			autoBackupList = [];
+			if (request === autoBackupListRequest) hzToast.error('备份列表加载失败，请重试');
 		} finally {
-			autoBackupListLoading = false;
+			if (request === autoBackupListRequest) autoBackupListLoading = false;
+		}
+	}
+
+	async function handleCreateAutoBackup() {
+		if (autoBackupCreating) return;
+		autoBackupCreating = true;
+		try {
+			const backup = await ioApi.createAutoBackup();
+			hzToast.success(`备份已保存到${backup.storage === 's3' ? ' S3' : '服务器本地'}`);
+			await loadAutoBackupList();
+		} catch {
+			hzToast.error('立即备份失败，请刷新列表确认后重试');
+		} finally {
+			autoBackupCreating = false;
+		}
+	}
+
+	async function handleDownloadAutoBackup(name: string) {
+		if (downloadingBackup !== null) return;
+		downloadingBackup = name;
+		try {
+			await ioApi.downloadAutoBackup(name);
+			hzToast.success('备份已下载');
+		} catch {
+			hzToast.error('备份下载失败，请重试');
+		} finally {
+			downloadingBackup = null;
 		}
 	}
 
@@ -128,9 +165,7 @@
 					.join('、');
 				const imgCount = res?.images_restored ?? 0;
 				const msg = summary || '完成';
-				hzToast.success(
-					`已恢复：${msg}${imgCount > 0 ? `，${imgCount} 张图片` : ''}`
-				);
+				hzToast.success(`已恢复：${msg}${imgCount > 0 ? `，${imgCount} 张图片` : ''}`);
 				await appStore.loadBooks();
 				await appStore.loadDictionaries();
 			} catch (err: any) {
@@ -234,18 +269,18 @@
 	<title>数据管理 · 货殖</title>
 </svelte:head>
 
-<div class="space-y-6 max-w-2xl">
+<div class="max-w-2xl space-y-6">
 	<!-- 备份与恢复 -->
 	<section>
-		<div class="flex items-center gap-2 mb-3">
+		<div class="mb-3 flex items-center gap-2">
 			<Database size={16} />
 			<h2 class="text-sm font-medium">备份与恢复</h2>
 		</div>
 		<Card>
-			<CardContent class="p-4 space-y-4">
+			<CardContent class="space-y-4 p-4">
 				<div class="grid grid-cols-2 gap-3">
 					<button
-						class="flex items-center justify-center gap-2 p-4 rounded-lg border hover:bg-accent transition text-sm"
+						class="flex items-center justify-center gap-2 rounded-lg border p-4 text-sm transition hover:bg-accent"
 						onclick={handleBackup}
 						disabled={backupLoading}
 					>
@@ -253,7 +288,7 @@
 						{backupLoading ? '导出中…' : '导出全量备份'}
 					</button>
 					<button
-						class="flex items-center justify-center gap-2 p-4 rounded-lg border hover:bg-accent transition text-sm"
+						class="flex items-center justify-center gap-2 rounded-lg border p-4 text-sm transition hover:bg-accent"
 						onclick={triggerRestore}
 						disabled={restoreLoading}
 					>
@@ -262,8 +297,8 @@
 					</button>
 				</div>
 				<p class="text-[11px] text-muted-foreground">
-					全量备份为 ZIP 压缩包，包含快照数据（backup.json）和所有交易凭证图片。
-					恢复时支持 ZIP 和旧版 JSON 格式。
+					全量备份为 ZIP 压缩包，包含快照数据（backup.json）和所有交易凭证图片。 恢复时支持 ZIP
+					和旧版 JSON 格式。
 				</p>
 			</CardContent>
 		</Card>
@@ -271,19 +306,19 @@
 
 	<!-- 自动备份 -->
 	<section>
-		<div class="flex items-center gap-2 mb-3">
+		<div class="mb-3 flex items-center gap-2">
 			<CalendarClock size={16} />
 			<h2 class="text-sm font-medium">自动备份</h2>
 		</div>
 		<Card>
-			<CardContent class="p-4 space-y-4">
+			<CardContent class="space-y-4 p-4">
 				<div class="flex items-center justify-between">
 					<div>
 						<p class="text-sm font-medium">启用自动备份</p>
-						<p class="text-xs text-muted-foreground">定期自动保存全量数据到服务器</p>
+						<p class="text-xs text-muted-foreground">定期自动保存全量数据到服务器配置的存储</p>
 					</div>
 					<button
-						class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+						class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
 						class:bg-primary={autoBackupEnabled}
 						class:bg-input={!autoBackupEnabled}
 						onclick={() => (autoBackupEnabled = !autoBackupEnabled)}
@@ -302,7 +337,7 @@
 						<div class="space-y-1.5">
 							<Label class="text-xs">备份频率</Label>
 							<select
-								class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+								class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 								bind:value={autoBackupFrequency}
 							>
 								<option value="daily">每天</option>
@@ -312,11 +347,7 @@
 						</div>
 						<div class="space-y-1.5">
 							<Label class="text-xs">备份时间</Label>
-							<Input
-								type="time"
-								bind:value={autoBackupTime}
-								class="h-9"
-							/>
+							<Input type="time" bind:value={autoBackupTime} class="h-9" />
 						</div>
 					</div>
 
@@ -332,65 +363,95 @@
 						<p class="text-[11px] text-muted-foreground">超出份数的旧备份将自动删除</p>
 					</div>
 
-					{#if autoBackupList.length > 0}
-						<div class="space-y-1.5">
-							<div class="flex items-center justify-between">
-								<Label class="text-xs">历史备份</Label>
-								<button
-									class="text-xs text-muted-foreground hover:text-foreground transition"
-									onclick={loadAutoBackupList}
-									disabled={autoBackupListLoading}
-									aria-label="刷新备份列表"
-								>
-									<RefreshCw size={12} class={autoBackupListLoading ? 'animate-spin' : ''} />
-								</button>
-							</div>
-							<div class="max-h-32 overflow-y-auto space-y-1">
-								{#each autoBackupList as b (b.name)}
-									<div class="flex items-center justify-between text-xs py-1 px-2 rounded bg-muted/50">
-										<span class="truncate">{b.name}</span>
-										<span class="text-muted-foreground ml-2 shrink-0">{formatFileSize(b.size)}</span>
-									</div>
-								{/each}
-							</div>
-						</div>
-					{/if}
-
-					<Button
-						size="sm"
-						onclick={saveAutoBackupSettings}
-						disabled={autoBackupSaving}
-					>
+					<Button size="sm" onclick={saveAutoBackupSettings} disabled={autoBackupSaving}>
 						<Save size={14} />
 						{autoBackupSaving ? '保存中...' : '保存设置'}
 					</Button>
 				{/if}
+
+				<p class="text-xs text-muted-foreground">
+					管理员通过服务器 YAML 或环境变量配置并启用 S3 后，图片和自动/立即备份使用
+					S3；未启用时仍保存到服务器本地。导出全量备份仍直接下载到当前设备。
+				</p>
+				<Button size="sm" onclick={handleCreateAutoBackup} disabled={autoBackupCreating}>
+					{#if autoBackupCreating}
+						<Loader2 size={14} class="animate-spin" />
+					{:else}
+						<Database size={14} />
+					{/if}
+					{autoBackupCreating ? '备份中…' : '立即备份'}
+				</Button>
+
+				<div class="space-y-1.5" aria-busy={autoBackupListLoading}>
+					<div class="flex items-center justify-between">
+						<Label class="text-xs">历史备份</Label>
+						<button
+							class="text-xs text-muted-foreground transition hover:text-foreground"
+							onclick={loadAutoBackupList}
+							disabled={autoBackupListLoading}
+							aria-label="刷新备份列表"
+						>
+							<RefreshCw size={12} class={autoBackupListLoading ? 'animate-spin' : ''} />
+						</button>
+					</div>
+					{#if autoBackupListLoading}
+						<p class="text-xs text-muted-foreground" role="status">加载中…</p>
+					{:else if autoBackupList.length === 0}
+						<p class="text-xs text-muted-foreground">暂无备份，可立即备份或刷新列表</p>
+					{/if}
+					<div class="max-h-48 space-y-1 overflow-y-auto">
+						{#each autoBackupList as b (b.name)}
+							<div
+								class="flex items-center justify-between gap-2 rounded bg-muted/50 px-2 py-1 text-xs"
+							>
+								<div class="min-w-0 flex-1">
+									<p class="truncate" title={b.name}>{b.name}</p>
+									<p class="text-muted-foreground">{b.time} · {formatFileSize(b.size)}</p>
+								</div>
+								<Button
+									size="sm"
+									variant="outline"
+									onclick={() => handleDownloadAutoBackup(b.name)}
+									disabled={downloadingBackup !== null}
+									aria-label={`下载备份 ${b.name}`}
+								>
+									{#if downloadingBackup === b.name}
+										<Loader2 size={14} class="animate-spin" />
+									{:else}
+										<Download size={14} />
+									{/if}
+									{downloadingBackup === b.name ? '下载中…' : '下载'}
+								</Button>
+							</div>
+						{/each}
+					</div>
+				</div>
 			</CardContent>
 		</Card>
 	</section>
 
 	<!-- 数据导入导出 -->
 	<section>
-		<div class="flex items-center gap-2 mb-3">
+		<div class="mb-3 flex items-center gap-2">
 			<FileText size={16} />
 			<h2 class="text-sm font-medium">导入导出</h2>
 		</div>
 		<Card>
-			<CardContent class="p-4 space-y-3">
+			<CardContent class="space-y-3 p-4">
 				<button
-					class="w-full flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition"
+					class="flex w-full items-center justify-between rounded-lg border p-3 transition hover:bg-accent"
 					onclick={handleExport}
 				>
 					<span class="flex items-center gap-2">
 						<Download size={16} />
 						导出账单 (CSV)
 					</span>
-					<span class="text-muted-foreground text-sm">→</span>
+					<span class="text-sm text-muted-foreground">→</span>
 				</button>
 
 				<div class="flex items-center gap-2">
 					<select
-						class="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+						class="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 						bind:value={importSource}
 					>
 						<option value="qianji">钱迹</option>
@@ -398,33 +459,33 @@
 						<option value="wechat">微信</option>
 					</select>
 					<button
-						class="flex-1 flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition"
+						class="flex flex-1 items-center justify-between rounded-lg border p-3 transition hover:bg-accent"
 						onclick={triggerImport}
 					>
 						<span class="flex items-center gap-2">
 							<Upload size={16} />
 							{importLoading ? '导入中...' : '导入数据'}
 						</span>
-						<span class="text-muted-foreground text-sm">→</span>
+						<span class="text-sm text-muted-foreground">→</span>
 					</button>
 				</div>
 
 				<button
-					class="w-full flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition text-sm text-muted-foreground"
+					class="flex w-full items-center justify-between rounded-lg border p-3 text-sm text-muted-foreground transition hover:bg-accent"
 					onclick={handleDownloadTemplate}
 				>
 					<span>下载导入模板</span>
 				</button>
 
 				<button
-					class="w-full flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition"
+					class="flex w-full items-center justify-between rounded-lg border p-3 transition hover:bg-accent"
 					onclick={() => goto('/bill-export')}
 				>
 					<span class="flex items-center gap-2">
 						<FileText size={16} />
 						月度账单导出
 					</span>
-					<span class="text-muted-foreground text-sm">→</span>
+					<span class="text-sm text-muted-foreground">→</span>
 				</button>
 			</CardContent>
 		</Card>
@@ -432,26 +493,26 @@
 
 	<!-- 数据体检 -->
 	<section>
-		<div class="flex items-center gap-2 mb-3">
+		<div class="mb-3 flex items-center gap-2">
 			<ShieldCheck size={16} />
 			<h2 class="text-sm font-medium">数据体检</h2>
 		</div>
 		<Card>
-			<CardContent class="p-4 space-y-3">
+			<CardContent class="space-y-3 p-4">
 				<button
-					class="w-full flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition"
+					class="flex w-full items-center justify-between rounded-lg border p-3 transition hover:bg-accent"
 					onclick={runAudit}
 				>
 					<span class="flex items-center gap-2">
 						<DatabaseZap size={16} />
 						检查账户余额 vs 流水
 					</span>
-					<span class="text-muted-foreground text-sm">→</span>
+					<span class="text-sm text-muted-foreground">→</span>
 				</button>
 
 				{#if auditOpen}
 					{#if auditLoading}
-						<div class="py-6 grid place-items-center text-sm text-muted-foreground">
+						<div class="grid place-items-center py-6 text-sm text-muted-foreground">
 							<Loader2 size={16} class="animate-spin" />
 						</div>
 					{:else if auditRows.length === 0}
@@ -459,8 +520,8 @@
 					{:else}
 						<div class="space-y-2">
 							{#each auditRows as row (row.account_id)}
-								<div class="flex items-center gap-3 p-2 rounded border text-sm">
-									<div class="flex-1 min-w-0">
+								<div class="flex items-center gap-3 rounded border p-2 text-sm">
+									<div class="min-w-0 flex-1">
 										<div class="truncate font-medium">{row.name}</div>
 										<div class="text-xs text-muted-foreground">
 											当前 {row.balance.toFixed(2)} · 按流水 {row.computed.toFixed(2)}
@@ -488,12 +549,12 @@
 
 	<!-- 危险操作 -->
 	<section>
-		<div class="flex items-center gap-2 mb-3">
+		<div class="mb-3 flex items-center gap-2">
 			<AlertTriangle size={16} class="text-destructive" />
 			<h2 class="text-sm font-medium text-destructive">危险操作</h2>
 		</div>
 		<Card class="border-destructive/40">
-			<CardContent class="p-4 space-y-3">
+			<CardContent class="space-y-3 p-4">
 				<div>
 					<p class="text-sm text-muted-foreground">
 						清空全部业务数据（交易、账户、分类、预算、标签、周期、分期、报销、存钱计划）

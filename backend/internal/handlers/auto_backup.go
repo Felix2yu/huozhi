@@ -3,6 +3,7 @@ package handlers
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"huozhi/internal/database"
@@ -11,10 +12,8 @@ import (
 	"huozhi/internal/storage"
 	"io"
 	"log"
-	"os"
+	"mime"
 	"path/filepath"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -22,30 +21,22 @@ import (
 
 // ========== 自动备份 ==========
 
-const autoBackupDir = "backups"
-
-// ensureBackupDir 确保备份目录存在
-func ensureBackupDir() string {
-	dir := filepath.Join(".", autoBackupDir)
-	os.MkdirAll(dir, 0755)
-	return dir
+func GenerateAutoBackup(userID uint) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	return generateAutoBackup(ctx, userID)
 }
 
-// GenerateAutoBackup 为指定用户生成全量备份并保存到磁盘
-// 返回备份文件路径和错误
-func GenerateAutoBackup(userID uint) (string, error) {
+func generateAutoBackup(ctx context.Context, userID uint) (string, error) {
 	snap := backupSnapshot{Version: "2.0", ExportedAt: time.Now()}
-	database.DB.Where("user_id = ?", userID).Find(&snap.Books)
-	database.DB.Where("user_id = ?", userID).Find(&snap.Accounts)
-	database.DB.Where("user_id = ?", userID).Find(&snap.Categories)
-	database.DB.Where("user_id = ?", userID).Find(&snap.Tags)
-	database.DB.Where("user_id = ?", userID).Find(&snap.Budgets)
-	database.DB.Preload("Tags").Where("user_id = ?", userID).Find(&snap.Transactions)
-	database.DB.Where("user_id = ?", userID).Find(&snap.SavingPlans)
-	database.DB.Where("user_id = ?", userID).Find(&snap.SavingRecords)
-	database.DB.Where("user_id = ?", userID).Find(&snap.Recurrings)
-	database.DB.Where("user_id = ?", userID).Find(&snap.Installments)
-	database.DB.Where("user_id = ?", userID).Find(&snap.Reimbursements)
+	for _, dest := range []any{&snap.Books, &snap.Accounts, &snap.Categories, &snap.Tags, &snap.Budgets, &snap.SavingPlans, &snap.SavingRecords, &snap.Recurrings, &snap.Installments, &snap.Reimbursements} {
+		if err := database.DB.WithContext(ctx).Where("user_id = ?", userID).Find(dest).Error; err != nil {
+			return "", fmt.Errorf("读取备份数据失败: %w", err)
+		}
+	}
+	if err := database.DB.WithContext(ctx).Preload("Tags").Where("user_id = ?", userID).Find(&snap.Transactions).Error; err != nil {
+		return "", fmt.Errorf("读取交易失败: %w", err)
+	}
 
 	// 收集图片
 	type imageEntry struct {
@@ -82,60 +73,46 @@ func GenerateAutoBackup(userID uint) (string, error) {
 	}
 
 	for _, img := range images {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
 		rc, _, err := storage.Open(img.key)
 		if err != nil {
-			continue
-		}
-		data, err := io.ReadAll(rc)
-		rc.Close()
-		if err != nil {
-			continue
+			return "", fmt.Errorf("读取备份图片失败: %w", err)
 		}
 		f, err := zipWriter.Create(img.zipPath)
 		if err != nil {
-			continue
+			rc.Close()
+			return "", err
 		}
-		f.Write(data)
+		_, err = io.Copy(f, rc)
+		rc.Close()
+		if err != nil {
+			return "", err
+		}
 	}
-	zipWriter.Close()
-
-	// 保存到磁盘
-	dir := ensureBackupDir()
-	filename := fmt.Sprintf("auto-%d-%s.zip", userID, time.Now().Format("20060102-150405"))
-	path := filepath.Join(dir, filename)
-	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
-		return "", fmt.Errorf("写入备份文件失败: %w", err)
+	if err := zipWriter.Close(); err != nil {
+		return "", err
 	}
-
-	return path, nil
+	filename := fmt.Sprintf("auto-%d-%s.zip", userID, time.Now().Format("20060102-150405.000000000"))
+	return storage.SaveBackup(ctx, userID, filename, buf.Bytes())
 }
 
 // CleanupOldBackups 删除超过保留份数的旧自动备份
 func CleanupOldBackups(userID uint, keepCount int) {
-	dir := ensureBackupDir()
-	prefix := fmt.Sprintf("auto-%d-", userID)
-
-	entries, err := os.ReadDir(dir)
+	if keepCount <= 0 {
+		keepCount = 7
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	backups, err := storage.ListBackups(ctx, userID)
 	if err != nil {
+		log.Printf("[AutoBackup] 用户 %d 列举失败: %v", userID, err)
 		return
 	}
-
-	var matches []os.DirEntry
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasPrefix(e.Name(), prefix) && strings.HasSuffix(e.Name(), ".zip") {
-			matches = append(matches, e)
-		}
-	}
-
-	// 按文件名排序（包含时间戳，天然时间序）
-	sort.Slice(matches, func(i, j int) bool {
-		return matches[i].Name() > matches[j].Name()
-	})
-
-	// 删除超出保留份数的旧文件
-	if len(matches) > keepCount {
-		for _, e := range matches[keepCount:] {
-			os.Remove(filepath.Join(dir, e.Name()))
+	for i := keepCount; i < len(backups); i++ {
+		if err := storage.DeleteBackup(ctx, userID, backups[i].Name); err != nil {
+			log.Printf("[AutoBackup] 用户 %d 清理失败: %v", userID, err)
 		}
 	}
 }
@@ -204,42 +181,40 @@ func shouldBackupToday(u models.User, now time.Time) bool {
 	}
 }
 
-// ListAutoBackups 列出用户的自动备份文件
-func ListAutoBackups(userID uint) []map[string]interface{} {
-	dir := ensureBackupDir()
-	prefix := fmt.Sprintf("auto-%d-", userID)
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil
-	}
-
-	var result []map[string]interface{}
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasPrefix(e.Name(), prefix) && strings.HasSuffix(e.Name(), ".zip") {
-			info, _ := e.Info()
-			result = append(result, map[string]interface{}{
-				"name": e.Name(),
-				"size": info.Size(),
-				"time": info.ModTime(),
-			})
-		}
-	}
-
-	// 按时间倒序
-	sort.Slice(result, func(i, j int) bool {
-		return result[i]["name"].(string) > result[j]["name"].(string)
-	})
-
-	return result
-}
-
-// ListAutoBackup GET /io/auto-backups —— 获取自动备份列表
 func ListAutoBackup(c *gin.Context) {
-	uid := middleware.GetUID(c)
-	backups := ListAutoBackups(uid)
-	if backups == nil {
-		backups = []map[string]interface{}{}
+	backups, err := storage.ListBackups(c.Request.Context(), middleware.GetUID(c))
+	if err != nil {
+		InternalErr(c, "读取备份列表失败")
+		return
 	}
 	OK(c, backups)
+}
+
+func CreateAutoBackup(c *gin.Context) {
+	uid := middleware.GetUID(c)
+	location, err := generateAutoBackup(c.Request.Context(), uid)
+	if err != nil {
+		log.Printf("[AutoBackup] 用户 %d 立即备份失败: %v", uid, err)
+		InternalErr(c, "备份失败，请检查存储配置和图片是否可读取")
+		return
+	}
+	backend := "local"
+	if storage.UsingS3() {
+		backend = "s3"
+	}
+	Created(c, gin.H{"name": filepath.Base(location), "storage": backend})
+}
+
+func DownloadAutoBackup(c *gin.Context) {
+	name := c.Param("name")
+	rc, err := storage.OpenBackup(c.Request.Context(), middleware.GetUID(c), name)
+	if err != nil {
+		NotFound(c, "备份不存在或暂时无法读取")
+		return
+	}
+	defer rc.Close()
+	c.Header("Cache-Control", "private, no-store")
+	c.Header("Content-Type", "application/zip")
+	c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": name}))
+	_, _ = io.Copy(c.Writer, rc)
 }

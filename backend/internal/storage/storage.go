@@ -35,10 +35,11 @@ const (
 )
 
 var (
-	mu       sync.RWMutex
-	inited   bool
-	useS3    bool
-	localDir string
+	mu        sync.RWMutex
+	inited    bool
+	useS3     bool
+	localDir  string
+	backupDir string
 
 	s3Client *s3.Client
 	s3Bucket string
@@ -47,29 +48,45 @@ var (
 
 // Init 依据全局配置初始化存储层。在 main 中配置加载后调用一次。
 func Init() error {
+	mu.Lock()
+	defer mu.Unlock()
+	inited, useS3 = false, false
+	s3Client, s3Bucket, s3Prefix = nil, "", ""
+	localDir, backupDir = "", ""
 	cfg := config.AppConfig
 	if cfg == nil {
 		return fmt.Errorf("config 未加载")
 	}
-	mu.Lock()
-	defer mu.Unlock()
-
-	localDir = cfg.Upload.Path
-	if localDir == "" {
-		localDir = defaultLocalDir
+	if err := cfg.S3.Validate(); err != nil {
+		return err
 	}
-	_ = os.MkdirAll(localDir, 0o755)
-
-	if cfg.S3.Enabled && cfg.S3.Bucket != "" {
+	dir, backups := cfg.Upload.Path, cfg.Backup.Path
+	if dir == "" {
+		dir = defaultLocalDir
+	}
+	if backups == "" {
+		backups = "./backups"
+	}
+	if cfg.S3.Enabled {
 		client, err := newS3Client(&cfg.S3)
 		if err != nil {
 			return fmt.Errorf("初始化 S3 客户端失败: %w", err)
 		}
-		s3Client = client
-		s3Bucket = cfg.S3.Bucket
+		s3Client, s3Bucket = client, cfg.S3.Bucket
 		s3Prefix = strings.Trim(cfg.S3.Prefix, "/")
 		useS3 = true
+	} else {
+		if withinPath(backups, dir) {
+			return fmt.Errorf("备份目录不能包含上传目录")
+		}
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+		if err := privateBackupDir(backups); err != nil {
+			return err
+		}
 	}
+	localDir, backupDir = dir, backups
 	inited = true
 	return nil
 }
@@ -95,26 +112,15 @@ func newS3Client(s *config.S3Config) (*s3.Client, error) {
 	if region == "" {
 		region = "us-east-1"
 	}
-	endpoint := s.Endpoint
-	if endpoint != "" && !strings.Contains(endpoint, "://") {
-		scheme := "https"
-		if !s.UseSSL {
-			scheme = "http"
-		}
-		endpoint = scheme + "://" + endpoint
+	if err := s.Validate(); err != nil {
+		return nil, err
 	}
-
-	resolver := aws.EndpointResolverWithOptionsFunc(
-		func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-			if endpoint != "" {
-				return aws.Endpoint{URL: endpoint, HostnameImmutable: true}, nil
-			}
-			return aws.Endpoint{}, fmt.Errorf("未配置 S3 endpoint")
-		})
-
+	endpoint, err := s.EndpointURL()
+	if err != nil {
+		return nil, err
+	}
 	opts := []func(*awsconfig.LoadOptions) error{
 		awsconfig.WithRegion(region),
-		awsconfig.WithEndpointResolverWithOptions(resolver),
 	}
 	if s.AccessKey != "" || s.SecretKey != "" {
 		opts = append(opts, awsconfig.WithCredentialsProvider(
@@ -127,7 +133,13 @@ func newS3Client(s *config.S3Config) (*s3.Client, error) {
 	}
 	// 自定义端点（MinIO / 阿里云 OSS 等）通常使用 path-style 寻址
 	return s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		if endpoint != "" {
+			o.BaseEndpoint = aws.String(endpoint)
+		}
 		o.UsePathStyle = endpoint != ""
+		if s.ForcePathStyle != nil {
+			o.UsePathStyle = *s.ForcePathStyle
+		}
 	}), nil
 }
 
@@ -195,7 +207,7 @@ func SaveBytes(data []byte, name string, uid uint) (string, error) {
 // Open 按 key（不含前缀）取回存储对象，返回可读流与内容类型。
 func Open(key string) (io.ReadCloser, string, error) {
 	key = strings.TrimPrefix(key, "/")
-	if key == "" || strings.Contains(key, "..") {
+	if !validPublicKey(key) {
 		return nil, "", fmt.Errorf("非法 key")
 	}
 
@@ -222,7 +234,10 @@ func Open(key string) (io.ReadCloser, string, error) {
 		return out.Body, ct, nil
 	}
 
-	full := filepath.Join(dir, key)
+	full, err := publicLocalPath(dir, key)
+	if err != nil {
+		return nil, "", err
+	}
 	f, err := os.Open(full)
 	if err != nil {
 		return nil, "", err
@@ -233,7 +248,7 @@ func Open(key string) (io.ReadCloser, string, error) {
 // Delete 删除指定 key 的存储对象（忽略不存在的错误）。
 func Delete(key string) error {
 	key = strings.TrimPrefix(key, "/")
-	if key == "" || strings.Contains(key, "..") {
+	if !validPublicKey(key) {
 		return fmt.Errorf("非法 key")
 	}
 	mu.RLock()
@@ -251,7 +266,14 @@ func Delete(key string) error {
 		})
 		return err
 	}
-	err := os.Remove(filepath.Join(dir, key))
+	full, err := publicLocalPath(dir, key)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	err = os.Remove(full)
 	if os.IsNotExist(err) {
 		return nil
 	}
@@ -302,9 +324,10 @@ func CleanupOrphans(referenced map[string]bool, grace time.Duration) (int, error
 		if !o.ModTime.IsZero() && o.ModTime.After(cutoff) {
 			continue // 宽限期内的新文件保留
 		}
-		if err := Delete(o.Key); err == nil {
-			deleted++
+		if err := Delete(o.Key); err != nil {
+			return deleted, err
 		}
+		deleted++
 	}
 	return deleted, nil
 }
@@ -315,10 +338,15 @@ func listStoredObjects(s3Mode bool, bucket, prefix string, client *s3.Client, di
 		var out []StoredObject
 		ctx := context.Background()
 		var token *string
+		seen := map[string]bool{}
+		boundary := strings.Trim(prefix, "/")
+		if boundary != "" {
+			boundary += "/"
+		}
 		for {
 			page, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 				Bucket:            aws.String(bucket),
-				Prefix:            aws.String(prefix),
+				Prefix:            aws.String(boundary),
 				ContinuationToken: token,
 			})
 			if err != nil {
@@ -326,8 +354,10 @@ func listStoredObjects(s3Mode bool, bucket, prefix string, client *s3.Client, di
 			}
 			for _, item := range page.Contents {
 				key := aws.ToString(item.Key)
-				rel := strings.TrimPrefix(key, prefix)
-				rel = strings.TrimPrefix(rel, "/")
+				rel := strings.TrimPrefix(key, boundary)
+				if !strings.HasPrefix(key, boundary) || !validPublicKey(rel) {
+					continue
+				}
 				mt := time.Time{}
 				if item.LastModified != nil {
 					mt = *item.LastModified
@@ -335,6 +365,11 @@ func listStoredObjects(s3Mode bool, bucket, prefix string, client *s3.Client, di
 				out = append(out, StoredObject{Key: rel, ModTime: mt})
 			}
 			if page.IsTruncated != nil && *page.IsTruncated {
+				next := aws.ToString(page.NextContinuationToken)
+				if next == "" || seen[next] {
+					return nil, fmt.Errorf("S3 分页 token 无效")
+				}
+				seen[next] = true
 				token = page.NextContinuationToken
 			} else {
 				break
@@ -344,18 +379,27 @@ func listStoredObjects(s3Mode bool, bucket, prefix string, client *s3.Client, di
 	}
 
 	var out []StoredObject
+	mu.RLock()
+	backups := backupDir
+	mu.RUnlock()
 	err := filepath.Walk(dir, func(p string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil // 跳过不可访问的条目
+			return err
 		}
-		if info.IsDir() {
+		rel, err := filepath.Rel(dir, p)
+		if err != nil {
+			return err
+		}
+		key := filepath.ToSlash(rel)
+		if p != dir && (!validPublicKey(key) || backups != "" && withinPath(backups, p)) {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
 			return nil
 		}
-		rel, e := filepath.Rel(dir, p)
-		if e != nil {
-			return nil
+		if info.Mode().IsRegular() {
+			out = append(out, StoredObject{Key: key, ModTime: info.ModTime()})
 		}
-		out = append(out, StoredObject{Key: filepath.ToSlash(rel), ModTime: info.ModTime()})
 		return nil
 	})
 	return out, err

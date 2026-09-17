@@ -8,20 +8,27 @@
  * 修复后: 只在真正的网络断开（navigator.onLine=false 或 fetch 抛非 ApiError）时入队。
  * HTTP 4xx/5xx 是服务端正常返回的业务/状态错误，不应入队。
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { ioApi } from '$lib/api/modules/io';
 
 // 先 mock localStorage
 const store: Record<string, string> = {};
 vi.stubGlobal('localStorage', {
 	getItem: (k: string) => store[k] ?? null,
-	setItem: (k: string, v: string) => { store[k] = v; },
-	removeItem: (k: string) => { delete store[k]; },
-	clear: () => { Object.keys(store).forEach(k => delete store[k]); }
+	setItem: (k: string, v: string) => {
+		store[k] = v;
+	},
+	removeItem: (k: string) => {
+		delete store[k];
+	},
+	clear: () => {
+		Object.keys(store).forEach((k) => delete store[k]);
+	}
 });
 
 // 每个用例前清空 store
 beforeEach(() => {
-	Object.keys(store).forEach(k => delete store[k]);
+	Object.keys(store).forEach((k) => delete store[k]);
 	vi.unstubAllGlobals();
 });
 
@@ -307,5 +314,146 @@ describe('HTTP client - Bug #5 offline queue conditions', () => {
 		await http.get('/test');
 		const callOptions = fetchMock.mock.calls[0][1];
 		expect(callOptions.body).toBeUndefined();
+	});
+});
+
+describe('备份与恢复 API', () => {
+	beforeEach(() => {
+		clearQueue();
+		http.setToken('backup-test-token');
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
+		http.removeToken();
+	});
+
+	it.each(['s3', 'local'] as const)('立即备份返回 %s 存储结果并携带认证', async (storage) => {
+		const data = { name: 'backup.zip', storage };
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({ code: 0, data })
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		await expect(ioApi.createAutoBackup()).resolves.toEqual(data);
+		expect(fetchMock).toHaveBeenCalledWith('/api/io/auto-backups', {
+			method: 'POST',
+			headers: { Authorization: 'Bearer backup-test-token' }
+		});
+		expect(queueCount()).toBe(0);
+	});
+
+	it.each([
+		{ ok: false, code: 401 },
+		{ ok: false, code: 500 },
+		{ ok: true, code: 1001 },
+		{ ok: true, code: 0 }
+	])('立即备份拒绝错误或缺失数据的响应 %j', async ({ ok, code }) => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({
+				ok,
+				json: async () => ({ code, message: '内部存储错误详情' })
+			})
+		);
+
+		await expect(ioApi.createAutoBackup()).rejects.toThrow('立即备份失败');
+		expect(queueCount()).toBe(0);
+	});
+
+	it('立即备份断网不进入离线重放队列', async () => {
+		vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('NetworkError')));
+
+		await expect(ioApi.createAutoBackup()).rejects.toThrow('NetworkError');
+		expect(queueCount()).toBe(0);
+	});
+
+	it('列表保留名称、大小和时间并携带认证', async () => {
+		const data = [{ name: 'backup.zip', size: 1024, time: '2026-09-17T03:00:00Z' }];
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: async () => ({ code: 0, data })
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		await expect(ioApi.listAutoBackups()).resolves.toEqual(data);
+		expect(fetchMock).toHaveBeenCalledWith(
+			'/api/io/auto-backups',
+			expect.objectContaining({
+				method: 'GET',
+				headers: expect.objectContaining({ Authorization: 'Bearer backup-test-token' })
+			})
+		);
+	});
+
+	it('下载编码文件名、携带认证并释放对象 URL', async () => {
+		const name = '备份 #1.zip';
+		const blob = new Blob(['zip'], { type: 'application/zip' });
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			headers: new Headers({ 'Content-Type': 'application/zip' }),
+			blob: async () => blob
+		});
+		vi.stubGlobal('fetch', fetchMock);
+		const createObjectURL = vi.fn(() => 'blob:backup');
+		const revokeObjectURL = vi.fn();
+		vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
+		const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+			this: HTMLAnchorElement
+		) {
+			expect(this.download).toBe(name);
+			expect(this.getAttribute('href')).toBe('blob:backup');
+			expect(this.isConnected).toBe(true);
+		});
+
+		await ioApi.downloadAutoBackup(name);
+		expect(fetchMock).toHaveBeenCalledWith(`/api/io/auto-backups/${encodeURIComponent(name)}`, {
+			headers: { Authorization: 'Bearer backup-test-token' }
+		});
+		expect(click).toHaveBeenCalledOnce();
+		expect(createObjectURL).toHaveBeenCalledWith(blob);
+		expect(revokeObjectURL).toHaveBeenCalledWith('blob:backup');
+		expect(document.querySelector('a[download]')).toBeNull();
+	});
+
+	it.each([
+		{ ok: false, type: 'application/json' },
+		{ ok: false, type: 'text/html' },
+		{ ok: true, type: 'application/json' },
+		{ ok: true, type: 'text/html' }
+	])('错误响应不触发 ZIP 下载 %j', async ({ ok, type }) => {
+		const blob = vi.fn();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({
+				ok,
+				headers: new Headers({ 'Content-Type': type }),
+				blob
+			})
+		);
+		const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+		await expect(ioApi.downloadAutoBackup('backup.zip')).rejects.toThrow('备份下载失败');
+		expect(blob).not.toHaveBeenCalled();
+		expect(click).not.toHaveBeenCalled();
+	});
+
+	it.each(['replace', 'merge'] as const)('恢复以 raw File 发送，模式为 %s', async (mode) => {
+		const file = new File(['backup'], 'backup.zip', { type: 'application/zip' });
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({ code: 0, data: { imported: {} } })
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		await ioApi.restore(file, mode);
+		expect(fetchMock).toHaveBeenCalledWith(`/api/io/restore?mode=${mode}`, {
+			method: 'POST',
+			headers: { Authorization: 'Bearer backup-test-token' },
+			body: file
+		});
 	});
 });

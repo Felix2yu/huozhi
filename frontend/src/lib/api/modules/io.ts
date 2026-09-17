@@ -55,14 +55,12 @@ export const ioApi = {
 	},
 	// B8：从备份恢复（支持 ZIP 和旧版 JSON，自动检测格式）
 	restore: async (file: File, mode: 'replace' | 'merge' = 'replace') => {
-		const fd = new FormData();
-		fd.append('file', file);
 		const res = await fetch(`/api/io/restore?mode=${mode}`, {
 			method: 'POST',
 			headers: {
 				Authorization: `Bearer ${http.getToken()}` || ''
 			},
-			body: fd
+			body: file
 		});
 		const data = await res.json();
 		if (data.code !== 0) throw new Error(data.message || '恢复失败');
@@ -84,6 +82,43 @@ export const ioApi = {
 		return data.data;
 	},
 
+	createAutoBackup: async (): Promise<{ name: string; storage: 's3' | 'local' }> => {
+		const res = await fetch('/api/io/auto-backups', {
+			method: 'POST',
+			headers: { Authorization: `Bearer ${http.getToken() ?? ''}` }
+		});
+		if (!res.ok) throw new Error('立即备份失败');
+		const data = await res.json();
+		if (
+			data.code !== 0 ||
+			typeof data.data?.name !== 'string' ||
+			!['s3', 'local'].includes(data.data?.storage)
+		) {
+			throw new Error('立即备份失败');
+		}
+		return data.data;
+	},
+	downloadAutoBackup: async (name: string) => {
+		const res = await fetch(`/api/io/auto-backups/${encodeURIComponent(name)}`, {
+			headers: { Authorization: `Bearer ${http.getToken() ?? ''}` }
+		});
+		const contentType = res.headers.get('Content-Type') ?? '';
+		if (!res.ok || /json|text\//i.test(contentType)) throw new Error('备份下载失败');
+		const blob = await res.blob();
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		try {
+			a.href = url;
+			a.download = name;
+			document.body.appendChild(a);
+			a.click();
+		} finally {
+			a.remove();
+			URL.revokeObjectURL(url);
+		}
+	},
+
 	// 自动备份列表
-	listAutoBackups: () => http.get<Array<{ name: string; size: number; time: string }>>('/io/auto-backups')
+	listAutoBackups: () =>
+		http.get<Array<{ name: string; size: number; time: string }>>('/io/auto-backups')
 };

@@ -242,6 +242,8 @@ func New(mode string, staticDir string) *gin.Engine {
 				io.POST("/restore", handlers.ImportBackup)       // 从快照恢复（B8）
 				io.POST("/reset", handlers.ClearUserData)        // 清空全部业务数据（B9，需密码）
 				io.GET("/auto-backups", handlers.ListAutoBackup) // 自动备份列表
+				io.POST("/auto-backups", handlers.CreateAutoBackup)
+				io.GET("/auto-backups/:name", handlers.DownloadAutoBackup)
 			}
 		}
 	}

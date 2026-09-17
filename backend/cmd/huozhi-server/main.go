@@ -38,6 +38,9 @@ func main() {
 	// 加载配置
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
+		if !os.IsNotExist(err) {
+			log.Fatalf("加载配置文件失败: %v", err)
+		}
 		log.Printf("加载配置文件失败 (%v), 使用默认配置", err)
 		cfg = config.Default()
 		_ = os.MkdirAll(cfg.Upload.Path, 0755)
@@ -50,7 +53,7 @@ func main() {
 
 	// 初始化存储层（本地 / S3）
 	if err := storage.Init(); err != nil {
-		log.Printf("存储层初始化失败: %v（将回退到本地存储）", err)
+		log.Fatalf("存储层初始化失败: %v", err)
 	} else if storage.UsingS3() {
 		log.Printf("存储后端: S3 (bucket=%s)", cfg.S3.Bucket)
 	} else {

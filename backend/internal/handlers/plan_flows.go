@@ -526,6 +526,11 @@ func ImportBackup(c *gin.Context) {
 				imgName := filepath.Base(imgPath)
 				// 尝试从ZIP中找到对应图片
 				zipPath := "images/" + imgName
+				if key, ok := storage.KeyFromURL(imgPath); ok {
+					if _, exists := zipImages["images/"+key]; exists {
+						zipPath = "images/" + key
+					}
+				}
 				if data, ok := zipImages[zipPath]; ok {
 					// 保存图片到存储
 					newPath, err := storage.SaveBytes(data, imgName, uid)
