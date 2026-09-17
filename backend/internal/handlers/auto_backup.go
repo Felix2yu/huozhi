@@ -15,6 +15,7 @@ import (
 	"mime"
 	"path/filepath"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/gin-gonic/gin"
 )
@@ -117,31 +118,38 @@ func CleanupOldBackups(userID uint, keepCount int) {
 	}
 }
 
-// AutoBackupRunner 后台定时检查并执行自动备份
-// 每分钟检查一次，匹配用户的 backup_time 和 frequency
 func AutoBackupRunner() {
 	log.Println("[Cron] 自动备份调度器已启动")
-	tick := time.NewTicker(60 * time.Second)
+	tick := time.NewTicker(time.Minute)
 	defer tick.Stop()
+	runAutoBackups()
 	for range tick.C {
 		runAutoBackups()
 	}
 }
 
 func runAutoBackups() {
+	runAutoBackupsAt(time.Now())
+}
+
+func runAutoBackupsAt(now time.Time) {
 	if database.DB == nil {
 		return
 	}
 
-	now := time.Now()
-	currentTime := now.Format("15:04") // 当前时间 HH:MM
-
 	var users []models.User
-	database.DB.Where("auto_backup_enabled = ? AND auto_backup_time = ?", true, currentTime).Find(&users)
+	if err := database.DB.Where("auto_backup_enabled = ?", true).Find(&users).Error; err != nil {
+		log.Printf("[AutoBackup] 读取自动备份设置失败: %v", err)
+		return
+	}
 
 	for _, u := range users {
-		// 检查频率：是否该今天执行
-		if !shouldBackupToday(u, now) {
+		due, err := autoBackupDue(u, now)
+		if err != nil {
+			log.Printf("[AutoBackup] 用户 %d 调度设置无效: %v", u.ID, err)
+			continue
+		}
+		if !due {
 			continue
 		}
 
@@ -153,8 +161,9 @@ func runAutoBackups() {
 		}
 		log.Printf("[AutoBackup] 用户 %d 备份完成: %s", u.ID, path)
 
-		// 更新最后执行时间
-		database.DB.Model(&models.User{}).Where("id = ?", u.ID).Update("auto_backup_last_run", now)
+		if err := database.DB.Model(&models.User{}).Where("id = ?", u.ID).Update("auto_backup_last_run", now).Error; err != nil {
+			log.Printf("[AutoBackup] 用户 %d 保存最后执行时间失败: %v", u.ID, err)
+		}
 
 		// 清理旧备份
 		keepCount := u.AutoBackupKeepCount
@@ -165,20 +174,35 @@ func runAutoBackups() {
 	}
 }
 
-// shouldBackupToday 根据频率判断今天是否应执行备份
-func shouldBackupToday(u models.User, now time.Time) bool {
-	switch u.AutoBackupFrequency {
-	case "daily":
-		return true
-	case "weekly":
-		// 每周日执行
-		return now.Weekday() == time.Sunday
-	case "monthly":
-		// 每月1号执行
-		return now.Day() == 1
-	default:
-		return true
+func autoBackupDue(u models.User, now time.Time) (bool, error) {
+	if !u.AutoBackupEnabled {
+		return false, nil
 	}
+	clock, err := time.Parse("15:04", u.AutoBackupTime)
+	if err != nil || clock.Format("15:04") != u.AutoBackupTime {
+		return false, fmt.Errorf("备份时间必须为 HH:MM")
+	}
+	zone := u.Timezone
+	if zone == "" {
+		zone = "Asia/Shanghai"
+	}
+	loc, err := time.LoadLocation(zone)
+	if err != nil {
+		return false, fmt.Errorf("无效时区 %q: %w", zone, err)
+	}
+	now = now.In(loc)
+	year, month, day := now.Date()
+	switch u.AutoBackupFrequency {
+	case "", "daily":
+	case "weekly":
+		day -= int(now.Weekday())
+	case "monthly":
+		day = 1
+	default:
+		return false, fmt.Errorf("无效备份频率 %q", u.AutoBackupFrequency)
+	}
+	scheduled := time.Date(year, month, day, clock.Hour(), clock.Minute(), 0, 0, loc)
+	return !now.Before(scheduled) && u.AutoBackupLastRun.Before(scheduled), nil
 }
 
 func ListAutoBackup(c *gin.Context) {
