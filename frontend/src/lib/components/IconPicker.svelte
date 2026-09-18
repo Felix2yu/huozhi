@@ -1,14 +1,9 @@
 <script lang="ts">
 	import { getBankIcon } from '$lib/utils/bank-themes';
 	import { getIconName } from '$lib/utils/icon-names';
+	import { bankIconUrls, resolveAccountIcon } from '$lib/utils/bank-icons';
 	import AccountIcon from './AccountIcon.svelte';
 	import { Search, X } from '@lucide/svelte';
-
-	const bankIcons = import.meta.glob('$lib/assets/bank-icons/*.svg', {
-		eager: true,
-		query: '?url',
-		import: 'default'
-	});
 
 	let {
 		value = $bindable(''),
@@ -28,19 +23,18 @@
 	let search = $state('');
 
 	const iconList = $derived(
-		Object.entries(bankIcons).map(([key, url]) => {
-			const filename = key.split('/').pop()?.replace('.svg', '') || '';
-			return { id: filename, name: getIconName(filename), url: url as string };
-		})
+		Object.entries(bankIconUrls).map(([id, url]) => ({
+			id,
+			name: getIconName(id),
+			url
+		}))
 	);
 
 	const filteredIcons = $derived.by(() => {
 		const q = search.trim().toLowerCase();
 		if (!q) return iconList;
 		return iconList.filter(
-			(icon) =>
-				icon.name.toLowerCase().includes(q) ||
-				icon.id.toLowerCase().includes(q)
+			(icon) => icon.name.toLowerCase().includes(q) || icon.id.toLowerCase().includes(q)
 		);
 	});
 
@@ -50,6 +44,12 @@
 	});
 
 	const selectedIcon = $derived(value || autoIcon);
+
+	// 预览与 AccountIcon 走同一套解析：value 为 emoji 等历史值时显示字面量，
+	// 避免出现 src 为空的破图。
+	const preview = $derived.by(() =>
+		resolveAccountIcon({ icon: selectedIcon, bankName, name, type })
+	);
 
 	function selectIcon(id: string) {
 		value = id === autoIcon ? '' : id;
@@ -72,8 +72,10 @@
 			class="flex items-center gap-2 px-3 py-2 border rounded-md hover:bg-accent transition text-sm"
 			onclick={toggleOpen}
 		>
-			{#if selectedIcon}
-				<img src={bankIcons[`/src/lib/assets/bank-icons/${selectedIcon}.svg`]} alt="" class="w-6 h-6" />
+			{#if preview?.kind === 'svg'}
+				<img src={preview.url} alt="" class="w-6 h-6" />
+			{:else if preview?.kind === 'glyph'}
+				<span class="text-base leading-none">{preview.text}</span>
 			{:else}
 				<AccountIcon {bankName} {name} {type} size={24} />
 			{/if}

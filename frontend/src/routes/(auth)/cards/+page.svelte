@@ -8,16 +8,10 @@
 	import { accountApi } from '$lib/api/modules/accounts';
 	import { appStore } from '$lib/stores/app';
 	import { formatMoney } from '$lib/utils/format';
-	import { getBankTheme, getCardGradient, getBankIcon } from '$lib/utils/bank-themes';
+	import { getBankTheme, getCardGradient } from '$lib/utils/bank-themes';
+	import { resolveAccountIcon } from '$lib/utils/bank-icons';
 	import type { Account, CreditRepayItem } from '$lib/types';
 	import { Plus, CreditCard, Wallet } from '@lucide/svelte';
-
-	// 使用 Vite 的 import.meta.glob 批量导入所有 SVG 文件
-	const bankIcons = import.meta.glob('$lib/assets/bank-icons/*.svg', {
-		eager: true,
-		query: '?url',
-		import: 'default'
-	});
 
 	let creditCards = $state<Account[]>([]);
 	let bankCards = $state<Account[]>([]);
@@ -46,13 +40,15 @@
 		return '•••• ••••';
 	}
 
-	function getBankIconPath(bankName: string | undefined): string | null {
-		const iconId = getBankIcon(bankName);
-		if (iconId) {
-			const key = `/src/lib/assets/bank-icons/${iconId}.svg`;
-			return bankIcons[key] || null;
-		}
-		return null;
+	// 手动 icon 优先，其次按 bank_name/name 自动识别，最后按账户类型兜底。
+	// 旧实现只看 bank_name，导致账户里手动选的图标在这页永远不生效。
+	function resolveCardIcon(card: Account) {
+		return resolveAccountIcon({
+			icon: card.icon,
+			bankName: card.bank_name,
+			name: card.name,
+			type: card.type
+		});
 	}
 </script>
 
@@ -75,6 +71,7 @@
 			<div class="grid gap-4 md:grid-cols-2">
 				{#each creditCards as card (card.id)}
 					{@const theme = getBankTheme(card.bank_name)}
+					{@const ic = resolveCardIcon(card)}
 					<button
 						type="button"
 						class="relative h-56 rounded-2xl p-5 text-white overflow-hidden cursor-pointer transition-transform hover:scale-[1.02] text-left"
@@ -90,12 +87,14 @@
 						<!-- 银行名和Logo -->
 						<div class="relative flex items-center justify-between">
 							<div class="flex items-center gap-2">
-								{#if getBankIconPath(card.bank_name)}
+								{#if ic?.kind === 'svg'}
 									<img
-										src={getBankIconPath(card.bank_name)}
-										alt={card.bank_name}
+										src={ic.url}
+										alt={card.bank_name || card.name}
 										class="w-8 h-8"
 									/>
+								{:else if ic?.kind === 'glyph'}
+									<span class="text-xl leading-none">{ic.text}</span>
 								{/if}
 								<span class="font-semibold text-lg">{card.bank_name || card.name}</span>
 							</div>
@@ -145,6 +144,7 @@
 			<div class="grid gap-4 md:grid-cols-2">
 				{#each bankCards as card (card.id)}
 					{@const theme = getBankTheme(card.bank_name)}
+					{@const ic = resolveCardIcon(card)}
 					<button
 						type="button"
 						class="relative h-48 rounded-2xl p-5 text-white overflow-hidden cursor-pointer transition-transform hover:scale-[1.02] text-left"
@@ -160,12 +160,14 @@
 						<!-- 银行名和Logo -->
 						<div class="relative flex items-center justify-between">
 							<div class="flex items-center gap-2">
-								{#if getBankIconPath(card.bank_name)}
+								{#if ic?.kind === 'svg'}
 									<img
-										src={getBankIconPath(card.bank_name)}
-										alt={card.bank_name}
+										src={ic.url}
+										alt={card.bank_name || card.name}
 										class="w-8 h-8"
 									/>
+								{:else if ic?.kind === 'glyph'}
+									<span class="text-xl leading-none">{ic.text}</span>
 								{/if}
 								<span class="font-semibold text-lg">{card.bank_name || card.name}</span>
 							</div>
@@ -221,12 +223,13 @@
 				<CardContent class="p-0 divide-y">
 					{#each repayItems as item (item.id)}
 						{@const theme = getBankTheme(item.bank_name)}
+						{@const ic = resolveAccountIcon({ bankName: item.bank_name, name: item.name })}
 						<div class="flex items-center gap-4 p-4">
 						<div class="w-12 h-12 rounded-xl grid place-items-center font-bold text-lg overflow-hidden"
 							style="background: {theme.color};">
-							{#if getBankIconPath(item.bank_name)}
+							{#if ic?.kind === 'svg'}
 								<img
-									src={getBankIconPath(item.bank_name)}
+									src={ic.url}
 									alt={item.bank_name}
 									class="w-10 h-10"
 								/>
