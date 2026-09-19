@@ -116,7 +116,7 @@ func TestAutoBackupSchedulerRetryAndDeduplication(t *testing.T) {
 	if !u.AutoBackupLastRun.IsZero() {
 		t.Fatal("备份失败不应更新最后执行时间")
 	}
-	if err := db.AutoMigrate(&models.Book{}, &models.Account{}, &models.Category{}, &models.Tag{}, &models.Budget{}, &models.SavingPlan{}, &models.SavingRecord{}, &models.Recurring{}, &models.Installment{}, &models.Reimbursement{}, &models.Transaction{}, &models.TransactionTag{}); err != nil {
+	if err := db.AutoMigrate(&models.Book{}, &models.Account{}, &models.Category{}, &models.Tag{}, &models.Budget{}, &models.SavingPlan{}, &models.SavingRecord{}, &models.Recurring{}, &models.Installment{}, &models.Reimbursement{}, &models.Loan{}, &models.LoanRepayment{}, &models.Transaction{}, &models.TransactionTag{}); err != nil {
 		t.Fatal(err)
 	}
 	for _, at := range []time.Time{now, now.Add(time.Minute)} {

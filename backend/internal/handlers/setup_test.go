@@ -49,6 +49,7 @@ func TestMain(m *testing.M) {
 		&models.Account{}, &models.Category{}, &models.Tag{}, &models.Transaction{},
 		&models.TransactionTag{}, &models.Budget{}, &models.SavingPlan{}, &models.SavingRecord{},
 		&models.Recurring{}, &models.Installment{}, &models.Reimbursement{},
+		&models.Loan{}, &models.LoanRepayment{},
 		&models.AssetSnapshot{}, &models.SyncLog{},
 	)
 
