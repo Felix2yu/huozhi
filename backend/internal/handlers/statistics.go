@@ -569,10 +569,17 @@ func CreateRecurring(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var req dto.CreateRecurringRequest
 	if err := c.ShouldBindJSON(&req); err != nil { Bad(c, "参数错误: "+err.Error()); return }
-	sd, _ := time.Parse("2006-01-02", req.StartDate)
+	// 用本地时区解析：time.Parse 会把「2026-09-25」解析成 UTC 零时，
+	// 后续 09:00 的执行锚点也就变成了 UTC 09:00（东八区实际是下午 5 点），
+	// 且西半球用户会整体偏移到前一天。
+	sd, err := time.ParseInLocation("2006-01-02", req.StartDate, time.Local)
+	if err != nil {
+		Bad(c, "开始日期格式不正确，应为 YYYY-MM-DD")
+		return
+	}
 	var ed time.Time
 	if req.EndDate != "" {
-		ed, _ = time.Parse("2006-01-02", req.EndDate)
+		ed, _ = time.ParseInLocation("2006-01-02", req.EndDate, time.Local)
 	}
 	r := models.Recurring{
 		UserID: uid, BookID: req.BookID, Name: req.Name,
@@ -584,8 +591,17 @@ func CreateRecurring(c *gin.Context) {
 		StartDate: sd, EndDate: ed, MaxTimes: req.MaxTimes,
 		Status: "active",
 	}
-	// 正确计算首次执行时间
-	r.NextRunAt = r.ComputeNextRun(sd.AddDate(0, 0, -1))
+	// 首次执行时间：不得早于 start_date。
+	// 此前用 ComputeNextRun(start_date - 1天) 兜底，导致 monthly 整月跳过起始月、
+	// yearly 被推到次年且偏一天、带间隔的 daily/biweekly 偏 N-1 天。
+	r.NextRunAt = r.ComputeFirstRun()
+	// 设置了结束时间且首期已晚于结束时间 → 直接置为暂停，避免产生越界流水
+	if !ed.IsZero() && r.NextRunAt.After(ed) {
+		r.Status = "paused"
+	}
+	if r.MaxTimes > 0 && r.RunCount >= r.MaxTimes {
+		r.Status = "paused"
+	}
 	database.DB.Create(&r)
 	Broadcast(c, "recurring", "create", r.ID)
 	Created(c, r)
@@ -639,10 +655,21 @@ func CreateInstallment(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var req dto.CreateInstallmentRequest
 	if err := c.ShouldBindJSON(&req); err != nil { Bad(c, err.Error()); return }
-	first, _ := time.Parse("2006-01-02", req.FirstRepayDate)
+	// 首次还款日必填且必须是合法日期：解析失败会拿到零值时间，
+	// 让 RunInstallmentRepayments 立刻判定「已到期」并生成一条日期为 0001-01-01 的还款流水。
+	first, err := time.ParseInLocation("2006-01-02", req.FirstRepayDate, time.Local)
+	if err != nil {
+		Bad(c, "首次还款日格式不正确，应为 YYYY-MM-DD")
+		return
+	}
 	total := models.FromYuan(req.TotalAmount) + models.FromYuan(req.InterestAmount)
-	// 月供 = (总额+利息)/期数，整数分四舍五入
-	monthlyAmt := models.Money((int64(total) + int64(req.TotalMonths)/2) / int64(req.TotalMonths))
+	// 月供：用户显式指定时以其为准；否则按 (总额+利息)/期数 均摊，整数分四舍五入。
+	monthlyAmt := models.FromYuan(req.MonthlyAmount)
+	if monthlyAmt <= 0 || req.TotalMonths <= 0 {
+		if req.TotalMonths > 0 {
+			monthlyAmt = models.Money((int64(total) + int64(req.TotalMonths)/2) / int64(req.TotalMonths))
+		}
+	}
 	ins := models.Installment{
 		UserID: uid, BookID: req.BookID, Name: req.Name,
 		TotalAmount: models.FromYuan(req.TotalAmount), TotalMonths: req.TotalMonths,
@@ -665,10 +692,27 @@ func DeleteInstallment(c *gin.Context) {
 }
 
 // ========== 报销 ==========
+
+// normalizeIDs 把 nil 的 ID 切片归一化为空数组。
+//
+// 背景：TransactionIDs 用 serializer:json 存库，nil 切片会写成 SQL NULL，
+// 读回来仍是 nil，JSON 序列化成 `null` 而不是 `[]`。前端直接取 `.length`
+// 就是 TypeError，报销列表整页白屏。存量数据同样需要兜底，因此在列表出口再归一一次。
+func normalizeIDs(ids []uint) []uint {
+	if ids == nil {
+		return []uint{}
+	}
+	return ids
+}
+
 func ListReimbursements(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var list []models.Reimbursement
 	applyBookScope(c, database.DB.Model(&models.Reimbursement{}), uid).Order("created_at DESC").Find(&list)
+	// 存量数据的 transaction_ids 可能是 NULL，出口统一兜底为空数组
+	for i := range list {
+		list[i].TransactionIDs = normalizeIDs(list[i].TransactionIDs)
+	}
 	OK(c, list)
 }
 func CreateReimbursement(c *gin.Context) {
@@ -678,7 +722,10 @@ func CreateReimbursement(c *gin.Context) {
 	r := models.Reimbursement{
 		UserID: uid, BookID: req.BookID, Name: req.Name,
 		TotalAmount: models.FromYuan(req.TotalAmount), Remark: req.Remark,
-		TransactionIDs: req.TransactionIDs, Status: "pending",
+		// 必须初始化为空数组而不是 nil：nil 切片经 serializer:json 落库为 NULL，
+		// 序列化回前端是 `transaction_ids: null`，列表页 `item.transaction_ids.length`
+		// 直接抛 TypeError，整页白屏。
+		TransactionIDs: normalizeIDs(req.TransactionIDs), Status: "pending",
 		SubmittedAt: time.Now(),
 	}
 	database.DB.Create(&r)
@@ -696,9 +743,24 @@ func UpdateReimbursement(c *gin.Context) {
 	c.ShouldBindUri(&reqUri)
 	var req dto.UpdateReimbursementRequest
 	if err := c.ShouldBindJSON(&req); err != nil { Bad(c, err.Error()); return }
-	r := database.DB.Model(&models.Reimbursement{}).Where("id = ? AND user_id = ?", reqUri.ID, uid)
+
+	// 先读原单：更新前的总额是「已收齐」金额兜底与幂等入账的依据，
+	// 也避免把不存在的 id 当成成功处理。
+	var old models.Reimbursement
+	if err := database.DB.Where("id = ? AND user_id = ?", reqUri.ID, uid).
+		First(&old).Error; err != nil {
+		NotFound(c, "报销单不存在")
+		return
+	}
+
+	received := models.FromYuan(req.ReceivedAmount)
+	// 「已收齐」但没填已收金额 → 按总额兜底。否则列表会显示「¥0 / ¥1000 · 已收齐」，
+	// 与真实入账金额自相矛盾。
+	if req.Status == "received" && received <= 0 {
+		received = old.TotalAmount
+	}
 	updates := map[string]interface{}{
-		"status": req.Status, "received_amount": models.FromYuan(req.ReceivedAmount), "remark": req.Remark,
+		"status": req.Status, "received_amount": received, "remark": req.Remark,
 	}
 	now := time.Now()
 	if !req.ReceivedDate.IsZero() {
@@ -707,17 +769,22 @@ func UpdateReimbursement(c *gin.Context) {
 	if req.Status == "received" {
 		updates["received_at"] = now
 	}
-	r.Updates(updates)
+	if err := database.DB.Model(&models.Reimbursement{}).
+		Where("id = ? AND user_id = ?", reqUri.ID, uid).Updates(updates).Error; err != nil {
+		InternalErr(c, "更新失败: "+err.Error())
+		return
+	}
 
 	// 更新相关交易状态 + 生成收款交易（B5）
 	var rm models.Reimbursement
 	database.DB.First(&rm, reqUri.ID)
+	rm.TransactionIDs = normalizeIDs(rm.TransactionIDs)
 	receivedTxID := uint(0)
 	if req.Status == "received" || req.Status == "partial" {
 		for _, tid := range rm.TransactionIDs {
 			database.DB.Model(&models.Transaction{}).Where("id = ?", tid).Update("reimburse_status", "done")
 		}
-		amount := models.FromYuan(req.ReceivedAmount)
+		amount := received
 		if amount <= 0 {
 			amount = rm.TotalAmount
 		}

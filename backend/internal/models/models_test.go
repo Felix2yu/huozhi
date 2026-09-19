@@ -323,18 +323,26 @@ func TestComputeNextRunMonthly(t *testing.T) {
 func TestComputeNextRunMonthlyClamp(t *testing.T) {
 	r := &Recurring{RecurringType: RecMonthly, MonthDay: 31}
 	from := time.Date(2026, 1, 31, 9, 0, 0, 0, time.UTC)
-	exp := time.Date(2026, 3, 31, 9, 0, 0, 0, time.UTC)
+	// 1/31 + 1 个月必须落在 2 月（收敛到 2/28），不能因 AddDate 归一化跳过整个 2 月。
+	// 旧实现返回 2026-03-31 —— 每月 31 号的周期在 1 月后会直接跳到 3 月。
+	exp := time.Date(2026, 2, 28, 9, 0, 0, 0, time.UTC)
 	if next := r.ComputeNextRun(from); !next.Equal(exp) {
-		t.Fatalf("monthly clamp mismatch: %v", next)
+		t.Fatalf("monthly clamp mismatch: got %v want %v", next, exp)
+	}
+	// 闰年 2 月应有 29 天
+	fromLeap := time.Date(2028, 1, 31, 9, 0, 0, 0, time.UTC)
+	expLeap := time.Date(2028, 2, 29, 9, 0, 0, 0, time.UTC)
+	if next := r.ComputeNextRun(fromLeap); !next.Equal(expLeap) {
+		t.Fatalf("monthly leap clamp mismatch: got %v want %v", next, expLeap)
 	}
 }
 
 func TestComputeNextRunMonthlyDefaultDay(t *testing.T) {
 	r := &Recurring{RecurringType: RecMonthly} // MonthDay 0 -> from.Day()
 	from := time.Date(2026, 1, 31, 9, 0, 0, 0, time.UTC)
-	exp := time.Date(2026, 3, 31, 9, 0, 0, 0, time.UTC)
+	exp := time.Date(2026, 2, 28, 9, 0, 0, 0, time.UTC)
 	if next := r.ComputeNextRun(from); !next.Equal(exp) {
-		t.Fatalf("monthly default day mismatch: %v", next)
+		t.Fatalf("monthly default day mismatch: got %v want %v", next, exp)
 	}
 }
 

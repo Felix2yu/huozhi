@@ -13,7 +13,7 @@
 	import { hzToast } from '$lib/components/ui/toast';
 	import { formatMoney, formatRelativeDate } from '$lib/utils/format';
 	import type { Recurring, RecurringType } from '$lib/types';
-	import { Plus, Repeat, Pencil, Trash2, Pause, Play } from '@lucide/svelte';
+	import { Plus, Repeat, Trash2, Pause, Play } from '@lucide/svelte';
 
 	let list = $state<Recurring[]>([]);
 	let loading = $state(true);
@@ -29,7 +29,43 @@
 	let recurringType = $state<RecurringType>('monthly');
 	let interval = $state('1');
 	let startDate = $state('');
+	// monthly 的「每月几号」与 weekly 的「星期几」此前根本没有表单项，
+	// 后端收到的恒为 0，只能退化成「按 start_date 的日期/星期」推算 ——
+	// 用户选了「每月」却无法指定几号，周期语义被静默改写。
+	let monthDay = $state('1');
+	let weekday = $state('1');
 	let saving = $state(false);
+
+	const TYPE_LABELS: Record<string, string> = {
+		daily: '每天',
+		weekly: '每周',
+		biweekly: '每两周',
+		monthly: '每月',
+		yearly: '每年',
+		custom: '自定义'
+	};
+	const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
+
+	/** 周期文案：每月 25 号 / 每周三 / 每 3 天 */
+	function describeCycle(item: Recurring): string {
+		const base = TYPE_LABELS[item.recurring_type] ?? item.recurring_type;
+		if (item.recurring_type === 'monthly' && item.month_day > 0) {
+			return `${base} ${item.month_day} 号`;
+		}
+		if (item.recurring_type === 'weekly' && item.weekday >= 1 && item.weekday <= 7) {
+			return `每周${WEEKDAYS[item.weekday - 1]}`;
+		}
+		if ((item.recurring_type === 'daily' || item.recurring_type === 'custom') && item.interval > 1) {
+			return `每 ${item.interval} 天`;
+		}
+		return base;
+	}
+
+	/** next_run_at 可能是 null（已达最大次数/已结束被自动暂停），直接格式化会得到 Invalid Date */
+	function nextRunLabel(v?: string | null): string {
+		if (!v || v.startsWith('0001')) return '已停止';
+		return formatRelativeDate(v);
+	}
 
 	async function loadData() {
 		loading = true;
@@ -50,6 +86,8 @@
 		description = '';
 		recurringType = 'monthly';
 		interval = '1';
+		monthDay = String(new Date().getDate());
+		weekday = String(((new Date().getDay() + 6) % 7) + 1); // JS 周日=0 → 业务口径 7
 		startDate = new Date().toISOString().split('T')[0];
 		showDialog = true;
 	}
@@ -75,7 +113,10 @@
 				account_id: accountId,
 				description: description.trim(),
 				recurring_type: recurringType,
-				interval: parseInt(interval),
+				interval: parseInt(interval) || 1,
+				// 只有对应周期类型才下发，避免给后端留下相互矛盾的排期参数
+				month_day: recurringType === 'monthly' ? parseInt(monthDay) : 0,
+				weekday: recurringType === 'weekly' ? parseInt(weekday) : 0,
 				start_date: startDate,
 				book_id: appStore.effectiveBookId()
 			});
@@ -147,7 +188,10 @@
 						<div class="flex-1 min-w-0">
 							<div class="font-medium truncate">{item.description || item.name}</div>
 							<div class="text-xs text-muted-foreground">
-								{item.recurring_type} · 下次 {formatRelativeDate(item.next_run_at)}
+								{describeCycle(item)} · 下次 {nextRunLabel(item.next_run_at)}
+								{#if item.max_times > 0}
+									· 已执行 {item.run_count}/{item.max_times} 次
+								{/if}
 							</div>
 						</div>
 						<div class="text-right flex items-center gap-1">
@@ -232,29 +276,58 @@
 			<Input bind:value={description} placeholder="可选" />
 		</div>
 
-		<div class="grid grid-cols-3 gap-4">
+		<div class="grid grid-cols-2 gap-4">
 			<div class="space-y-2">
 				<Label>周期</Label>
 				<select
 					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
 					bind:value={recurringType}
 				>
-					<option value="daily">每天</option>
-					<option value="weekly">每周</option>
-					<option value="biweekly">每两周</option>
-					<option value="monthly">每月</option>
-					<option value="yearly">每年</option>
+					{#each Object.entries(TYPE_LABELS) as [value, label]}
+						<option {value}>{label}</option>
+					{/each}
 				</select>
-			</div>
-			<div class="space-y-2">
-				<Label>间隔</Label>
-				<Input type="number" min={1} bind:value={interval} />
 			</div>
 			<div class="space-y-2">
 				<Label>开始日期</Label>
 				<Input type="date" bind:value={startDate} />
 			</div>
 		</div>
+
+		<!-- 每月几号 / 每周星期几：此前缺失，周期语义只能靠 start_date 反推 -->
+		{#if recurringType === 'monthly'}
+			<div class="space-y-2">
+				<Label>每月几号</Label>
+				<select
+					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+					bind:value={monthDay}
+				>
+					{#each Array.from({ length: 31 }, (_, i) => i + 1) as d}
+						<option value={String(d)}>每月 {d} 号</option>
+					{/each}
+				</select>
+				<p class="text-[11px] text-muted-foreground">
+					目标月不足该日期时自动收敛到当月最后一天（如 2 月 31 号 → 2 月 28/29 号）
+				</p>
+			</div>
+		{:else if recurringType === 'weekly'}
+			<div class="space-y-2">
+				<Label>每周星期几</Label>
+				<select
+					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+					bind:value={weekday}
+				>
+					{#each WEEKDAYS as w, i}
+						<option value={String(i + 1)}>每周{w}</option>
+					{/each}
+				</select>
+			</div>
+		{:else}
+			<div class="space-y-2">
+				<Label>间隔天数</Label>
+				<Input type="number" min={1} bind:value={interval} />
+			</div>
+		{/if}
 
 		<div class="flex gap-2 justify-end pt-2">
 			<Button variant="outline" onclick={() => (showDialog = false)}>取消</Button>

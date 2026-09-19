@@ -164,7 +164,9 @@
 						<div class="flex-1 min-w-0">
 							<div class="font-medium truncate">{item.name}</div>
 							<div class="text-xs text-muted-foreground">
-								共 {item.transaction_ids.length} 笔交易
+								<!-- transaction_ids 可能是 null（未关联交易的报销单），
+								     直接取 .length 会抛 TypeError 让整页白屏 -->
+								共 {item.transaction_ids?.length ?? 0} 笔交易
 								{#if item.remark}
 									· {item.remark}
 								{/if}

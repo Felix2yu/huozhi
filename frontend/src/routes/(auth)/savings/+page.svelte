@@ -215,8 +215,11 @@
 								</button>
 							</div>
 						</div>
+						<!-- target_amount 为 0 的脏数据会让进度变成 NaN，进度条直接画满 -->
 						<Progress
-							value={(plan.current_amount / plan.target_amount) * 100}
+							value={plan.target_amount > 0
+								? Math.min((plan.current_amount / plan.target_amount) * 100, 100)
+								: 0}
 						/>
 						<div class="flex items-center justify-between mt-2 text-sm">
 							<span class="font-semibold tabular-nums">
@@ -224,6 +227,18 @@
 							</span>
 							<span class="text-muted-foreground">
 								/ {formatMoney(plan.target_amount)}
+							</span>
+						</div>
+						<div class="flex items-center justify-between mt-2 pt-2 border-t text-xs text-muted-foreground">
+							<span>
+								还差 {formatMoney(Math.max(0, plan.target_amount - plan.current_amount))}
+							</span>
+							<span>
+								{#if plan.target_date && !plan.target_date.startsWith('0001')}
+									目标 {formatDate(plan.target_date, 'YYYY-MM-DD')}
+								{:else}
+									未设目标日期
+								{/if}
 							</span>
 						</div>
 					</CardContent>

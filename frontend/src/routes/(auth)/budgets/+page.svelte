@@ -51,6 +51,22 @@
 
 	const overBudgetCount = $derived(budgets.filter((b) => b.is_over_budget).length);
 
+	const PERIOD_LABELS: Record<string, string> = {
+		monthly: '月度',
+		yearly: '年度',
+		custom: '自定义'
+	};
+	/** 周期文案。此前只判断 monthly，custom 周期会被误标成「年度」 */
+	function periodLabel(p?: string): string {
+		return PERIOD_LABELS[p ?? ''] ?? '自定义';
+	}
+	/** 结束日期早于今天 → 该期已过期（滚动出的新一期会另起一条） */
+	function isExpired(b: BudgetView): boolean {
+		const end = (b.end_date || '').slice(0, 10);
+		if (!end) return false;
+		return end < new Date().toISOString().slice(0, 10);
+	}
+
 	function openNew() {
 		editingBudget = null;
 		categoryId = appStore.categories.expense[0]?.id || 0;
@@ -210,11 +226,16 @@
 									{appStore.categories.expense.find((c) => c.id === budget.category_id)?.name || '全部分类'}
 								</div>
 								<div class="text-xs text-muted-foreground">
-									{budget.period_type === 'monthly' ? '月度' : '年度'}预算
+									{periodLabel(budget.period_type)}预算
+									{#if isExpired(budget)}
+										· <span class="text-muted-foreground">已过期</span>
+									{/if}
 								</div>
 							</div>
 							<div class="flex items-center gap-1">
-								{#if budget.is_over_budget}
+								{#if isExpired(budget)}
+									<Badge variant="outline">已过期</Badge>
+								{:else if budget.is_over_budget}
 									<Badge variant="destructive">已超额</Badge>
 								{:else if budget.usage_rate >= budget.alert_rate}
 									<Badge variant="secondary">接近超限</Badge>

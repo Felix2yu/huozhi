@@ -52,13 +52,22 @@ func budgetPeriodRange(periodType string, anchor time.Time, monthStart int) (tim
 	}
 }
 
-// nextBudgetPeriod 返回紧接当前区间之后的同一长度区间（用于周期滚动）
-func nextBudgetPeriod(periodType string, start, end time.Time) (time.Time, time.Time) {
-	if periodType == "yearly" {
-		return start.AddDate(1, 0, 0), end.AddDate(1, 0, 0)
+// nextBudgetPeriod 返回紧接当前区间之后的同一长度区间（用于周期滚动）。
+//
+// monthStart 为用户的自定义账期起始日（1-28）。monthly / yearly 必须按日历边界重新推导，
+// 不能用「上期跨度天数」平移：9 月是 30 天，平移会让 10 月预算变成 10-01~10-31、
+// 11 月变成 10-31~11-30，逐月偏离账期首日（预算周期漂移）。
+//
+// 新区间的起点恒为上期终点（end 是开区间右端点），保证既不重叠也不断档；
+// 终点再按日历边界推导，从而把区间长度拉回正确的月/年长度。
+func nextBudgetPeriod(periodType string, start, end time.Time, monthStart int) (time.Time, time.Time) {
+	switch periodType {
+	case "yearly", "monthly":
+		_, ne := budgetPeriodRange(periodType, end, monthStart)
+		return end, ne
+	default: // custom：按实际跨度推进，保持用户自定义的区间长度
+		return end, end.AddDate(0, 0, int(end.Sub(start).Hours()/24))
 	}
-	// monthly / custom：按实际跨度推进，避免月末天数不同造成漂移
-	return end, end.AddDate(0, 0, int(end.Sub(start).Hours()/24))
 }
 
 // recalcBudgetUsed 用真实流水回填某条预算的 used_amount（B2）。
@@ -129,7 +138,7 @@ func RollBudgetsForward(now time.Time) int {
 
 	created := 0
 	for _, b := range list {
-		ns, ne := nextBudgetPeriod(b.PeriodType, b.StartDate, b.EndDate)
+		ns, ne := nextBudgetPeriod(b.PeriodType, b.StartDate, b.EndDate, userMonthStart(b.UserID))
 		// 幂等：该账本 + 该分类 + 完全相同区间已存在则跳过
 		var exist int64
 		database.DB.Model(&models.Budget{}).
@@ -158,6 +167,9 @@ func RollBudgetsForward(now time.Time) int {
 		if err := database.DB.Create(&nb).Error; err != nil {
 			continue
 		}
+		// 新期次若已跨入当前时间（服务停机后补滚），区间内可能已有支出，
+		// used_amount 必须按流水回填，否则新预算进度恒为 0。
+		recalcBudgetUsed(database.DB, &nb)
 		created++
 	}
 	return created

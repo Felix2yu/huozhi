@@ -50,14 +50,19 @@ export function formatDate(date: string | Date, fmt = 'YYYY-MM-DD'): string {
 	return dayjs(date).format(fmt);
 }
 
-/** 友好的日期标签: 今天/昨天/MM-DD */
+/** 友好的日期标签: 今天/昨天/明天/N天前/N天后/MM-DD */
 export function formatRelativeDate(date: string | Date): string {
 	const d = dayjs(date);
+	if (!d.isValid()) return '—';
 	const now = dayjs();
 	const diff = now.startOf('day').diff(d.startOf('day'), 'day');
 	if (diff === 0) return '今天';
 	if (diff === 1) return '昨天';
-	if (diff <= 7) return `${diff}天前`;
+	if (diff === -1) return '明天';
+	// 未来日期：周期记账的「下次执行」全部落在未来，
+	// 旧实现只处理过去，负差被原样拼成 "-6天前" 这种自相矛盾的文案。
+	if (diff < 0 && diff >= -7) return `${-diff}天后`;
+	if (diff > 0 && diff <= 7) return `${diff}天前`;
 	if (d.year() === now.year()) return d.format('MM-DD');
 	return d.format('YYYY-MM-DD');
 }

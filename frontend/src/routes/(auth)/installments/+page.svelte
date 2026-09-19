@@ -11,7 +11,7 @@
 	import { installmentApi } from '$lib/api/modules/installments';
 	import { appStore } from '$lib/stores/app';
 	import { hzToast } from '$lib/components/ui/toast';
-	import { formatMoney } from '$lib/utils/format';
+	import { formatMoney, formatDate } from '$lib/utils/format';
 	import type { Installment } from '$lib/types';
 	import { Plus, CreditCard, Trash2 } from '@lucide/svelte';
 
@@ -111,7 +111,10 @@
 
 <div class="space-y-4">
 	<div class="flex items-center justify-between">
-		<h2 class="text-sm font-medium">进行中的分期</h2>
+		<!-- 列表其实同时包含进行中与已结清（后端按 status 排序），标题此前写死「进行中的分期」并不准确 -->
+		<h2 class="text-sm font-medium">
+			分期（{list.filter((i) => i.status === 'active').length} 进行中 / {list.length} 总计）
+		</h2>
 		<Button size="sm" onclick={openNew}>
 			<Plus size={16} />
 			新增分期
@@ -149,7 +152,12 @@
 								</button>
 							</div>
 						</div>
-						<Progress value={(item.paid_months / item.total_months) * 100} />
+						<!-- total_months 理论上 >=1，但存量脏数据可能为 0，除零会让进度条变成 NaN -->
+						<Progress
+							value={item.total_months > 0
+								? Math.min((item.paid_months / item.total_months) * 100, 100)
+								: 0}
+						/>
 						<div class="flex items-center justify-between mt-2 text-sm">
 							<div>
 								<span class="font-semibold">{item.paid_months}/{item.total_months}</span>
@@ -158,6 +166,22 @@
 							<div class="font-semibold tabular-nums">
 								月供 {formatMoney(item.monthly_amount)}
 							</div>
+						</div>
+						<!-- 分期页此前只显示「已还/总期数 + 月供」，看不到总额、剩余与下次还款日 -->
+						<div class="flex items-center justify-between mt-2 pt-2 border-t text-xs text-muted-foreground">
+							<span>
+								剩余 {formatMoney(
+									Math.max(0, item.total_amount - item.monthly_amount * item.paid_months)
+								)}
+								/ {formatMoney(item.total_amount)}
+							</span>
+							<span>
+								{#if item.status === 'active' && item.next_repay_date}
+									下次 {formatDate(item.next_repay_date, 'YYYY-MM-DD')}
+								{:else}
+									已结清
+								{/if}
+							</span>
 						</div>
 					</CardContent>
 				</Card>
