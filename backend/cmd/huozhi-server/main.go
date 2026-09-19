@@ -84,6 +84,8 @@ func main() {
 		&models.Recurring{},
 		&models.Installment{},
 		&models.Reimbursement{},
+		&models.Loan{},
+		&models.LoanRepayment{},
 		&models.AssetSnapshot{},
 		&models.SyncLog{},
 		&models.ExchangeRate{},

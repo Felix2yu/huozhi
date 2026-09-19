@@ -30,7 +30,7 @@ func GenerateAutoBackup(userID uint) (string, error) {
 
 func generateAutoBackup(ctx context.Context, userID uint) (string, error) {
 	snap := backupSnapshot{Version: "2.0", ExportedAt: time.Now()}
-	for _, dest := range []any{&snap.Books, &snap.Accounts, &snap.Categories, &snap.Tags, &snap.Budgets, &snap.SavingPlans, &snap.SavingRecords, &snap.Recurrings, &snap.Installments, &snap.Reimbursements} {
+	for _, dest := range []any{&snap.Books, &snap.Accounts, &snap.Categories, &snap.Tags, &snap.Budgets, &snap.SavingPlans, &snap.SavingRecords, &snap.Recurrings, &snap.Installments, &snap.Reimbursements, &snap.Loans, &snap.LoanRepayments} {
 		if err := database.DB.WithContext(ctx).Where("user_id = ?", userID).Find(dest).Error; err != nil {
 			return "", fmt.Errorf("读取备份数据失败: %w", err)
 		}

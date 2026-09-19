@@ -183,6 +183,7 @@ const (
 	RelatedInstallmentRepay = "installment_repay"  // 分期每期还款
 	RelatedReimburseReceived = "reimburse_received" // 报销收款
 	RelatedSaving           = "saving"             // 存钱计划存入
+	RelatedLoan             = "loan"               // 借贷（借出/借入/还款）
 )
 
 // Transaction 交易记录
@@ -209,6 +210,10 @@ type Transaction struct {
 	RelatedType   string          `gorm:"size:30;default:''" json:"related_type"` // transfer_fee, installment_repay, reimburse_received, saving
 	ReimburseStatus string        `gorm:"size:20;default:none" json:"reimburse_status"` // none, pending, done
 	ReimburseAmount Money         `gorm:"default:0" json:"reimburse_amount"` // 报销金额（分）
+	// 报销收款归属的报销单（B5）。仅用于「同一张报销单只入账一次、补差额不重复」的幂等判定，
+	// 不参与任何级联删除。此前幂等键只按 (账本, 账户, 金额) 匹配，两张金额相同的报销单
+	// 只有第一张能生成收款交易，第二张的钱在资产里凭空消失。
+	ReimbursementID uint          `gorm:"default:0;index" json:"reimbursement_id"`
 	// 记账者（协作账本中记录是谁记的账）
 	RecordedBy    string          `gorm:"size:100" json:"recorded_by"`
 	// 账单标记（信用卡账单归属标记，如某笔消费归属的账单月份）
@@ -236,6 +241,8 @@ type Transaction struct {
 	// 分期
 	InstallmentIndex int         `gorm:"default:0" json:"installment_index"` // 第几期
 	InstallmentTotal int         `gorm:"default:0" json:"installment_total"`
+	// 借贷（借出/借入/还款由借贷模块统一生成并维护）
+	LoanID        uint           `gorm:"default:0;index" json:"loan_id"`
 	Remark         string          `gorm:"size:1000" json:"remark"`
 
 	// 只读派生字段（gorm:"-" 不落库），由服务端返回列表/详情前统一填充。
@@ -355,6 +362,29 @@ type Recurring struct {
 	Status        string        `gorm:"size:20;default:active" json:"status"`
 }
 
+// monthRunAt 在 from 的年月上推进 months 个月，把日号设为 day 并收敛到目标月的最后一天。
+//
+// 不能用 from.AddDate(0, n, 0) 推进月份：AddDate 会把「1月31日 + 1个月」归一化成
+// 3月3日（2月31日不存在），月末账单因此整月跳号（每月31号的周期在 1 月后会直接跳到 3 月）。
+func monthRunAt(from time.Time, months int, day int) time.Time {
+	loc := from.Location()
+	total := int(from.Month()) - 1 + months
+	y := from.Year() + total/12
+	m := time.Month(total%12 + 1)
+	if total < 0 {
+		y = from.Year() + (total-11)/12
+		m = time.Month((total%12+12)%12 + 1)
+	}
+	lastDay := time.Date(y, m+1, 0, 0, 0, 0, 0, loc).Day()
+	if day < 1 || day > 31 {
+		day = from.Day()
+	}
+	if day > lastDay {
+		day = lastDay
+	}
+	return time.Date(y, m, day, 9, 0, 0, 0, loc)
+}
+
 // ComputeNextRun 根据周期类型计算下一次执行时间（基于 from 时刻）
 func (r *Recurring) ComputeNextRun(from time.Time) time.Time {
 	if r == nil {
@@ -394,19 +424,12 @@ func (r *Recurring) ComputeNextRun(from time.Time) time.Time {
 		return from.AddDate(0, 0, 7*interval)
 
 	case RecMonthly:
-		day := r.MonthDay
-		if day < 1 || day > 31 {
-			day = from.Day()
-		}
-		nextMonth := from.AddDate(0, 1, 0)
-		lastDay := time.Date(nextMonth.Year(), nextMonth.Month()+1, 0, 0, 0, 0, 0, from.Location()).Day()
-		if day > lastDay {
-			day = lastDay
-		}
-		return time.Date(nextMonth.Year(), nextMonth.Month(), day, 9, 0, 0, 0, from.Location())
+		return monthRunAt(from, 1, r.MonthDay)
 
 	case RecYearly:
-		return time.Date(from.Year()+1, from.Month(), from.Day(), 9, 0, 0, 0, from.Location())
+		// 同样要把 2 月 29 日这类日期收敛到次年同月的最后一天，
+		// 否则 Go 的归一化会把它变成 3 月 1 日，周年周期逐年漂移。
+		return monthRunAt(from, 12, from.Day())
 
 	case RecCustom:
 		interval := r.Interval
@@ -416,6 +439,60 @@ func (r *Recurring) ComputeNextRun(from time.Time) time.Time {
 		return from.AddDate(0, 0, interval)
 	}
 	return from.AddDate(0, 0, 1)
+}
+
+// ComputeFirstRun 计算首次执行时间（创建周期任务时初始化 next_run_at 用）。
+//
+// 语义：首次执行不得早于 start_date。此前实现统一用 ComputeNextRun(start_date - 1天)，
+// 只对「每天 / 间隔 1」恰好成立，其余全部错位：
+//   - monthly：起始月被整月跳过（09-19 起始 + 每月 25 号 → 10-25，应为 09-25）；
+//   - yearly：被推到次年且偏 1 天（2026-09-19 → 2027-09-18）；
+//   - daily/biweekly/custom 间隔 N：偏 N-1 天。
+func (r *Recurring) ComputeFirstRun() time.Time {
+	if r == nil {
+		return time.Time{}
+	}
+	sd := r.StartDate
+	if sd.IsZero() {
+		sd = time.Now()
+	}
+	loc := sd.Location()
+	// start_date 只精确到日，规整到当日 00:00
+	base := time.Date(sd.Year(), sd.Month(), sd.Day(), 0, 0, 0, 0, loc)
+
+	switch r.RecurringType {
+	case RecMonthly:
+		day := r.MonthDay
+		if day < 1 || day > 31 {
+			// 未指定每月几号 → 以 start_date 的日期为准，首次即 start_date 当天
+			return base
+		}
+		if day >= base.Day() {
+			return monthRunAt(base, 0, day)
+		}
+		return monthRunAt(base, 1, day)
+
+	case RecWeekly:
+		target := r.Weekday
+		if target < 1 || target > 7 {
+			return base
+		}
+		fromWd := int(base.Weekday())
+		if fromWd == 0 {
+			fromWd = 7
+		}
+		diff := target - fromWd
+		if diff < 0 {
+			diff += 7
+		}
+		return base.AddDate(0, 0, diff).Add(9 * time.Hour)
+
+	case RecYearly:
+		return time.Date(base.Year(), base.Month(), base.Day(), 9, 0, 0, 0, loc)
+	}
+
+	// daily / biweekly / custom：首次执行即 start_date 当天
+	return base
 }
 
 // Installment 分期
@@ -453,6 +530,60 @@ type Reimbursement struct {
 	Remark        string    `gorm:"size:1000" json:"remark"`
 	// 关联交易
 	TransactionIDs []uint  `gorm:"serializer:json" json:"transaction_ids"`
+}
+
+// ==================== 借贷 ====================
+
+// LoanDirection 借贷方向
+type LoanDirection string
+
+const (
+	LoanLend   LoanDirection = "lend"   // 我借出（别人欠我）
+	LoanBorrow LoanDirection = "borrow" // 我借入（我欠别人）
+)
+
+// Loan 借贷台账（个人借贷：借给朋友 / 向朋友借）
+//
+// 财务口径：借贷通过 transfer 联动真实账户，保证净资产正确——
+//   - lend（借出）：钱从「资金账户」转出到系统「借出·应收」虚拟账户，现金减少、应收增加；
+//   - borrow（借入）：钱从系统「借款·应付」负债账户转入「资金账户」，现金增加、欠款增加。
+// 系统账户（应收 virtual / 应付 liability）余额天然代表当前净应收/应付，
+// 自动并入资产概览的总资产/总负债（account.go 按账户类型汇总），无需改统计逻辑。
+//
+// 派生字段（不落库）：剩余本金、是否逾期，由列表出口统一计算。
+type Loan struct {
+	BaseModel
+	UserID      uint          `gorm:"not null;index" json:"user_id"`
+	BookID      uint          `gorm:"not null;index" json:"book_id"`
+	Direction   LoanDirection `gorm:"size:10;not null;index" json:"direction"` // lend / borrow
+	Counterparty string       `gorm:"size:100;not null" json:"counterparty"`  // 对方姓名/备注
+	Principal   Money         `gorm:"not null" json:"principal"`               // 本金（分）
+	Currency    string        `gorm:"size:10;default:CNY" json:"currency"`
+	InterestRate float64      `gorm:"default:0" json:"interest_rate"`         // 年利率（%）
+	InterestType string        `gorm:"size:10;default:none" json:"interest_type"` // none / simple / compound
+	AccountID   uint          `gorm:"not null" json:"account_id"`             // 资金账户（借出时的出款账户 / 借入时的入账账户）
+	LoanDate    time.Time     `gorm:"not null" json:"loan_date"`              // 借款日
+	DueDate     time.Time     `json:"due_date"`                               // 到期日（可空）
+	Note        string        `gorm:"size:1000" json:"note"`
+	Status      string        `gorm:"size:20;default:active" json:"status"` // active / completed
+	RepaidPrincipal Money      `gorm:"default:0" json:"repaid_principal"`    // 已还本金（分）
+	RepaidInterest  Money      `gorm:"default:0" json:"repaid_interest"`     // 已还利息（分）
+	TransactionID   uint       `gorm:"default:0" json:"transaction_id"`      // 创建时生成的 transfer 交易
+}
+
+// LoanRepayment 还款记录
+type LoanRepayment struct {
+	BaseModel
+	UserID      uint      `gorm:"not null;index" json:"user_id"`
+	BookID      uint      `gorm:"not null;index" json:"book_id"`
+	LoanID      uint      `gorm:"not null;index" json:"loan_id"`
+	Amount      Money     `gorm:"not null" json:"amount"`   // 还本金（分）
+	InterestAmount Money   `gorm:"default:0" json:"interest_amount"` // 还利息（分）
+	RepayAccountID uint    `gorm:"not null" json:"repay_account_id"` // 收款/还款账户
+	RepaidAt    time.Time `gorm:"not null" json:"repaid_at"` // 还款日
+	Note        string    `gorm:"size:1000" json:"note"`
+	TransactionID uint     `gorm:"default:0" json:"transaction_id"`  // 本金 transfer 交易
+	InterestTxID  uint     `gorm:"default:0" json:"interest_tx_id"`  // 利息 income/expense 交易
 }
 
 // ==================== 资产快照 ====================

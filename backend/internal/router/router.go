@@ -231,6 +231,16 @@ func New(mode string, staticDir string) *gin.Engine {
 				reimbs.DELETE("/:id", handlers.DeleteReimbursement)
 			}
 
+			// 借贷
+			loans := auth.Group("/loans")
+			{
+				loans.GET("", handlers.ListLoans)
+				loans.POST("", handlers.CreateLoan)
+				loans.POST("/:id/repay", handlers.RepayLoan)
+				loans.PUT("/:id", handlers.UpdateLoan)
+				loans.DELETE("/:id", handlers.DeleteLoan)
+			}
+
 			// 导入导出
 			io := auth.Group("/io")
 			{

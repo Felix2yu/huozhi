@@ -11,6 +11,7 @@ export * from './savings';
 export * from './recurring';
 export * from './installments';
 export * from './reimbursements';
+export * from './loans';
 export * from './io';
 export * from './upload';
 export * from './ai';

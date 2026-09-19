@@ -351,7 +351,9 @@ export interface Recurring {
   max_times: number;
   run_count: number;
   status: 'active' | 'paused';
-  next_run_at: string;
+  // 达到最大次数 / 已过结束日期时后端会把 next_run_at 置为 NULL，
+  // 类型上必须允许 null，否则会得到 "Invalid Date"。
+  next_run_at: string | null;
   created_at: string;
 }
 export interface Installment {
@@ -382,6 +384,48 @@ export interface Reimbursement {
   submitted_at: string;
   received_at: string;
   remark: string;
-  transaction_ids: number[];
+  // 后端是 nil 切片时会序列化成 null（历史数据/未关联交易的报销单），
+  // 类型上必须允许 null，调用方一律用 `?? []` 兜底，否则 `.length` 直接抛 TypeError。
+  transaction_ids: number[] | null;
+  created_at: string;
+}
+
+export type LoanDirection = 'lend' | 'borrow';
+export type LoanStatus = 'active' | 'completed';
+export type LoanInterestType = 'none' | 'simple' | 'monthly';
+
+export interface Loan {
+  id: number;
+  user_id: number;
+  book_id: number;
+  direction: LoanDirection; // lend=借出（别人欠我），borrow=借入（我欠别人）
+  counterparty: string; // 对方姓名/备注
+  principal: number; // 本金（分）
+  currency: string;
+  interest_rate: number; // 年化/月利率，百分比数值
+  interest_type: LoanInterestType;
+  account_id: number; // 资金账户
+  loan_date: string;
+  due_date: string; // 可能为空
+  note: string;
+  status: LoanStatus;
+  repaid_principal: number; // 已还本金（分）
+  repaid_interest: number; // 已还利息（分）
+  transaction_id: number;
+  created_at: string;
+}
+
+export interface LoanRepayment {
+  id: number;
+  user_id: number;
+  book_id: number;
+  loan_id: number;
+  amount: number; // 本次还本金（分）
+  interest_amount: number; // 本次利息（分）
+  repay_account_id: number;
+  repaid_at: string;
+  note: string;
+  transaction_id: number;
+  interest_tx_id: number;
   created_at: string;
 }

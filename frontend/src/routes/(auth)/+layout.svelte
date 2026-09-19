@@ -36,7 +36,8 @@
 		ChevronDown,
 		Check,
 		MinusCircle,
-		Database
+		Database,
+		HandCoins
 	} from '@lucide/svelte';
 
 	let { children } = $props();
@@ -170,9 +171,10 @@
 			items: [
 				{ to: '/accounts', label: '账户资产', icon: Wallet },
 				{ to: '/cards', label: '我的银行卡', icon: CreditCard },
-				{ to: '/savings', label: '存钱计划', icon: TrendingUp },
-				{ to: '/installments', label: '分期管理', icon: CreditCard }
-			]
+			{ to: '/savings', label: '存钱计划', icon: TrendingUp },
+			{ to: '/installments', label: '分期管理', icon: CreditCard },
+			{ to: '/loans', label: '借贷管理', icon: HandCoins }
+		]
 		},
 		{
 			title: '规则',

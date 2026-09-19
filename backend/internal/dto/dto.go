@@ -507,6 +507,11 @@ type CreateInstallmentRequest struct {
 	TotalAmount    float64 `json:"total_amount" binding:"required,gt=0"`
 	TotalMonths    int    `json:"total_months" binding:"required,min=1"`
 	InterestAmount float64 `json:"interest_amount"`
+	// MonthlyAmount 用户手工指定的月供（元）。前端表单有「月供金额」输入框，
+	// 但此前 dto 里根本没有这个字段，用户填的值被静默丢弃、一律按
+	// (总额+利息)/期数 反算 —— 免息分期或手续费前置的场景月供被算错。
+	// 留空（<=0）时才由后端按总额均摊。
+	MonthlyAmount  float64 `json:"monthly_amount" binding:"omitempty,gte=0"`
 	CategoryID     uint   `json:"category_id" binding:"required"`
 	AccountID      uint   `json:"account_id" binding:"required"`
 	FirstRepayDate string `json:"first_repay_date" binding:"required"`
@@ -531,6 +536,36 @@ type UpdateReimbursementRequest struct {
 	// 否则钱在资产里凭空消失、净资产失真。
 	AccountID      uint    `json:"account_id"`
 	ReceivedDate   FlexDate `json:"received_date"`
+}
+
+// ====== 借贷 ======
+
+type CreateLoanRequest struct {
+	BookID       uint    `json:"book_id" binding:"required"`
+	Direction    string  `json:"direction" binding:"required,oneof=lend borrow"`
+	Counterparty string  `json:"counterparty" binding:"required,max=100"`
+	Principal    float64 `json:"principal" binding:"required,gt=0"`
+	Currency     string  `json:"currency"`
+	InterestRate float64 `json:"interest_rate"`
+	// InterestType 计息方式：none / simple / compound。留空按 none 处理。
+	InterestType string  `json:"interest_type"`
+	AccountID    uint    `json:"account_id" binding:"required"`
+	LoanDate     string  `json:"loan_date" binding:"required"`
+	DueDate      string  `json:"due_date"`
+	Note         string  `json:"note" binding:"omitempty,max=1000"`
+}
+
+type RepayLoanRequest struct {
+	Amount         float64 `json:"amount" binding:"required,gt=0"` // 还本金（元）
+	InterestAmount float64 `json:"interest_amount"`                // 还利息（元）
+	RepayAccountID uint    `json:"repay_account_id" binding:"required"`
+	RepaidAt       string  `json:"repaid_at" binding:"required"`
+	Note           string  `json:"note" binding:"omitempty,max=1000"`
+}
+
+type UpdateLoanRequest struct {
+	Status string `json:"status" binding:"required,oneof=active completed"`
+	Note   string `json:"note" binding:"omitempty,max=1000"`
 }
 
 // ====== 统计 ======

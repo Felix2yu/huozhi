@@ -42,66 +42,109 @@ func RunInstallmentRepayments(now time.Time) int {
 
 	generated := 0
 	for _, ins := range list {
-		// 幂等：该期次已有还款交易则跳过
-		var exist int64
-		database.DB.Model(&models.Transaction{}).
-			Where("installment_id = ? AND installment_index = ?", ins.ID, ins.PaidMonths+1).
-			Count(&exist)
-		if exist > 0 {
+		// 单笔分期一次补齐所有已到期期次。
+		//
+		// 旧实现每轮只生成一期，而调度器 6 小时才跑一次：服务停机几天、
+		// 或用户补录了一笔首次还款日在几个月前的分期，就要等上 N×6 小时才能追平，
+		// 期间「已还期数」长期落后于真实账单日。这里在同一轮内循环推进到不再欠期为止。
+		// 上限 total_months 防呆，避免脏数据（如 total_months 被改成 0）造成死循环。
+		maxRounds := ins.TotalMonths - ins.PaidMonths
+		if maxRounds <= 0 {
 			continue
 		}
-		db := database.DB.Begin()
-		var acc models.Account
-		if err := db.Where("id = ?", ins.AccountID).First(&acc).Error; err != nil {
-			db.Rollback()
-			continue
+		for round := 0; round < maxRounds; round++ {
+			if !generateInstallmentRepayment(today, ins.ID) {
+				break
+			}
+			generated++
+			// 重新读取最新进度，判断下一期是否也已到期
+			var cur models.Installment
+			if err := database.DB.First(&cur, ins.ID).Error; err != nil {
+				break
+			}
+			if cur.Status != "active" || cur.NextRepayDate.After(today) {
+				break
+			}
 		}
-		repayDate := ins.NextRepayDate
-		if repayDate.IsZero() {
-			repayDate = ins.FirstRepayDate
-		}
-		idx := ins.PaidMonths + 1
-		tx := models.Transaction{
-			UserID:           ins.UserID,
-			BookID:           ins.BookID,
-			Type:             models.TxExpense,
-			Amount:           ins.MonthlyAmount,
-			Currency:         acc.Currency,
-			CategoryID:       ins.CategoryID,
-			AccountID:        ins.AccountID,
-			TxDate:           repayDate,
-			Description:      "[分期] " + ins.Name,
-			InstallmentID:    ins.ID,
-			InstallmentIndex: idx,
-			InstallmentTotal: ins.TotalMonths,
-			RelatedType:      models.RelatedInstallmentRepay,
-			IncludeInBalance: true,
-			IncludeInBudget:  true,
-		}
-		if err := db.Create(&tx).Error; err != nil {
-			db.Rollback()
-			continue
-		}
-		updateAccountBalances(db, &tx, &acc, nil, true)
-		applyBudgetUsed(db, ins.UserID, ins.BookID, ins.CategoryID, tx.TxDate, tx.AmountInBase(), tx.Type, true, 1)
-
-		paidMonths := idx
-		nextRepay := repayDate.AddDate(0, 1, 0)
-		status := "active"
-		if paidMonths >= ins.TotalMonths {
-			status = "done"
-			nextRepay = repayDate
-		}
-		db.Model(&models.Installment{}).Where("id = ?", ins.ID).Updates(map[string]interface{}{
-			"paid_months":     paidMonths,
-			"next_repay_date": nextRepay,
-			"status":          status,
-		})
-		db.Commit()
-		generated++
-		log.Printf("[Cron] 分期还款已生成 installment_id=%d 第 %d/%d 期", ins.ID, idx, ins.TotalMonths)
 	}
 	return generated
+}
+
+// generateInstallmentRepayment 为指定分期生成一期还款交易并推进状态。
+// 返回 false 表示无需/无法生成（已结清、幂等命中、账户缺失等）。
+func generateInstallmentRepayment(today time.Time, installmentID uint) bool {
+	if database.DB == nil {
+		return false
+	}
+	var ins models.Installment
+	if err := database.DB.First(&ins, installmentID).Error; err != nil {
+		return false
+	}
+	if ins.Status != "active" || ins.NextRepayDate.After(today) {
+		return false
+	}
+	// 幂等：该期次已有还款交易则跳过
+	var exist int64
+	database.DB.Model(&models.Transaction{}).
+		Where("installment_id = ? AND installment_index = ?", ins.ID, ins.PaidMonths+1).
+		Count(&exist)
+	if exist > 0 {
+		return false
+	}
+	db := database.DB.Begin()
+	var acc models.Account
+	if err := db.Where("id = ?", ins.AccountID).First(&acc).Error; err != nil {
+		db.Rollback()
+		return false
+	}
+	repayDate := ins.NextRepayDate
+	if repayDate.IsZero() {
+		repayDate = ins.FirstRepayDate
+	}
+	if repayDate.IsZero() {
+		db.Rollback()
+		return false
+	}
+	idx := ins.PaidMonths + 1
+	tx := models.Transaction{
+		UserID:           ins.UserID,
+		BookID:           ins.BookID,
+		Type:             models.TxExpense,
+		Amount:           ins.MonthlyAmount,
+		Currency:         acc.Currency,
+		CategoryID:       ins.CategoryID,
+		AccountID:        ins.AccountID,
+		TxDate:           repayDate,
+		Description:      "[分期] " + ins.Name,
+		InstallmentID:    ins.ID,
+		InstallmentIndex: idx,
+		InstallmentTotal: ins.TotalMonths,
+		RelatedType:      models.RelatedInstallmentRepay,
+		IncludeInBalance: true,
+		IncludeInBudget:  true,
+	}
+	if err := db.Create(&tx).Error; err != nil {
+		db.Rollback()
+		return false
+	}
+	updateAccountBalances(db, &tx, &acc, nil, true)
+	applyBudgetUsed(db, ins.UserID, ins.BookID, ins.CategoryID, tx.TxDate, tx.AmountInBase(), tx.Type, true, 1)
+
+	paidMonths := idx
+	nextRepay := repayDate.AddDate(0, 1, 0)
+	status := "active"
+	if paidMonths >= ins.TotalMonths {
+		status = "done"
+		nextRepay = repayDate
+	}
+	db.Model(&models.Installment{}).Where("id = ?", ins.ID).Updates(map[string]interface{}{
+		"paid_months":     paidMonths,
+		"next_repay_date": nextRepay,
+		"status":          status,
+	})
+	db.Commit()
+	log.Printf("[Cron] 分期还款已生成 installment_id=%d 第 %d/%d 期", ins.ID, idx, ins.TotalMonths)
+	return true
 }
 
 // InstallmentRunner 分期还款调度器（每日一次）
@@ -119,6 +162,10 @@ func InstallmentRunner() {
 
 // payReimbursement 在报销状态变为 received/partial 时生成收款交易并增加账户余额。
 // 此前只把关联交易标成 done，钱在资产里凭空消失，净资产失真。
+//
+// 幂等口径：按「报销单已入账总额」判定，而不是「是否存在等额收款流水」。
+//  - 重复提交同一金额：已入账 >= 本次金额 → 直接跳过，不会重复加钱；
+//  - 部分到账后再收齐（300 → 500）：只补差额 200，不会因曾入过账而整笔丢失。
 func payReimbursement(db *gorm.DB, rm *models.Reimbursement, accountID uint, amount models.Money, when time.Time) (uint, bool) {
 	if amount <= 0 || accountID == 0 {
 		return 0, false
@@ -127,14 +174,18 @@ func payReimbursement(db *gorm.DB, rm *models.Reimbursement, accountID uint, amo
 	if err := db.Where("id = ?", accountID).First(&acc).Error; err != nil {
 		return 0, false
 	}
-	// 幂等：该报销单已生成过等额收款交易则跳过
-	var exist int64
+	// 该报销单此前已入账的金额（同一账户口径，避免跨账户串账）
+	var recorded float64
 	db.Model(&models.Transaction{}).
-		Where("related_type = ? AND book_id = ? AND account_id = ? AND amount = ?",
-			models.RelatedReimburseReceived, rm.BookID, accountID, amount).Count(&exist)
-	if exist > 0 {
+		Where("related_type = ? AND reimbursement_id = ? AND account_id = ?",
+			models.RelatedReimburseReceived, rm.ID, accountID).
+		Select("COALESCE(SUM(amount), 0)").Row().Scan(&recorded)
+	already := models.FromCents(recorded)
+	if amount <= already {
 		return 0, false
 	}
+	amount = amount - already
+
 	catID := ensureSystemCategory(db, rm.UserID, rm.BookID, "报销回款", models.KindIncome, "🧾")
 	tx := models.Transaction{
 		UserID:           rm.UserID,
@@ -144,6 +195,7 @@ func payReimbursement(db *gorm.DB, rm *models.Reimbursement, accountID uint, amo
 		Currency:         acc.Currency,
 		CategoryID:       catID,
 		AccountID:        accountID,
+		ReimbursementID:  rm.ID,
 		TxDate:           when,
 		Description:      "[报销] " + rm.Name,
 		RelatedType:      models.RelatedReimburseReceived,
@@ -343,6 +395,8 @@ type backupSnapshot struct {
 	Recurrings   []models.Recurring      `json:"recurrings"`
 	Installments []models.Installment    `json:"installments"`
 	Reimbursements []models.Reimbursement `json:"reimbursements"`
+	Loans        []models.Loan           `json:"loans"`
+	LoanRepayments []models.LoanRepayment `json:"loan_repayments"`
 }
 
 // ExportBackup GET /io/backup —— 导出当前用户全量数据（ZIP 快照，含图片）
@@ -360,6 +414,8 @@ func ExportBackup(c *gin.Context) {
 	database.DB.Where("user_id = ?", uid).Find(&snap.Recurrings)
 	database.DB.Where("user_id = ?", uid).Find(&snap.Installments)
 	database.DB.Where("user_id = ?", uid).Find(&snap.Reimbursements)
+	database.DB.Where("user_id = ?", uid).Find(&snap.Loans)
+	database.DB.Where("user_id = ?", uid).Find(&snap.LoanRepayments)
 
 	// 收集所有图片文件
 	type imageEntry struct {
@@ -621,6 +677,18 @@ func ImportBackup(c *gin.Context) {
 			counts["reimbursements"]++
 		}
 	}
+	for i := range snap.Loans {
+		snap.Loans[i].UserID = uid
+		if err := db.Create(&snap.Loans[i]).Error; err == nil {
+			counts["loans"]++
+		}
+	}
+	for i := range snap.LoanRepayments {
+		snap.LoanRepayments[i].UserID = uid
+		if err := db.Create(&snap.LoanRepayments[i]).Error; err == nil {
+			counts["loan_repayments"]++
+		}
+	}
 
 	if err := db.Commit().Error; err != nil {
 		InternalErr(c, "恢复失败: "+err.Error())
@@ -646,6 +714,8 @@ func purgeUserBusinessData(db *gorm.DB, uid uint) {
 	db.Unscoped().Where("user_id = ?", uid).Delete(&models.Recurring{})
 	db.Unscoped().Where("user_id = ?", uid).Delete(&models.Installment{})
 	db.Unscoped().Where("user_id = ?", uid).Delete(&models.Reimbursement{})
+	db.Unscoped().Where("user_id = ?", uid).Delete(&models.LoanRepayment{})
+	db.Unscoped().Where("user_id = ?", uid).Delete(&models.Loan{})
 	db.Unscoped().Where("user_id = ?", uid).Delete(&models.Tag{})
 	db.Unscoped().Where("user_id = ?", uid).Delete(&models.Account{})
 	db.Unscoped().Where("user_id = ?", uid).Delete(&models.AccountGroup{})
