@@ -1,0 +1,12 @@
+# pnpm 的设置集中在本文件。
+packages:
+  - "."
+
+# 工具链刻意跑在 TypeScript 7 上（check 脚本用 svelte-check --tsgo），
+# 而 kit / svelte-check / typescript-eslint 的 peer 范围还没跟到 7。
+# npm 时代靠 --legacy-peer-deps 无差别压掉所有 peer 检查；这里只放行确实知道的这两处，
+# 于是将来冒出新的 peer 冲突仍会在安装日志里显形。
+peerDependencyRules:
+  allowedVersions:
+    typescript: "^5 || ^6 || ^7"
+    svelte: ">=3 <6"

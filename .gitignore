@@ -10,6 +10,11 @@ backend/coverage.out
 
 # Node
 frontend/node_modules
+# 统一 pnpm：其他包管理器的锁文件不入库（双锁并存会误导本地操作）
+package-lock.json
+yarn.lock
+bun.lock
+bun.lockb
 frontend/dist
 frontend/.vite
 frontend/coverage/
