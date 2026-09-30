@@ -117,8 +117,8 @@ go run ./cmd/huozhi-server          # 监听 0.0.0.0:8080
 
 # 2) 前端
 cd ../frontend
-npm install
-npm run dev                         # 监听 http://localhost:5173（已代理 /api → :8080）
+pnpm install                        # 依赖用 pnpm，版本来自 package.json 的 packageManager
+pnpm run dev                        # 监听 http://localhost:5173（已代理 /api → :8080）
 
 # 访问 http://localhost:5173 即可
 ```
