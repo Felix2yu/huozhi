@@ -28,8 +28,7 @@ jobs:
       go-dir: backend
       test-packages: ./...
       web-dir: frontend
-      web-install-flags: --legacy-peer-deps
-      web-test-command: npm run test:coverage
+      web-test-command: pnpm run test:coverage
       frontend-coverage-file: frontend/coverage/cobertura-coverage.xml
 
   image:
@@ -46,7 +45,6 @@ jobs:
       # 纯 Go SQLite 驱动（glebarez/sqlite），无需 CGO，静态编译即可
       cgo: off
       web-dir: frontend
-      web-install-flags: --legacy-peer-deps
       frontend-stage-command: |
         mkdir -p dist
         cp -R frontend/build/. dist/
@@ -62,7 +60,6 @@ jobs:
       binary-name: huozhi-server
       cgo: off
       web-dir: frontend
-      web-install-flags: --legacy-peer-deps
       frontend-stage-command: |
         mkdir -p dist
         cp -R frontend/build/. dist/
