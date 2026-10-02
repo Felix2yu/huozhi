@@ -12,8 +12,8 @@ importers:
         specifier: ^3.12.4
         version: 3.12.4
       '@lucide/svelte':
-        specifier: ^1.47.0
-        version: 1.47.0(svelte@5.57.1(@typescript-eslint/types@8.70.1))
+        specifier: ^1.48.0
+        version: 1.48.0(svelte@5.57.1(@typescript-eslint/types@8.70.1))
       '@tanstack/svelte-virtual':
         specifier: ^3.13.39
         version: 3.13.39(svelte@5.57.1(@typescript-eslint/types@8.70.1))
@@ -815,8 +815,8 @@ packages:
   '@kurkle/color@0.3.4':
     resolution: {integrity: sha512-M5UknZPHRu3DEDWoipU6sE8PdkZ6Z/S+v4dD+Ke8IaNlpdSQah50lz1KtcFBa2vsdOnwbbnxJwVM4wty6udA5w==}
 
-  '@lucide/svelte@1.47.0':
-    resolution: {integrity: sha512-tpuE7JIK9FzYDWsJx6PxHj9ROyCpnDxZfvHu5q5yHGKS2CFNjzSyf1o9/Ypu2A27GLvkPGqZcIMrF6idM+eQZQ==}
+  '@lucide/svelte@1.48.0':
+    resolution: {integrity: sha512-bLimVDjehxu3fpu9XEUpqEkBk2sJAHAT2sVcLHhlM70EdNsXuj9ZnYENWv5xgw3+05h4i5TirAxTiTgnZZf8gw==}
     peerDependencies:
       svelte: ^5
 
@@ -2064,6 +2064,7 @@ packages:
   glob@11.1.0:
     resolution: {integrity: sha512-vuNwKSaKiqm7g0THUBu2x7ckSs3XJLXE+2ssL7/MfTGPLLcrJQ/4Uq1CjPTtO5cCIiRxqvN6Twy1qOwhL0Xjcw==}
     engines: {node: 20 || >=22}
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
     hasBin: true
 
   globals@16.5.0:
@@ -4231,7 +4232,7 @@ snapshots:
 
   '@kurkle/color@0.3.4': {}
 
-  '@lucide/svelte@1.47.0(svelte@5.57.1(@typescript-eslint/types@8.70.1))':
+  '@lucide/svelte@1.48.0(svelte@5.57.1(@typescript-eslint/types@8.70.1))':
     dependencies:
       svelte: 5.57.1(@typescript-eslint/types@8.70.1)
 
