@@ -91,14 +91,19 @@ func TestRepro_InstallmentCatchUp(t *testing.T) {
 		t.Fatalf("创建分期失败 %d %s", w.Code, w.Body.String())
 	}
 
-	n := handlers.RunInstallmentRepayments(time.Now())
-	t.Logf("本轮生成还款笔数=%d", n)
-	if n != 3 {
-		t.Errorf("逾期 3 期只生成 %d 笔，应为 3 笔（每轮只生成一期会导致进度长期落后）", n)
-	}
+	// RunInstallmentRepayments 扫描的是全库到期分期，返回值包含同包其他测试
+	// 残留的分期（单跑通过、全包跑失败的根源）。笔数必须按本分期 ID 统计。
+	handlers.RunInstallmentRepayments(time.Now())
 
 	var ins models.Installment
 	database.DB.Where("user_id = ? AND name = ?", uid, "补课分期").First(&ins)
+
+	var cnt int64
+	database.DB.Model(&models.Transaction{}).
+		Where("installment_id = ?", ins.ID).Count(&cnt)
+	if cnt != 3 {
+		t.Errorf("本分期生成还款 %d 笔，应为 3 笔（每轮只生成一期会导致进度长期落后）", cnt)
+	}
 	if ins.PaidMonths != 3 {
 		t.Errorf("已还期数=%d，应为 3", ins.PaidMonths)
 	}
@@ -106,8 +111,12 @@ func TestRepro_InstallmentCatchUp(t *testing.T) {
 		t.Errorf("状态=%s，6 期只还 3 期应仍为 active", ins.Status)
 	}
 	// 未到第 4 期，不应被继续生成
-	if n2 := handlers.RunInstallmentRepayments(time.Now()); n2 != 0 {
-		t.Errorf("重复执行又生成了 %d 笔，幂等失效", n2)
+	handlers.RunInstallmentRepayments(time.Now())
+	var cnt2 int64
+	database.DB.Model(&models.Transaction{}).
+		Where("installment_id = ?", ins.ID).Count(&cnt2)
+	if cnt2 != cnt {
+		t.Errorf("重复执行又生成了 %d 笔，幂等失效", cnt2-cnt)
 	}
 }
 
