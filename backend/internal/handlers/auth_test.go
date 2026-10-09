@@ -111,10 +111,13 @@ func TestGetMeUpdateMeChangePwd(t *testing.T) {
 }
 
 func TestGetMeNotFound(t *testing.T) {
+	// 改密码强制下线机制引入后，指向不存在用户的 token 在中间件就被判为
+	// 无效会话（401）——用户都注销了，会话自然不成立，比透传到 handler
+	// 返回 404 更准确。这里守住 401，确保没有绕过鉴权直接读到 handler。
 	tok, _ := generateTokenFor(999999)
 	w := do(authReq("GET", "/api/auth/me", tok, nil))
-	if w.Code != 404 {
-		t.Fatalf("expected 404 got %d", w.Code)
+	if w.Code != 401 {
+		t.Fatalf("expected 401 got %d", w.Code)
 	}
 }
 

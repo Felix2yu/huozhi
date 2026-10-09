@@ -1,5 +1,6 @@
 /** 全局应用状态 - Svelte 5 runes */
 import { http } from '$lib/api/http';
+import { privacyStore } from '$lib/stores/privacy';
 import type { User, Book, Category, Tag, Account } from '$lib/types';
 
 const BOOK_ID_KEY = 'hz_book_id';
@@ -52,6 +53,7 @@ function logout() {
 	isAuth = false;
 	books = [];
 	currentBookId = 0;
+	bookPrefApplied = false; // 下次登录重新应用默认账本偏好
 	if (typeof localStorage !== 'undefined') {
 		localStorage.removeItem(BOOK_ID_KEY);
 	}
@@ -62,6 +64,8 @@ async function checkAuth(): Promise<boolean> {
 	try {
 		const u = await http.get<User>('/auth/me');
 		user = u;
+		// 隐私模式以服务端为准（多设备间保持一致）
+		privacyStore.hydrate(u.hide_amounts);
 		return true;
 	} catch {
 		logout();
@@ -69,10 +73,27 @@ async function checkAuth(): Promise<boolean> {
 	}
 }
 
+// 默认账本偏好只在本次会话首次拉账本时生效，
+// 避免 WS 同步 / 清空数据后的 loadBooks 把用户中途切回偏好账本
+let bookPrefApplied = false;
+
 async function loadBooks(): Promise<void> {
 	try {
 		const list = await http.get<Book[]>('/books');
 		books = list;
+
+		// 打开应用优先落到用户偏好的默认账本（未设置 / 已归档则退回 Book.is_default）
+		const prefId = user?.default_book_id || 0;
+		if (!bookPrefApplied) {
+			bookPrefApplied = true;
+			const pref = prefId ? list.find((b) => b.id === prefId) : undefined;
+			if (pref) {
+				currentBookId = pref.id;
+				if (typeof localStorage !== 'undefined') {
+					localStorage.setItem(BOOK_ID_KEY, String(pref.id));
+				}
+			}
+		}
 
 		// 验证 currentBookId
 		if (

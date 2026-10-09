@@ -45,6 +45,17 @@ type User struct {
 	// 汇率设置。Currency 同时作为「基准货币」：外币流水按 exchange_rate 折算到它。
 	FxAutoRefresh  bool `gorm:"default:true" json:"fx_auto_refresh"` // 允许后台定时刷新汇率
 	FxRefreshHours int  `gorm:"default:12" json:"fx_refresh_hours"`  // 刷新间隔（小时），0 = 跟随服务端配置
+
+	// 打开应用时优先落到的账本。0 / NULL = 未指定，前端退回 Book.IsDefault。
+	// 它与 Book.IsDefault 是两件事：后者是「账本自身的默认标记」，这里是「我的启动偏好」。
+	DefaultBookID uint `gorm:"default:0" json:"default_book_id"`
+
+	// 隐私模式：全站金额以 •••• 遮蔽，点击临时显示。属显示偏好，不参与任何金额计算。
+	HideAmounts bool `gorm:"default:false" json:"hide_amounts"`
+
+	// 令牌版本号。改密码时 +1，旧版本 token 立即失效——否则改完密码，
+	// 已经泄露或在其它设备上的 token 依然有效，改密码形同虚设。
+	TokenVersion int `gorm:"default:0" json:"-"`
 }
 
 // ==================== 账本 ====================

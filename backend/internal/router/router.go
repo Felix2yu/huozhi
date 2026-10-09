@@ -84,6 +84,8 @@ func New(mode string, staticDir string) *gin.Engine {
 			auth.PUT("/auth/me", handlers.UpdateMe)
 			auth.POST("/auth/password", handlers.ChangePassword)
 			auth.POST("/auth/logout", handlers.Logout)
+			// 注销账号：删用户记录本身，与 /io/reset（清数据重建）是两回事
+			auth.DELETE("/auth/account", handlers.DeleteUserAccount)
 
 			// 附件上传（账单图片等）：存储到本地或 S3
 			auth.POST("/upload", handlers.UploadImage)

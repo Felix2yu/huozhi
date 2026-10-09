@@ -11,15 +11,22 @@ import (
 type Claims struct {
 	UserID   uint   `json:"uid"`
 	Username string `json:"username"`
+	// TokenVersion 随 User.TokenVersion 一起签进 token。
+	// 改密码时 User.TokenVersion+1，旧 token 的 tv 对不上即失效——
+	// 不需要维护黑名单，一次查库就能判定。
+	TokenVersion int `json:"tv"`
 	jwt.RegisteredClaims
 }
 
-func GenerateToken(userID uint, username string) (string, error) {
+// GenerateToken 签发 token。tokenVersion 必须取自 User.TokenVersion，
+// 传 0 只在测试里可接受：真实签发传错会让已登录用户被误踢。
+func GenerateToken(userID uint, username string, tokenVersion int) (string, error) {
 	cfg := config.AppConfig.JWT
 	now := time.Now()
 	claims := Claims{
-		UserID:   userID,
-		Username: username,
+		UserID:       userID,
+		Username:     username,
+		TokenVersion: tokenVersion,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(cfg.ExpireHours) * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(now),

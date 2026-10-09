@@ -28,7 +28,12 @@ func init() {
 }
 
 func TestJWTAuthBearer(t *testing.T) {
-	tok, _ := jwt.GenerateToken(7, "bob")
+	db := setupAuthDB(t)
+	u := models.User{Username: "bob", PasswordHash: "占位"}
+	if err := db.Create(&u).Error; err != nil {
+		t.Fatal(err)
+	}
+	tok, _ := jwt.GenerateToken(u.ID, u.Username, u.TokenVersion)
 	r := gin.New()
 	r.GET("/x", JWTAuth(), func(c *gin.Context) { c.JSON(200, gin.H{"uid": GetUID(c)}) })
 	req := httptest.NewRequest("GET", "/x", nil)
@@ -36,19 +41,64 @@ func TestJWTAuthBearer(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != 200 {
-		t.Fatalf("code %d", w.Code)
+		t.Fatalf("code %d, body %s", w.Code, w.Body.String())
 	}
 }
 
 func TestJWTAuthQuery(t *testing.T) {
-	tok, _ := jwt.GenerateToken(9, "carol")
+	db := setupAuthDB(t)
+	u := models.User{Username: "carol", PasswordHash: "占位"}
+	if err := db.Create(&u).Error; err != nil {
+		t.Fatal(err)
+	}
+	tok, _ := jwt.GenerateToken(u.ID, u.Username, u.TokenVersion)
 	r := gin.New()
 	r.GET("/x", JWTAuth(), func(c *gin.Context) { c.JSON(200, gin.H{"ok": 1}) })
 	req := httptest.NewRequest("GET", "/x?token="+tok, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != 200 {
-		t.Fatalf("code %d", w.Code)
+		t.Fatalf("code %d, body %s", w.Code, w.Body.String())
+	}
+}
+
+// 改密码 = TokenVersion+1，旧 token 必须立刻失效，否则「强制其它端下线」是假的。
+func TestJWTAuthRejectsStaleTokenVersion(t *testing.T) {
+	db := setupAuthDB(t)
+	u := models.User{Username: "dave", PasswordHash: "占位"}
+	if err := db.Create(&u).Error; err != nil {
+		t.Fatal(err)
+	}
+	stale, _ := jwt.GenerateToken(u.ID, u.Username, u.TokenVersion)
+
+	r := gin.New()
+	r.GET("/x", JWTAuth(), func(c *gin.Context) { c.JSON(200, gin.H{"ok": 1}) })
+	send := func(tok string) int {
+		req := httptest.NewRequest("GET", "/x", nil)
+		req.Header.Set("Authorization", "Bearer "+tok)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w.Code
+	}
+	if send(stale) != 200 {
+		t.Fatal("改密码前旧 token 应有效")
+	}
+
+	// 模拟 ChangePassword：版本 +1。
+	// 用显式变量而非 u.TokenVersion+1 —— GORM 的 Model(&u).Update 会把结果
+	// 回写进 u，继续拿它做 +1 会算出 DB 里不存在的版本号。
+	newVer := u.TokenVersion + 1
+	if err := db.Model(&u).Update("token_version", newVer).Error; err != nil {
+		t.Fatal(err)
+	}
+	if send(stale) != 401 {
+		t.Fatal("改密码后旧 token 应被拒")
+	}
+
+	// 当前设备拿新版本 token，应能通过
+	fresh, _ := jwt.GenerateToken(u.ID, u.Username, newVer)
+	if send(fresh) != 200 {
+		t.Fatal("新版本 token 应有效")
 	}
 }
 
@@ -201,11 +251,11 @@ func TestAPIKeyAndMCPAuth(t *testing.T) {
 	if err := db.Delete(&users[4]).Error; err != nil {
 		t.Fatal(err)
 	}
-	token, err := jwt.GenerateToken(users[1].ID, users[1].Username)
+	token, err := jwt.GenerateToken(users[1].ID, users[1].Username, users[1].TokenVersion)
 	if err != nil {
 		t.Fatal(err)
 	}
-	zeroToken, err := jwt.GenerateToken(0, "无用户")
+	zeroToken, err := jwt.GenerateToken(0, "无用户", 0)
 	if err != nil {
 		t.Fatal(err)
 	}

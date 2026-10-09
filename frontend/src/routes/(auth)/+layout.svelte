@@ -7,6 +7,7 @@
 	import Sheet from '$lib/components/ui/Sheet.svelte';
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import { appStore } from '$lib/stores/app';
+	import { privacyStore } from '$lib/stores/privacy';
 	import { hzToast } from '$lib/components/ui/toast';
 	import { http, replayQueue, subscribeQueue, queueCount } from '$lib/api/http';
 	import { accountApi, txApi } from '$lib/api/modules';
@@ -37,7 +38,9 @@
 		Check,
 		MinusCircle,
 		Database,
-		HandCoins
+		HandCoins,
+		Eye,
+		EyeOff
 	} from '@lucide/svelte';
 
 	let { children } = $props();
@@ -420,8 +423,16 @@
 				</Button>
 				<div class="flex items-center justify-between text-xs text-muted-foreground">
 					<div class="flex items-center gap-2 min-w-0">
-						<div class="w-7 h-7 rounded-full bg-primary/10 text-primary grid place-items-center font-semibold truncate">
-							{appStore.user?.nickname?.[0] || 'U'}
+						<div class="w-7 h-7 rounded-full bg-primary/10 text-primary grid place-items-center font-semibold truncate overflow-hidden shrink-0">
+							{#if appStore.user?.avatar}
+								<img
+									src={appStore.user.avatar}
+									alt=""
+									class="w-full h-full object-cover"
+								/>
+							{:else}
+								{appStore.user?.nickname?.[0] || 'U'}
+							{/if}
 						</div>
 						<div class="truncate">
 							<div class="text-foreground font-medium truncate text-sm">
@@ -432,6 +443,18 @@
 							</div>
 						</div>
 					</div>
+					<!-- 隐私模式快捷开关：未开启时点击进入遮蔽；已开启时点击临时显示/恢复 -->
+					<button
+						title={privacyStore.masked ? '显示金额' : '隐藏金额'}
+						class="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition"
+						onclick={() => privacyStore.toggle()}
+					>
+						{#if privacyStore.masked}
+							<EyeOff size={16} />
+						{:else}
+							<Eye size={16} />
+						{/if}
+					</button>
 					<button
 						title="退出登录"
 						class="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition"

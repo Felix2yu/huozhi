@@ -1,13 +1,17 @@
 package handlers
 
 import (
+	"encoding/json"
+	"fmt"
 	"huozhi/internal/database"
 	"huozhi/internal/dto"
 	"huozhi/internal/middleware"
 	"huozhi/internal/models"
 	"huozhi/pkg/auth"
 	"huozhi/pkg/jwt"
+	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -75,7 +79,7 @@ func Register(c *gin.Context) {
 	// 初始化默认账本和内置分类
 	initUserDefaults(&user)
 
-	token, err := jwt.GenerateToken(user.ID, user.Username)
+	token, err := jwt.GenerateToken(user.ID, user.Username, user.TokenVersion)
 	if err != nil {
 		InternalErr(c, "生成token失败")
 		return
@@ -220,7 +224,7 @@ func Login(c *gin.Context) {
 	// 更新登录时间
 	database.DB.Model(&user).Update("last_login_at", time.Now())
 
-	token, err := jwt.GenerateToken(user.ID, user.Username)
+	token, err := jwt.GenerateToken(user.ID, user.Username, user.TokenVersion)
 	if err != nil {
 		InternalErr(c, "生成token失败")
 		return
@@ -316,6 +320,24 @@ func UpdateMe(c *gin.Context) {
 		updates["auto_backup_keep_count"] = *req.AutoBackupKeepCount
 	}
 
+	// 启动偏好账本 / 隐私模式
+	if req.DefaultBookID != nil {
+		// 0 表示「清除偏好」：校验它确实属于当前用户，拒绝指向别人的账本。
+		if *req.DefaultBookID != 0 {
+			var n int64
+			database.DB.Model(&models.Book{}).
+				Where("id = ? AND user_id = ?", *req.DefaultBookID, uid).Count(&n)
+			if n == 0 {
+				Fail(c, 1020, "账本不存在")
+				return
+			}
+		}
+		updates["default_book_id"] = *req.DefaultBookID
+	}
+	if req.HideAmounts != nil {
+		updates["hide_amounts"] = *req.HideAmounts
+	}
+
 	if len(updates) > 0 {
 		if err := database.DB.Model(&models.User{}).Where("id = ?", uid).Updates(updates).Error; err != nil {
 			InternalErr(c, "更新失败: "+err.Error())
@@ -328,7 +350,11 @@ func UpdateMe(c *gin.Context) {
 	OK(c, user)
 }
 
-// ChangePassword 修改密码
+// ChangePassword 修改密码。
+//
+// 改完必须做两件事，否则这个功能是假的：
+//  1. TokenVersion+1 —— 其它设备 / 已泄露的旧 token 立即失效；
+//  2. 给当前这次请求签发新 token 返回 —— 否则改完密码自己也被踢下线。
 func ChangePassword(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var req dto.ChangePasswordRequest
@@ -349,8 +375,103 @@ func ChangePassword(c *gin.Context) {
 		InternalErr(c, "密码加密失败")
 		return
 	}
-	database.DB.Model(&user).Update("password_hash", hash)
-	OK(c, nil)
+
+	newVer := user.TokenVersion + 1
+	if err := database.DB.Model(&user).Updates(map[string]interface{}{
+		"password_hash":  hash,
+		"token_version":  newVer,
+	}).Error; err != nil {
+		InternalErr(c, "修改密码失败: "+err.Error())
+		return
+	}
+
+	token, err := jwt.GenerateToken(user.ID, user.Username, newVer)
+	if err != nil {
+		InternalErr(c, "生成token失败")
+		return
+	}
+
+	log.Printf("[Auth] 用户 %d 已修改密码，其它设备会话失效 (token_version -> %d)", uid, newVer)
+	OK(c, gin.H{"token": token})
+}
+
+// DeleteUserAccount 注销账号 —— DELETE /auth/account
+//
+// 注意与 handlers.DeleteAccount 区分：那个删的是「资产账户」（且只归档），
+// 这里删的是账号本身。函数名必须点明 user，否则下次就有人调错一个。
+//
+// 与 ClearUserData（清空数据后重建默认账本，账号还在）不同，这里是账号本身没了：
+// 业务数据全清 + 用户记录删除，不可恢复。
+//
+// 三重保护，理由与 ClearUserData 一致：
+//  1. 二次验证登录密码 —— 防止会话被偷用后一键销号；
+//  2. 必须显式传 confirm=DELETE_ACCOUNT —— 防止误触；
+//  3. 先落全量快照到 backups/ —— 万一后悔仍可人工捞回来。
+//
+// 只删自己的数据：共享账本里别人的数据按 user_id 与 book_id 两条路径区分，
+// purgeUserBusinessData 已处理（删本人 BookMember 记录 + 本人名下账本的成员关系）。
+func DeleteUserAccount(c *gin.Context) {
+	uid := middleware.GetUID(c)
+
+	var req struct {
+		Password string `json:"password" binding:"required"`
+		Confirm  string `json:"confirm" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		Bad(c, "请提供登录密码与确认字串")
+		return
+	}
+	if req.Confirm != "DELETE_ACCOUNT" {
+		Bad(c, "确认字串不正确，未执行任何操作")
+		return
+	}
+
+	var user models.User
+	if err := database.DB.Where("id = ?", uid).First(&user).Error; err != nil {
+		NotFound(c, "用户不存在")
+		return
+	}
+	if !auth.CheckPassword(req.Password, user.PasswordHash) {
+		Forbidden(c, "密码错误")
+		return
+	}
+
+	// 注销前落一份快照，与 ClearUserData 同一格式，便于人工恢复
+	snap := backupSnapshot{Version: "1.0", ExportedAt: time.Now()}
+	database.DB.Where("user_id = ?", uid).Find(&snap.Books)
+	database.DB.Where("user_id = ?", uid).Find(&snap.Accounts)
+	database.DB.Where("user_id = ?", uid).Find(&snap.Categories)
+	database.DB.Where("user_id = ?", uid).Find(&snap.Tags)
+	database.DB.Where("user_id = ?", uid).Find(&snap.Budgets)
+	database.DB.Preload("Tags").Where("user_id = ?", uid).Find(&snap.Transactions)
+	database.DB.Where("user_id = ?", uid).Find(&snap.SavingPlans)
+	database.DB.Where("user_id = ?", uid).Find(&snap.SavingRecords)
+	database.DB.Where("user_id = ?", uid).Find(&snap.Recurrings)
+	database.DB.Where("user_id = ?", uid).Find(&snap.Installments)
+	database.DB.Where("user_id = ?", uid).Find(&snap.Reimbursements)
+	if buf, err := json.Marshal(snap); err == nil {
+		_ = os.MkdirAll("backups", 0o755)
+		name := fmt.Sprintf("backups/pre-delete-account-%d-%s.json", uid, time.Now().Format("20060102-150405"))
+		if err := os.WriteFile(name, buf, 0o600); err == nil {
+			log.Printf("[Auth] 注销账号前快照已保存: %s", name)
+		}
+	}
+
+	db := database.DB.Begin()
+	purgeUserBusinessData(db, uid)
+	// 用户记录最后删；Unscoped 保证软删除的行也一并清掉
+	if err := db.Unscoped().Delete(&models.User{}, uid).Error; err != nil {
+		db.Rollback()
+		InternalErr(c, "注销失败: "+err.Error())
+		return
+	}
+	if err := db.Commit().Error; err != nil {
+		InternalErr(c, "注销失败: "+err.Error())
+		return
+	}
+
+	log.Printf("[Auth] 账号 %d(%s) 已注销", uid, user.Username)
+	OK(c, gin.H{"deleted": true})
 }
 
 // HealthCheck 健康检查

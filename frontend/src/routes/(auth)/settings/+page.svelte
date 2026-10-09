@@ -3,13 +3,17 @@
 	import Button from '$lib/components/ui/Button.svelte';
 	import Card from '$lib/components/ui/Card.svelte';
 	import CardContent from '$lib/components/ui/CardContent.svelte';
+	import Dialog from '$lib/components/ui/Dialog.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
 	import Label from '$lib/components/ui/Label.svelte';
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import { appStore } from '$lib/stores/app';
-	import { themeStore } from '$lib/stores/theme';
+	import { themeStore, fontSizeStore, type FontSize } from '$lib/stores/theme';
+	import { privacyStore } from '$lib/stores/privacy';
 	import { ratesStore } from '$lib/stores/rates.svelte';
 	import { authApi } from '$lib/api/modules/auth';
+	import { uploadApi } from '$lib/api/modules/upload';
+	import { ioApi } from '$lib/api/modules/io';
 	import { http } from '$lib/api/http';
 	import { hzToast } from '$lib/components/ui/toast';
 	import { CURRENCIES } from '$lib/types';
@@ -31,12 +35,19 @@
 		Heart,
 		Bot,
 		Coins,
-		RefreshCw
+		RefreshCw,
+		Camera,
+		Loader2,
+		Trash2,
+		BookOpen,
+		ChevronDown,
+		AlertTriangle
 	} from '@lucide/svelte';
 
 	let nickname = $state('');
 	let email = $state('');
 	let theme = $state(themeStore.value);
+	let fontSize = $state<FontSize>(fontSizeStore.value);
 	let loading = $state(false);
 
 	// B9：User 模型已有这些字段，后端 UpdateMe 也支持，但设置页此前完全没有入口
@@ -48,7 +59,6 @@
 	// 基准货币与汇率配置
 	let fxAutoRefresh = $state(true);
 	let fxRefreshHours = $state(12);
-	let fxSaving = $state(false);
 
 	// 修改密码
 	let showChangePwd = $state(false);
@@ -63,6 +73,169 @@
 	let showApiKey = $state(false);
 	let toggleLoading = $state(false);
 
+	// 头像上传
+	let avatarUploading = $state(false);
+	let avatarInput = $state<HTMLInputElement | null>(null);
+
+	// 默认账本（打开应用时优先进入的账本）
+	let defaultBookId = $state(0);
+
+	// 汇率明细默认收起，点标题展开
+	let showFxRows = $state(false);
+
+	// 注销账号（危险操作）
+	let showDeleteAcct = $state(false);
+	let delPwd = $state('');
+	let delConfirm = $state('');
+	let delLoading = $state(false);
+
+	// 清空全部数据（危险操作）
+	let clearing = $state(false);
+
+	// ===== 合并保存：所有表单字段统一进一个「未保存」条 =====
+	// 个人信息与汇率此前各有一个保存按钮，但提交的是同一个 /auth/me 接口的不同子集，
+	// 两处状态互相独立极易「改了没保存却看不到提示」。改为整页脏检测 + 底部保存条。
+	interface SettingsSnap {
+		nickname: string;
+		email: string;
+		monthStart: number;
+		currency: string;
+		timezone: string;
+		locale: string;
+		fxAutoRefresh: boolean;
+		fxRefreshHours: number;
+		defaultBookId: number;
+	}
+
+	function takeSnapshot(): SettingsSnap {
+		return {
+			nickname,
+			email,
+			monthStart,
+			currency,
+			timezone,
+			locale,
+			fxAutoRefresh,
+			fxRefreshHours,
+			defaultBookId
+		};
+	}
+
+	let savedSnap = $state<SettingsSnap | null>(null);
+	const dirty = $derived(
+		savedSnap !== null && JSON.stringify(takeSnapshot()) !== JSON.stringify(savedSnap)
+	);
+
+	function discardChanges() {
+		if (!savedSnap) return;
+		nickname = savedSnap.nickname;
+		email = savedSnap.email;
+		monthStart = savedSnap.monthStart;
+		currency = savedSnap.currency;
+		timezone = savedSnap.timezone;
+		locale = savedSnap.locale;
+		fxAutoRefresh = savedSnap.fxAutoRefresh;
+		fxRefreshHours = savedSnap.fxRefreshHours;
+		defaultBookId = savedSnap.defaultBookId;
+	}
+
+	// ===== 时区可搜索下拉 =====
+	const TZ_LIST: string[] = (() => {
+		try {
+			return (Intl as any).supportedValuesOf('timeZone') as string[];
+		} catch {
+			// 老浏览器不支持 supportedValuesOf 时退化为常用清单
+			return [
+				'Asia/Shanghai',
+				'Asia/Hong_Kong',
+				'Asia/Tokyo',
+				'Asia/Singapore',
+				'Asia/Seoul',
+				'Europe/London',
+				'Europe/Paris',
+				'America/New_York',
+				'America/Los_Angeles',
+				'UTC'
+			];
+		}
+	})();
+	let tzOpen = $state(false);
+	// 按当前输入过滤，最多展示 40 条，避免全量 400+ 时区撑爆 DOM
+	const tzOptions = $derived.by(() => {
+		const q = timezone.trim().toLowerCase();
+		const list = q ? TZ_LIST.filter((t) => t.toLowerCase().includes(q)) : TZ_LIST;
+		return list.slice(0, 40);
+	});
+
+	function tzOffset(tz: string): string {
+		try {
+			const part = new Intl.DateTimeFormat('en-US', {
+				timeZone: tz,
+				timeZoneName: 'longOffset'
+			})
+				.formatToParts(new Date())
+				.find((p) => p.type === 'timeZoneName');
+			// "GMT+08:00" → "UTC+08:00"，纯 UTC 显示 "GMT" → "UTC"
+			return (part?.value || 'GMT').replace('GMT', 'UTC');
+		} catch {
+			return '';
+		}
+	}
+
+	function pickTimezone(tz: string) {
+		timezone = tz;
+		tzOpen = false;
+	}
+
+	/**
+	 * 头像上传：走凭证图同一套 uploadApi（后端校验类型/大小），拿到 URL 后
+	 * 再写进 User.avatar。拆成两步是因为上传和存库是不同接口——
+	 * 直接 updateMe 传二进制会 400。
+	 */
+	async function handleAvatarFile(e: Event) {
+		const input = e.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = ''; // 允许连续选同一文件
+		if (!file) return;
+
+		if (!file.type.startsWith('image/')) {
+			hzToast.warning('请选择图片文件');
+			return;
+		}
+		avatarUploading = true;
+		try {
+			const { url } = await uploadApi.image(file);
+			const updated = await authApi.updateMe({ avatar: url });
+			if (appStore.user) {
+				appStore.setTokenAndAuth(http.getToken()!, {
+					...appStore.user,
+					...updated,
+					avatar: updated.avatar || url
+				});
+			}
+			hzToast.success('头像已更新');
+		} catch (err: any) {
+			hzToast.error(err.message || '上传失败');
+		} finally {
+			avatarUploading = false;
+		}
+	}
+
+	async function handleRemoveAvatar() {
+		avatarUploading = true;
+		try {
+			await authApi.updateMe({ avatar: '' });
+			if (appStore.user) {
+				appStore.setTokenAndAuth(http.getToken()!, { ...appStore.user, avatar: '' });
+			}
+			hzToast.success('已移除头像');
+		} catch (err: any) {
+			hzToast.error(err.message || '操作失败');
+		} finally {
+			avatarUploading = false;
+		}
+	}
+
 	onMount(async () => {
 		if (appStore.user) {
 			nickname = appStore.user.nickname;
@@ -73,7 +246,12 @@
 			locale = appStore.user.locale || 'zh-CN';
 			fxAutoRefresh = appStore.user.fx_auto_refresh !== false;
 			fxRefreshHours = appStore.user.fx_refresh_hours || 12;
+			defaultBookId = appStore.user.default_book_id || 0;
 		}
+		// 账本下拉的数据源（正常进设置页前 layout 已加载，这里兜底）
+		if (!appStore.books.length) await appStore.loadBooks();
+		// 记录初始快照，供整页脏检测使用
+		savedSnap = takeSnapshot();
 		// 汇率：进入设置页就确保有数据可展示（未过期直接复用缓存）
 		ratesStore.ensure(currency);
 		try {
@@ -97,30 +275,37 @@
 			.map((c) => ({ code: c, rate: ratesStore.rate(c) as number }))
 	);
 
-	async function handleSaveFx() {
-		fxSaving = true;
+	// 个人信息 / 汇率 / 默认账本 合并为一次保存——它们本就是同一个 /auth/me 的不同字段
+	async function handleSave() {
+		if (!savedSnap) return;
+		loading = true;
 		try {
+			const prevCurrency = savedSnap.currency;
 			const updated = await authApi.updateMe({
+				nickname,
+				email,
+				month_start: monthStart,
 				currency,
+				timezone,
+				locale,
 				fx_auto_refresh: fxAutoRefresh,
-				fx_refresh_hours: fxRefreshHours
+				fx_refresh_hours: fxRefreshHours,
+				default_book_id: defaultBookId
 			});
 			if (appStore.user) {
-				appStore.setTokenAndAuth(http.getToken()!, {
-					...appStore.user,
-					currency: updated.currency || currency,
-					fx_auto_refresh: updated.fx_auto_refresh,
-					fx_refresh_hours: updated.fx_refresh_hours
-				});
+				appStore.setTokenAndAuth(http.getToken()!, { ...appStore.user, ...updated });
 			}
 			// 基准货币可能已变：让汇率缓存失效并按新基准重新拉取
-			ratesStore.invalidate();
-			await ratesStore.ensure(updated.currency || currency, { force: true });
-			hzToast.success('汇率设置已保存');
+			if (currency !== prevCurrency) {
+				ratesStore.invalidate();
+				await ratesStore.ensure(currency, { force: true });
+			}
+			savedSnap = takeSnapshot();
+			hzToast.success('设置已保存');
 		} catch (e: any) {
 			hzToast.error(e.message || '保存失败');
 		} finally {
-			fxSaving = false;
+			loading = false;
 		}
 	}
 
@@ -251,8 +436,12 @@
 		}
 		pwdLoading = true;
 		try {
-			await authApi.changePwd({ old_password: oldPwd, new_password: newPwd });
-			hzToast.success('密码修改成功');
+			const res = await authApi.changePwd({ old_password: oldPwd, new_password: newPwd });
+			// 改密码会让其它端 token 立即失效，换上后端签发的新 token，避免当前设备被自己踢下线
+			if (res?.token && appStore.user) {
+				appStore.setTokenAndAuth(res.token, appStore.user);
+			}
+			hzToast.success('密码已修改，其它设备已退出登录');
 			showChangePwd = false;
 			oldPwd = '';
 			newPwd = '';
@@ -264,40 +453,59 @@
 		}
 	}
 
-	async function handleSaveProfile() {
-		loading = true;
+	// ===== 危险操作 =====
+	// 清空全部业务数据：账号保留，服务端先落安全快照（与 /data 页同一接口）
+	async function handleClearData() {
+		const ok = confirm(
+			'⚠️ 此操作非常危险，可能导致不可逆的数据丢失！\n\n' +
+				'将删除全部交易、账户、分类、标签、预算、周期、分期、报销、存钱计划数据。\n' +
+				'服务端会先保存一份安全快照，但恢复需要人工介入。\n\n' +
+				'确定继续？'
+		);
+		if (!ok) return;
+		const pwd = window.prompt('请输入登录密码以确认清空：');
+		if (!pwd) return;
+
+		clearing = true;
 		try {
-			await authApi.updateMe({
-				nickname,
-				email,
-				// B9：账期起始日 / 币种 / 时区 / 语言
-				month_start: monthStart,
-				currency,
-				timezone,
-				locale
-			});
-			if (appStore.user) {
-				appStore.setTokenAndAuth(http.getToken()!, {
-					...appStore.user,
-					nickname,
-					email,
-					month_start: monthStart,
-					currency,
-					timezone,
-					locale
-				});
-			}
-			hzToast.success('保存成功');
+			await ioApi.reset(pwd);
+			hzToast.success('已清空全部数据');
+			await appStore.loadBooks();
+			await appStore.loadDictionaries();
 		} catch (e: any) {
-			hzToast.error(e.message || '保存失败');
+			hzToast.error(e.message || '清空失败');
 		} finally {
-			loading = false;
+			clearing = false;
+		}
+	}
+
+	// 注销账号：连用户记录一起永久删除（服务端会先落全量快照），需密码 + 显式确认串
+	async function handleDeleteAccount() {
+		if (delConfirm !== 'DELETE_ACCOUNT') {
+			hzToast.warning('请输入 DELETE_ACCOUNT 以确认');
+			return;
+		}
+		delLoading = true;
+		try {
+			await authApi.deleteAccount({ password: delPwd, confirm: delConfirm });
+			appStore.logout();
+			hzToast.success('账号已注销');
+			goto('/login');
+		} catch (e: any) {
+			hzToast.error(e.message || '注销失败');
+		} finally {
+			delLoading = false;
 		}
 	}
 
 	function handleThemeChange(t: 'light' | 'dark' | 'system') {
 		theme = t;
 		themeStore.value = t;
+	}
+
+	function handleFontSizeChange(s: FontSize) {
+		fontSize = s;
+		fontSizeStore.value = s;
 	}
 
 	async function handleLogout() {
@@ -320,23 +528,75 @@
 		</div>
 		<Card>
 			<CardContent class="p-4 space-y-4">
-				<div class="flex items-center gap-3">
-					<div class="w-12 h-12 rounded-full bg-primary/10 text-primary grid place-items-center text-lg font-bold">
-						{appStore.user?.nickname?.[0] || 'U'}
+					<div class="flex items-center gap-3">
+						<button
+							type="button"
+							class="relative group w-16 h-16 rounded-full bg-primary/10 text-primary grid place-items-center text-xl font-bold overflow-hidden shrink-0"
+							onclick={() => avatarInput?.click()}
+							disabled={avatarUploading}
+							title="点击更换头像"
+						>
+							{#if appStore.user?.avatar}
+								<img
+									src={appStore.user.avatar}
+									alt="头像"
+									class="absolute inset-0 w-full h-full object-cover"
+								/>
+							{:else}
+								{appStore.user?.nickname?.[0] || 'U'}
+							{/if}
+							<span
+								class="absolute inset-0 bg-black/45 text-white opacity-0 group-hover:opacity-100 transition grid place-items-center"
+							>
+								{#if avatarUploading}
+									<Loader2 size={20} class="animate-spin" />
+								{:else}
+									<Camera size={20} />
+								{/if}
+							</span>
+						</button>
+						<div class="flex-1 min-w-0">
+							<div class="font-medium">{appStore.user?.username}</div>
+							<div class="text-xs text-muted-foreground">{appStore.user?.email || '未设置邮箱'}</div>
+							<div class="flex gap-3 mt-1.5">
+								<button
+									type="button"
+									class="text-xs text-primary hover:underline disabled:opacity-50"
+									disabled={avatarUploading}
+									onclick={() => avatarInput?.click()}
+								>
+									{avatarUploading ? '上传中…' : '更换头像'}
+								</button>
+								{#if appStore.user?.avatar}
+									<button
+										type="button"
+										class="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive disabled:opacity-50"
+										disabled={avatarUploading}
+										onclick={handleRemoveAvatar}
+									>
+										<Trash2 size={12} />
+										移除
+									</button>
+								{/if}
+							</div>
+						</div>
 					</div>
-					<div>
-						<div class="font-medium">{appStore.user?.username}</div>
-						<div class="text-xs text-muted-foreground">{appStore.user?.email || '未设置邮箱'}</div>
+					<!-- 隐藏的文件选择器：头像圆盘与「更换头像」都调它 click() -->
+					<input
+						bind:this={avatarInput}
+						type="file"
+						accept="image/*"
+						class="hidden"
+						onchange={handleAvatarFile}
+					/>
+					<div class="space-y-2">
+						<Label>昵称</Label>
+						<Input bind:value={nickname} />
 					</div>
-				</div>
-				<div class="space-y-2">
-					<Label>昵称</Label>
-					<Input bind:value={nickname} />
-				</div>
-				<div class="space-y-2">
-					<Label>邮箱</Label>
-					<Input type="email" bind:value={email} />
-				</div>
+					<div class="space-y-2">
+						<Label>邮箱</Label>
+						<Input type="email" bind:value={email} />
+					</div>
 
 				<!-- B9：账期起始日 —— 后端模型早已支持，此前无处配置。
 				     基准货币已移到下方「基准货币与汇率」专区（同一个 currency 字段，
@@ -357,7 +617,37 @@
 				<div class="grid grid-cols-2 gap-3">
 					<div class="space-y-2">
 						<Label>时区</Label>
-						<Input bind:value={timezone} placeholder="Asia/Shanghai" />
+						<!-- 可搜索下拉：直接绑 timezone 本身，既能点选也能继续手输自定义值 -->
+						<div class="relative">
+							<input
+								class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+								bind:value={timezone}
+								onfocus={() => (tzOpen = true)}
+								onblur={() => (tzOpen = false)}
+								placeholder="搜索时区，如 Shanghai"
+							/>
+							{#if tzOpen && tzOptions.length}
+								<ul
+									class="absolute left-0 right-0 top-full z-20 mt-1 max-h-52 overflow-y-auto rounded-md border bg-popover text-sm shadow-md"
+								>
+									{#each tzOptions as tz (tz)}
+										<li>
+											<!-- mousedown 先于 input 的 blur 触发，避免下拉先被收起导致点击落空 -->
+											<button
+												type="button"
+												class="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left hover:bg-accent"
+												onmousedown={() => pickTimezone(tz)}
+											>
+												<span class="truncate">{tz}</span>
+												<span class="shrink-0 text-[11px] text-muted-foreground">
+													{tzOffset(tz)}
+												</span>
+											</button>
+										</li>
+									{/each}
+								</ul>
+							{/if}
+						</div>
 					</div>
 					<div class="space-y-2">
 						<Label>语言</Label>
@@ -370,10 +660,33 @@
 						</select>
 					</div>
 				</div>
+			</CardContent>
+		</Card>
+	</section>
 
-				<Button onclick={handleSaveProfile} disabled={loading}>
-					{loading ? '保存中...' : '保存修改'}
-				</Button>
+	<!-- 默认账本 -->
+	<section>
+		<div class="flex items-center gap-2 mb-3">
+			<BookOpen size={16} />
+			<h2 class="text-sm font-medium">账本</h2>
+		</div>
+		<Card>
+			<CardContent class="p-4">
+				<div class="space-y-2">
+					<Label>默认账本</Label>
+					<select
+						class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+						bind:value={defaultBookId}
+					>
+						<option value={0}>跟随账本默认（不指定偏好）</option>
+						{#each appStore.books.filter((b) => !b.is_archived) as b (b.id)}
+							<option value={b.id}>{b.icon || '📘'} {b.name}</option>
+						{/each}
+					</select>
+					<p class="text-[11px] text-muted-foreground">
+						打开应用时优先进入该账本；未设置时使用账本自身的「默认」标记
+					</p>
+				</div>
 			</CardContent>
 		</Card>
 	</section>
@@ -452,21 +765,34 @@
 
 				{#if fxRows.length}
 					<div class="space-y-2">
-						<Label>当前汇率（1 外币 = ? {currency}）</Label>
-						<div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs tabular-nums max-h-48 overflow-y-auto">
-							{#each fxRows as row (row.code)}
-								<div class="flex justify-between border-b border-border/40 py-1">
-									<span class="text-muted-foreground">{row.code}</span>
-									<span>{row.rate.toFixed(4)}</span>
-								</div>
-							{/each}
-						</div>
+						<!-- 汇率明细默认收起：多数时候只看「更新时间 + 刷新」，长表格是次要信息 -->
+						<button
+							type="button"
+							class="flex items-center gap-1.5 text-sm font-medium"
+							onclick={() => (showFxRows = !showFxRows)}
+							aria-expanded={showFxRows}
+						>
+							<ChevronDown
+								size={14}
+								class="transition-transform {showFxRows ? '' : '-rotate-90'}"
+							/>
+							当前汇率（1 外币 = ? {currency}）
+							<span class="text-[11px] font-normal text-muted-foreground">{fxRows.length} 项</span>
+						</button>
+						{#if showFxRows}
+							<div
+								class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs tabular-nums max-h-48 overflow-y-auto"
+							>
+								{#each fxRows as row (row.code)}
+									<div class="flex justify-between border-b border-border/40 py-1">
+										<span class="text-muted-foreground">{row.code}</span>
+										<span>{row.rate.toFixed(4)}</span>
+									</div>
+								{/each}
+							</div>
+						{/if}
 					</div>
 				{/if}
-
-				<Button onclick={handleSaveFx} disabled={fxSaving}>
-					{fxSaving ? '保存中...' : '保存汇率设置'}
-				</Button>
 			</CardContent>
 		</Card>
 	</section>
@@ -475,10 +801,10 @@
 	<section>
 		<div class="flex items-center gap-2 mb-3">
 			<Palette size={16} />
-			<h2 class="text-sm font-medium">外观主题</h2>
+			<h2 class="text-sm font-medium">外观与字体</h2>
 		</div>
 		<Card>
-			<CardContent class="p-4">
+			<CardContent class="p-4 space-y-4">
 				<div class="grid grid-cols-3 gap-2">
 					<button
 						class="flex flex-col items-center gap-2 p-4 rounded-lg border transition"
@@ -504,6 +830,28 @@
 						<Monitor size={20} />
 						<span class="text-xs">跟随系统</span>
 					</button>
+				</div>
+
+				<div class="space-y-2">
+					<Label>字体大小</Label>
+					<div class="grid grid-cols-4 gap-2">
+						{#each Object.entries({ sm: '小', md: '标准', lg: '大', xl: '特大' }) as [key, label]}
+							<button
+								class="flex flex-col items-center gap-1.5 p-3 rounded-lg border transition"
+								class:border-primary={fontSize === key}
+								onclick={() => handleFontSizeChange(key as FontSize)}
+							>
+								<!-- 用各自档位的绝对像素预览，所见即所得 -->
+								<span
+									class="font-medium leading-none"
+									style="font-size: {key === 'sm' ? 13 : key === 'md' ? 15 : key === 'lg' ? 17 : 19}px"
+									>Aa</span
+								>
+								<span class="text-xs">{label}</span>
+							</button>
+						{/each}
+					</div>
+					<p class="text-[11px] text-muted-foreground">调整整个界面的文字与控件大小，仅影响当前设备</p>
 				</div>
 			</CardContent>
 		</Card>
@@ -546,7 +894,36 @@
 						<span>修改密码</span>
 						<span class="text-muted-foreground text-sm">→</span>
 					</button>
+					<p class="text-[11px] text-muted-foreground mt-2">
+						修改密码后，其它已登录设备会立即退出登录，需要重新输入新密码
+					</p>
 				{/if}
+
+				<!-- 隐私模式：即时生效的显示偏好，与主题/字号同级，不进「未保存」条 -->
+				<div class="flex items-center justify-between gap-3 border-t mt-4 pt-4">
+					<div class="min-w-0">
+						<div class="text-sm font-medium">隐藏金额（隐私模式）</div>
+						<div class="text-xs text-muted-foreground">
+							全站金额显示为 ••••，点击侧边栏眼睛可临时显示（刷新后恢复遮蔽）
+						</div>
+					</div>
+					<button
+						type="button"
+						role="switch"
+						aria-checked={privacyStore.hidden}
+						title={privacyStore.hidden ? '关闭隐私模式' : '开启隐私模式'}
+						class="relative h-6 w-11 shrink-0 rounded-full transition-colors {privacyStore.hidden
+							? 'bg-primary'
+							: 'bg-input'}"
+						onclick={() => privacyStore.set(!privacyStore.hidden)}
+					>
+						<span
+							class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-background shadow transition-transform {privacyStore.hidden
+								? 'translate-x-5'
+								: ''}"
+						></span>
+					</button>
+				</div>
 			</CardContent>
 		</Card>
 	</section>
@@ -727,6 +1104,75 @@
 		退出登录
 	</Button>
 
+	<!-- 危险操作 -->
+	<section>
+		<div class="flex items-center gap-2 mb-3 text-destructive">
+			<AlertTriangle size={16} />
+			<h2 class="text-sm font-medium">危险操作</h2>
+		</div>
+		<Card class="border-destructive/40">
+			<CardContent class="p-4 space-y-4">
+				<div class="flex items-start justify-between gap-3">
+					<div class="min-w-0">
+						<div class="text-sm font-medium">清空全部数据</div>
+						<div class="text-xs text-muted-foreground">
+							删除全部交易、账户、分类、预算等业务数据，账号保留。服务端会先落一份安全快照
+						</div>
+					</div>
+					<Button
+						size="sm"
+						variant="outline"
+						class="shrink-0 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+						disabled={clearing}
+						onclick={handleClearData}
+					>
+						{clearing ? '清空中…' : '清空数据'}
+					</Button>
+				</div>
+				<div class="flex items-start justify-between gap-3 border-t pt-4">
+					<div class="min-w-0">
+						<div class="text-sm font-medium">注销账号</div>
+						<div class="text-xs text-muted-foreground">
+							连同账号本身一并永久删除，删除前服务端会保存快照。不可恢复
+						</div>
+					</div>
+					<Button size="sm" variant="destructive" class="shrink-0" onclick={() => (showDeleteAcct = true)}>
+						注销账号
+					</Button>
+				</div>
+			</CardContent>
+		</Card>
+	</section>
+
+	<Dialog bind:open={showDeleteAcct}>
+		<div class="space-y-4">
+			<h3 class="text-sm font-medium text-destructive">注销账号</h3>
+			<p class="text-xs text-muted-foreground">
+				将永久删除账号及全部数据（账本、流水、账户、预算等）。删除前服务端会保存一份快照，
+				但恢复需要人工介入。此操作不可撤销。
+			</p>
+			<div class="space-y-2">
+				<Label>登录密码</Label>
+				<Input type="password" bind:value={delPwd} placeholder="请输入登录密码" />
+			</div>
+			<div class="space-y-2">
+				<Label>输入 DELETE_ACCOUNT 确认</Label>
+				<Input bind:value={delConfirm} placeholder="DELETE_ACCOUNT" class="font-mono" />
+			</div>
+			<div class="flex justify-end gap-2">
+				<Button size="sm" variant="outline" onclick={() => (showDeleteAcct = false)}>取消</Button>
+				<Button
+					size="sm"
+					variant="destructive"
+					disabled={delLoading || !delPwd || delConfirm !== 'DELETE_ACCOUNT'}
+					onclick={handleDeleteAccount}
+				>
+					{delLoading ? '注销中…' : '永久注销'}
+				</Button>
+			</div>
+		</div>
+	</Dialog>
+
 	<!-- 致谢 -->
 	<section>
 		<div class="flex items-center gap-2 mb-3 text-sm font-medium text-muted-foreground">
@@ -774,4 +1220,21 @@
 	<div class="text-center text-xs text-muted-foreground pt-4">
 		货殖 v0.1.0 · 简洁纯粹的记账本
 	</div>
+
+	<!-- 未保存提示：整页脏字段合并成一个保存条（替代原先分散的两个保存按钮） -->
+	{#if dirty}
+		<div class="sticky bottom-4 z-30">
+			<div
+				class="flex items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 shadow-lg"
+			>
+				<span class="text-sm text-muted-foreground">有未保存的修改</span>
+				<div class="flex gap-2">
+					<Button size="sm" variant="outline" onclick={discardChanges}>放弃修改</Button>
+					<Button size="sm" onclick={handleSave} disabled={loading}>
+						{loading ? '保存中…' : '保存全部修改'}
+					</Button>
+				</div>
+			</div>
+		</div>
+	{/if}
 </div>

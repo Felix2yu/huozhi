@@ -63,6 +63,11 @@ func uidFromJWT(c *gin.Context) uint {
 	if err != nil {
 		return 0
 	}
+	// 与 JWTAuth 同一道闸：改密码后旧 JWT 不能继续通过 MCP 读写账目，
+	// 否则「强制其它端下线」在 MCP 这条路径上是失效的。
+	if !tokenVersionMatches(claims.UserID, claims.TokenVersion) {
+		return 0
+	}
 	return claims.UserID
 }
 

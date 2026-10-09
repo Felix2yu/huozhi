@@ -13,7 +13,7 @@ func init() {
 }
 
 func TestGenerateAndParse(t *testing.T) {
-	tok, err := GenerateToken(42, "alice")
+	tok, err := GenerateToken(42, "alice", 7)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,6 +29,10 @@ func TestGenerateAndParse(t *testing.T) {
 	}
 	if claims.Issuer != "huozhi" {
 		t.Fatalf("issuer mismatch: %s", claims.Issuer)
+	}
+	// tv 必须原样带出，否则中间件拿它比对版本会恒等/恒不等
+	if claims.TokenVersion != 7 {
+		t.Fatalf("token version mismatch: %d", claims.TokenVersion)
 	}
 }
 

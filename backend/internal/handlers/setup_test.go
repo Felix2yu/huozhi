@@ -86,7 +86,7 @@ func newUser(t *testing.T) (uint, string) {
 	if err := database.DB.Create(&user).Error; err != nil {
 		t.Fatal(err)
 	}
-	tok, err := jwt.GenerateToken(user.ID, user.Username)
+	tok, err := jwt.GenerateToken(user.ID, user.Username, user.TokenVersion)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,10 @@ func randomSuffix() string {
 }
 
 func generateTokenFor(uid uint) (string, error) {
-	return jwt.GenerateToken(uid, "x")
+	// token_version 必须与库里一致，否则中间件判为过期会话
+	var ver int
+	_ = database.DB.Raw("SELECT token_version FROM users WHERE id = ?", uid).Row().Scan(&ver)
+	return jwt.GenerateToken(uid, "x", ver)
 }
 
 func itoa(u uint) string {

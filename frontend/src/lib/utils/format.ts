@@ -1,5 +1,9 @@
 import dayjs from 'dayjs';
 import { CURRENCIES } from '$lib/types';
+import { privacyStore } from '$lib/stores/privacy';
+
+/** 隐私模式下的金额遮蔽文案（长度固定，避免遮蔽后布局跳动） */
+const MONEY_MASK = '••••';
 
 /** 币种符号：CNY→¥、USD→$ … 未收录的币种直接回显代码，不要猜成 ¥ */
 export function currencySymbol(code?: string): string {
@@ -15,12 +19,13 @@ export function currencyLabel(code?: string): string {
 	return CURRENCIES.find((x) => x.code === c)?.label ?? c;
 }
 
-/** 金额格式化: 1234.56 → "¥1,234.56" */
+/** 金额格式化: 1234.56 → "¥1,234.56"（隐私模式下统一遮蔽为 ••••） */
 export function formatMoney(
 	amount: number,
 	currency = '¥',
 	showSign = false
 ): string {
+	if (privacyStore.masked) return MONEY_MASK;
 	if (!isFinite(amount)) return '—';
 	const sign = showSign && amount > 0 ? '+' : '';
 	const prefix = amount < 0 ? '-' : '';
@@ -32,8 +37,9 @@ export function formatMoney(
 	return `${sign}${prefix}${currency}${formatted}`;
 }
 
-/** 简洁金额: 大数用万/亿 */
+/** 简洁金额: 大数用万/亿（隐私模式下统一遮蔽为 ••••） */
 export function formatShortMoney(amount: number, currency = '¥'): string {
+	if (privacyStore.masked) return MONEY_MASK;
 	if (!isFinite(amount)) return '—';
 	const abs = Math.abs(amount);
 	if (abs >= 100000000) {

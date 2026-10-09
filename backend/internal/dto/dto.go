@@ -163,6 +163,12 @@ type UpdateUserRequest struct {
 	AutoBackupFrequency *string `json:"auto_backup_frequency" binding:"omitempty,oneof=daily weekly monthly"`
 	AutoBackupTime      *string `json:"auto_backup_time" binding:"omitempty,max=5"`
 	AutoBackupKeepCount *int    `json:"auto_backup_keep_count" binding:"omitempty,min=1,max=30"`
+
+	// 启动偏好账本。0 = 清除偏好（回落到 Book.IsDefault）。
+	// 用 uint 而非指针：0 本身就是有意义的「清除」指令，无需靠指针判空。
+	DefaultBookID *uint `json:"default_book_id" binding:"omitempty"`
+	// 隐私模式（金额遮蔽）。用指针：不传 = 不动，否则只改昵称的请求会把它关掉。
+	HideAmounts *bool `json:"hide_amounts" binding:"omitempty"`
 }
 
 type ChangePasswordRequest struct {

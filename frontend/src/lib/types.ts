@@ -34,6 +34,10 @@ export interface User {
   // 汇率设置（基准货币 = currency，外币流水按 exchange_rate 折算到它）
   fx_auto_refresh?: boolean;
   fx_refresh_hours?: number;
+  // 打开应用时优先落到的账本（0 = 未指定，退回 Book.is_default）
+  default_book_id?: number;
+  // 隐私模式：全站金额以 •••• 遮蔽，点击临时显示
+  hide_amounts?: boolean;
 }
 
 // ====== 汇率 ======

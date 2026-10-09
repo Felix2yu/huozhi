@@ -33,6 +33,13 @@
 						document.documentElement.classList.add('dark');
 					}
 				} catch (e) {}
+
+				// 界面字体大小：在首帧前改根字号，避免先默认后跳变
+				try {
+					const fsMap = { sm: '14px', md: '16px', lg: '18px', xl: '20px' };
+					const fs = localStorage.getItem('hz_font_size');
+					if (fs && fsMap[fs]) document.documentElement.style.fontSize = fsMap[fs];
+				} catch (e) {}
 			})();
 		</script>
 

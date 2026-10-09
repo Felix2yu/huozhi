@@ -9,6 +9,7 @@
 		ArcElement
 	} from 'chart.js';
 	import { baseOptions, PALETTE, useMounted, centsToYuan } from './chartSetup';
+	import { privacyStore } from '$lib/stores/privacy';
 
 	interface Item {
 		id: number;
@@ -50,11 +51,28 @@
 			]
 		};
 	});
+	// 隐私模式：悬浮提示的金额一并遮蔽（masked 变化时通过 {#key} 重建图表）
+	const masked = $derived(privacyStore.masked);
+
+	const options = $derived({
+		...baseOptions,
+		plugins: {
+			...baseOptions.plugins,
+			tooltip: {
+				enabled: true,
+				callbacks: {
+					label: (ctx: any) => (masked ? `${ctx.label}: ••••` : `${ctx.label}: ${ctx.parsed} 元`)
+				}
+			}
+		}
+	});
 </script>
 
 <div style={`height:${height}px`}>
 	{#if mounted && items.length > 0}
-		<Pie {data} options={baseOptions} />
+		{#key masked}
+			<Pie {data} {options} />
+		{/key}
 	{:else}
 		<div class="h-full grid place-items-center text-sm text-muted-foreground">
 			{items.length === 0 ? '暂无数据' : ''}
