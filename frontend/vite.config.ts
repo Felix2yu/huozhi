@@ -9,7 +9,16 @@ export default defineConfig({
 		sveltekit(),
 		VitePWA({
 			registerType: 'autoUpdate',
-			includeAssets: ['favicon.svg', 'icon-192.svg', 'icon-512.svg', 'robots.txt'],
+			includeAssets: [
+				'favicon.ico',
+				'favicon.svg',
+				'robots.txt',
+				'icon-192.png',
+				'icon-512.png',
+				'maskable-192.png',
+				'maskable-512.png',
+				'apple-touch-icon.png'
+			],
 			manifest: {
 				name: '货殖',
 				short_name: '货殖',
@@ -21,13 +30,16 @@ export default defineConfig({
 				lang: 'zh-CN',
 				scope: '/',
 				icons: [
-					{ src: '/icon-192.svg', sizes: '192x192', type: 'image/svg+xml', purpose: 'any maskable' },
-					{ src: '/icon-512.svg', sizes: '512x512', type: 'image/svg+xml', purpose: 'any maskable' }
+					{ src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+					{ src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+					{ src: '/maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+					{ src: '/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+					{ src: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png', purpose: 'any' }
 				]
 			},
 			workbox: {
 				// 使用默认 globDirectory（Vite outDir），adapter-static 会复制到 build/
-				globPatterns: ['**/*.{js,css,html,svg,json}'],
+				globPatterns: ['**/*.{js,css,html,svg,png,json}'],
 				runtimeCaching: [
 					// API 请求：NetworkFirst（在线优先，离线回退缓存）
 					{
