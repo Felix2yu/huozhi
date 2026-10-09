@@ -25,7 +25,10 @@
 		DatabaseZap,
 		Clock,
 		CalendarClock,
-		Save
+		Save,
+		CheckCircle2,
+		XCircle,
+		X
 	} from '@lucide/svelte';
 
 	// 备份 / 恢复
@@ -44,6 +47,32 @@
 	let importLoading = $state(false);
 	let importSource = $state<'qianji' | 'alipay' | 'wechat'>('qianji');
 
+	// 导入结果：持久化到 localStorage，切窗口错过 toast 后回到页面仍可查看
+	type ImportResult = {
+		ok: boolean;
+		time: string;
+		source: string;
+		created: number;
+		skipped: number;
+		total: number;
+		message?: string;
+	};
+	const IMPORT_RESULT_KEY = 'hz_import_result_v1';
+	const SOURCE_LABELS: Record<string, string> = {
+		qianji: '钱迹',
+		alipay: '支付宝',
+		wechat: '微信'
+	};
+	let importResult = $state<ImportResult | null>(null);
+
+	function persistImportResult(r: ImportResult | null) {
+		importResult = r;
+		try {
+			if (r) localStorage.setItem(IMPORT_RESULT_KEY, JSON.stringify(r));
+			else localStorage.removeItem(IMPORT_RESULT_KEY);
+		} catch {}
+	}
+
 	// 自动备份设置
 	let autoBackupEnabled = $state(false);
 	let autoBackupFrequency = $state<'daily' | 'weekly' | 'monthly'>('daily');
@@ -58,6 +87,12 @@
 
 	onMount(() => {
 		void loadAutoBackupList();
+		try {
+			const raw = localStorage.getItem(IMPORT_RESULT_KEY);
+			importResult = raw ? JSON.parse(raw) : null;
+		} catch {
+			importResult = null;
+		}
 	});
 
 	// 初始化自动备份设置（从用户信息加载）
@@ -249,16 +284,37 @@
 
 	async function doImport(file: File) {
 		importLoading = true;
+		const source = importSource;
+		const now = () => new Date().toLocaleString('zh-CN', { hour12: false });
+		const fail = (message: string) => {
+			persistImportResult({
+				ok: false,
+				time: now(),
+				source,
+				created: 0,
+				skipped: 0,
+				total: 0,
+				message
+			});
+			hzToast.error('导入失败', message);
+		};
 		try {
-			const res = await ioApi.import(importSource, appStore.effectiveBookId(), file);
-			if (res.ok) {
-				hzToast.success(`成功导入 ${res.count || 0} 笔交易`);
-				await appStore.loadDictionaries();
-			} else {
-				hzToast.error(res.message || '导入失败');
+			// 后端响应形如 { code, message, data: { created, skipped, total } }，
+			// 历史上误判不存在的 res.ok 字段，导致成功也被当成失败弹出红色 "ok"。
+			const res = await ioApi.import(source, appStore.effectiveBookId(), file);
+			if (res.code !== 0) {
+				fail(res.message || '导入失败');
+				return;
 			}
+			const d = res.data ?? {};
+			const created = d.created ?? 0;
+			const skipped = d.skipped ?? 0;
+			const total = d.total ?? 0;
+			persistImportResult({ ok: true, time: now(), source, created, skipped, total });
+			hzToast.success(`导入完成：新增 ${created} 条，跳过 ${skipped} 条`, `共解析 ${total} 条`);
+			await appStore.loadDictionaries();
 		} catch (e: any) {
-			hzToast.error(e.message || '导入失败');
+			fail(e?.message || '导入失败');
 		} finally {
 			importLoading = false;
 		}
@@ -469,6 +525,43 @@
 						<span class="text-sm text-muted-foreground">→</span>
 					</button>
 				</div>
+
+				{#if importResult}
+					<div
+						class="rounded-lg border p-3 text-xs {importResult.ok
+							? 'border-emerald-500/50 bg-emerald-500/5'
+							: 'border-destructive/40 bg-destructive/5'}"
+					>
+						<div class="flex items-center justify-between gap-2">
+							<span class="flex items-center gap-1.5 font-medium">
+								{#if importResult.ok}
+									<CheckCircle2 size={13} class="text-emerald-600" />
+									导入完成
+								{:else}
+									<XCircle size={13} class="text-destructive" />
+									导入失败
+								{/if}
+							</span>
+							<button
+								class="text-muted-foreground transition hover:text-foreground"
+								onclick={() => persistImportResult(null)}
+								aria-label="关闭导入结果"
+							>
+								<X size={13} />
+							</button>
+						</div>
+						<p class="mt-1 text-muted-foreground">
+							{#if importResult.ok}
+								新增 {importResult.created} 条 · 跳过 {importResult.skipped} 条 · 共解析
+								{importResult.total} 条 · 来源：{SOURCE_LABELS[importResult.source] ??
+									importResult.source}
+							{:else}
+								{importResult.message}
+							{/if}
+						</p>
+						<p class="mt-0.5 text-[11px] text-muted-foreground/70">{importResult.time}</p>
+					</div>
+				{/if}
 
 				<button
 					class="flex w-full items-center justify-between rounded-lg border p-3 text-sm text-muted-foreground transition hover:bg-accent"
