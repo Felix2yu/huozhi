@@ -1,8 +1,14 @@
 <script lang="ts">
 	import './app.css';
 	import ToastProvider from '$lib/components/ui/ToastProvider.svelte';
+	import { registerServiceWorker } from '$lib/pwa';
+	import { onMount } from 'svelte';
 
 	let { children } = $props();
+
+	onMount(() => {
+		registerServiceWorker();
+	});
 </script>
 
 <svelte:head>
