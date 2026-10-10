@@ -1,38 +1,79 @@
+# 由 Felix2yu/.github/preset/dependabot.yml 生成 —— 升级时整份覆盖
+# 设计理由见 Felix2yu/.github/docs/dependabot.md
+
 version: 2
 updates:
-  # 后端 Go 依赖
   - package-ecosystem: "gomod"
     directory: "/backend"
     schedule:
       interval: "weekly"
       day: "friday"
       time: "00:00"
-      timezone: "UTC"
+      timezone: "Asia/Shanghai"
+    # 默认只有 5，达到上限后会「静默停止」提新 PR 且不报错
     open-pull-requests-limit: 10
-  # 前端 npm 依赖
+    commit-message:
+      prefix: "build"
+      prefix-development: "chore"
+      include: "scope"
+    labels:
+      - "dependencies"
+    groups:
+      go-minor-patch:
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
+      go-major:
+        patterns: ["*"]
+        update-types: ["major"]
+
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
       interval: "weekly"
       day: "friday"
       time: "00:00"
-      timezone: "UTC"
+      timezone: "Asia/Shanghai"
+    # 默认只有 5，达到上限后会「静默停止」提新 PR 且不报错
     open-pull-requests-limit: 10
-  # Docker 基础镜像
+    commit-message:
+      prefix: "build"
+      prefix-development: "chore"
+      include: "scope"
+    labels:
+      - "dependencies"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
+      npm-major:
+        patterns: ["*"]
+        update-types: ["major"]
+
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "friday"
       time: "00:00"
-      timezone: "UTC"
-    open-pull-requests-limit: 10
-  # GitHub Actions 工作流
+      timezone: "Asia/Shanghai"
+    # 默认只有 5，达到上限后会「静默停止」提新 PR 且不报错
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "docker"
+
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "friday"
       time: "00:00"
-      timezone: "UTC"
-    open-pull-requests-limit: 10
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+    labels:
+      - "dependencies"
+      - "ci"
+
