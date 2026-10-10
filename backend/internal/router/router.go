@@ -5,6 +5,7 @@ import (
 	"huozhi/internal/handlers"
 	"huozhi/internal/mcp"
 	"huozhi/internal/middleware"
+	"huozhi/internal/web"
 	"huozhi/internal/ws"
 	"log"
 	"os"
@@ -272,14 +273,33 @@ func New(mode string, staticDir string) *gin.Engine {
 	// 内部实现见 internal/mcp，与 HTTP API 共用同一套业务核心层。
 	mountMCP(r)
 
-	// 前端静态托管（配置了 static_dir 时启用；未配置则仅提供 API，开发时由 vite dev server 承担）
-	if staticDir != "" {
+	// 前端静态托管。两个来源，前者优先：
+	//   1. static_dir 指向的磁盘目录——可不重新编译就替换前端，容器里换版本方便；
+	//   2. go:embed 内嵌产物（internal/web）——单二进制分发，镜像里不必再带一份前端。
+	// 都没有时才只提供 API（本地开发由 vite dev server 承担前端）。
+	switch {
+	case staticDir != "":
 		if info, err := os.Stat(staticDir); err == nil && info.IsDir() {
-			mountFrontend(r, staticDir)
+			mountFrontend(r, os.DirFS(staticDir))
+			log.Printf("[router] 前端托管: 磁盘目录 %s", staticDir)
 		} else {
-			log.Printf("[router] static_dir 不存在，跳过前端托管: %s", staticDir)
+			log.Printf("[router] static_dir 不可用，回退内嵌产物: %s", staticDir)
+			mountEmbeddedFrontend(r)
 		}
+	default:
+		mountEmbeddedFrontend(r)
 	}
 
 	return r
+}
+
+// mountEmbeddedFrontend 挂载 go:embed 内嵌的前端产物。
+// 未构建前端（dist 下只有 .gitkeep）时不挂载，后端保持纯 API。
+func mountEmbeddedFrontend(r *gin.Engine) {
+	if !web.HasBuild() {
+		log.Println("[router] 未内嵌前端产物（internal/web/dist 仅占位文件），仅提供 API")
+		return
+	}
+	mountFrontend(r, web.FS())
+	log.Println("[router] 前端托管: 内嵌产物（go:embed internal/web/dist）")
 }

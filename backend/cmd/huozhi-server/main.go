@@ -99,8 +99,9 @@ func main() {
 
 	// 启动HTTP服务
 	r := router.New(cfg.Server.Mode, cfg.Server.StaticDir)
+	// 前端来源由 router.New 打印：留空/目录不存在时用 go:embed 内嵌产物
 	if cfg.Server.StaticDir != "" {
-		log.Printf("前端静态托管目录: %s", cfg.Server.StaticDir)
+		log.Printf("前端静态托管目录（覆盖内嵌产物）: %s", cfg.Server.StaticDir)
 	}
 
 	srvAddr := ":" + cfg.Server.Port

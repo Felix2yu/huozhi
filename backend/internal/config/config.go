@@ -75,8 +75,10 @@ type ServerConfig struct {
 	Mode         string `yaml:"mode"` // debug, release
 	ReadTimeout  int    `yaml:"read_timeout"`
 	WriteTimeout int    `yaml:"write_timeout"`
-	// StaticDir 前端构建产物目录（SPA）。设置后由后端直接托管静态文件与路由回退，
-	// 无需前置 nginx；留空则仅提供 API（本地开发走 vite dev server）。
+	// StaticDir 前端构建产物目录（SPA）。设置后由后端直接托管该目录下的静态文件与
+	// 路由回退，无需前置 nginx；留空或目录不存在则回退到 go:embed 内嵌产物
+	// （internal/web/dist，构建时由 frontend/build 复制而来），实现单二进制分发。
+	// 两者都不可用时仅提供 API（本地开发走 vite dev server）。
 	StaticDir string `yaml:"static_dir"`
 }
 

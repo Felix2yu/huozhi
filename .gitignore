@@ -53,6 +53,11 @@ backend/backups/
 # WorkBuddy project data
 .workbuddy/
 
+# 前端内嵌产物（go:embed 到 backend/internal/web/dist）：
+# 只保留 .gitkeep 占位，保证未构建前端时 go build / go test 仍能编译通过
+backend/internal/web/dist/*
+!backend/internal/web/dist/.gitkeep
+
 # SvelteKit
 frontend/build/
 frontend/.svelte-kit/

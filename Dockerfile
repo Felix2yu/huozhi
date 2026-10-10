@@ -1,13 +1,15 @@
-# 「货殖」运行时镜像：二进制与前端产物均由 CI 预编译后拼装。
+# 「货殖」运行时镜像：二进制与前端产物均由 CI 预编译后拼装，
+# 前端经 go:embed 内嵌进二进制，镜像里不再单独放一份静态文件。
 #
 # 编译期依赖（node_modules、Go 工具链）全部留在 CI，不进镜像。
-# 前端产物不打进二进制，运行时由 HZ_STATIC_DIR 指向 /app/static。
 #
 # 容器内布局：
-#   /app/huozhi-server   服务二进制
+#   /app/huozhi-server   服务二进制（含内嵌前端）
 #   /app/config.yaml     配置文件（镜像内置，可用环境变量覆盖各项）
-#   /app/static/         前端构建产物
 #   /app/data/           唯一数据卷：SQLite 数据库、上传附件、JWT 密钥
+#
+# 需要「不重新编译就换前端」时，把产物目录挂进容器并用 HZ_STATIC_DIR 指过去，
+# 该目录存在即优先于内嵌产物。
 FROM alpine:3.24 AS runtime
 
 LABEL org.opencontainers.image.authors="huozhi"
@@ -15,8 +17,7 @@ LABEL description="Huozhi Personal Finance App (Go + SvelteKit 单进程)"
 
 ENV TZ=Asia/Shanghai \
     GIN_MODE=release \
-    HZ_UPLOAD_PATH=/app/data/uploads \
-    HZ_STATIC_DIR=/app/static
+    HZ_UPLOAD_PATH=/app/data/uploads
 
 # 单进程 Go 服务，前端静态文件由后端直接托管，无需 nginx
 RUN apk add --no-cache ca-certificates tzdata curl \
@@ -27,8 +28,6 @@ RUN apk add --no-cache ca-certificates tzdata curl \
 WORKDIR /app
 
 COPY --chmod=755 bin/huozhi-server /app/huozhi-server
-# 前端产物（SvelteKit adapter-static 输出到 build/）
-COPY dist /app/static
 
 # 后端配置（默认 sqlite，可通过环境变量切 postgres）
 COPY backend/config.example.yaml /app/config.yaml

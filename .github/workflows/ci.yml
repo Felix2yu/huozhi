@@ -29,6 +29,11 @@ jobs:
       test-packages: ./...
       web-dir: frontend
       web-test-command: pnpm run test:coverage
+      # internal/web 包带 //go:embed，产物缺失时包编译不过——
+      # 先把前端产物摆到内嵌位置，再跑 go vet / go test
+      frontend-stage-command: |
+        mkdir -p backend/internal/web/dist
+        cp -R frontend/build/. backend/internal/web/dist/
       frontend-coverage-file: frontend/coverage/cobertura-coverage.xml
 
   image:
@@ -45,9 +50,10 @@ jobs:
       # 纯 Go SQLite 驱动（glebarez/sqlite），无需 CGO，静态编译即可
       cgo: off
       web-dir: frontend
+      # 产物摆到 go:embed 位置后由 go build 内嵌，镜像里不再 COPY 一份前端
       frontend-stage-command: |
-        mkdir -p dist
-        cp -R frontend/build/. dist/
+        mkdir -p backend/internal/web/dist
+        cp -R frontend/build/. backend/internal/web/dist/
 
   release:
     if: github.event_name == 'release'
@@ -61,5 +67,5 @@ jobs:
       cgo: off
       web-dir: frontend
       frontend-stage-command: |
-        mkdir -p dist
-        cp -R frontend/build/. dist/
+        mkdir -p backend/internal/web/dist
+        cp -R frontend/build/. backend/internal/web/dist/
