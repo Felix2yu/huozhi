@@ -36,7 +36,7 @@ let mockCategories: { expense: any[]; income: any[]; system: any[] } = {
 	system: []
 };
 
-vi.mock('$lib/stores/app', () => ({
+vi.mock('#lib/stores/app', () => ({
 	appStore: {
 		get categories() {
 			return mockCategories;

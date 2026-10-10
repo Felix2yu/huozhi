@@ -1,5 +1,5 @@
 import { http } from '../http';
-import type { Recurring } from '$lib/types';
+import type { Recurring } from '#lib/types';
 
 export const recurringApi = {
 	list: () => http.get<Recurring[]>('/recurring'),

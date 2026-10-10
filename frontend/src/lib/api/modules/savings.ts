@@ -1,5 +1,5 @@
 import { http } from '../http';
-import type { SavingPlan } from '$lib/types';
+import type { SavingPlan } from '#lib/types';
 
 export const savingApi = {
 	list: () => http.get<SavingPlan[]>('/saving-plans'),

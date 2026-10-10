@@ -1,5 +1,5 @@
 import { http } from '../http';
-import type { Transaction, TransactionListData } from '$lib/types';
+import type { Transaction, TransactionListData } from '#lib/types';
 
 export const txApi = {
 	/**

@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
-import { CURRENCIES } from '$lib/types';
-import { privacyStore } from '$lib/stores/privacy';
+import { CURRENCIES } from '#lib/types';
+import { privacyStore } from '#lib/stores/privacy';
 
 /** 隐私模式下的金额遮蔽文案（长度固定，避免遮蔽后布局跳动） */
 const MONEY_MASK = '••••';

@@ -2,9 +2,12 @@
 packages:
   - "."
 
-# 工具链刻意跑在 TypeScript 7 上（check 脚本用 svelte-check --tsgo），
-# 而 kit / svelte-check / typescript-eslint 的 peer 范围还没跟到 7。
-# npm 时代靠 --legacy-peer-deps 无差别压掉所有 peer 检查；这里只放行确实知道的这两处，
+# 工具链刻意跑在 TypeScript 7 上（check 脚本用 svelte-check --tsgo，
+# @typescript/native 提供），而 kit 3 的 write_tsconfig 会 import('typescript')
+# 并调用 ts.readConfigFile —— TS7 只导出 default/version/versionMajorMinor，
+# 那个 API 已不存在，会直接让构建崩在 "Cannot read properties of undefined"。
+# 因此 typescript 本体钉在 6.x（kit 需要它的完整 API），TS7 只走 native 通道。
+# npm 时代靠 --legacy-peer-deps 无差别压掉所有 peer 检查；这里只放行确实知道的几处，
 # 于是将来冒出新的 peer 冲突仍会在安装日志里显形。
 peerDependencyRules:
   allowedVersions:

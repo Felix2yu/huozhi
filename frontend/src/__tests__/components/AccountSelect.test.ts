@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/svelte';
-import AccountSelect from '$lib/components/AccountSelect.svelte';
-import alipayLogo from '$lib/assets/bank-icons/alipay.svg?url';
-import icbcLogo from '$lib/assets/bank-icons/icbc.svg?url';
-import bocLogo from '$lib/assets/bank-icons/boc.svg?url';
+import AccountSelect from '#lib/components/AccountSelect.svelte';
+import alipayLogo from '#lib/assets/bank-icons/alipay.svg?url';
+import icbcLogo from '#lib/assets/bank-icons/icbc.svg?url';
+import bocLogo from '#lib/assets/bank-icons/boc.svg?url';
 
 const accounts = [
 	{ id: 1, name: '日常支付', bank_name: '支付宝', icon: 'legacy-icon', type: 'virtual' },
@@ -15,7 +15,7 @@ const accounts = [
 
 let mockAccounts = accounts;
 
-vi.mock('$lib/stores/app', () => ({
+vi.mock('#lib/stores/app', () => ({
 	appStore: {
 		get accounts() {
 			return mockAccounts;

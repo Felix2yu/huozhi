@@ -1,5 +1,5 @@
 import { http } from '../http';
-import type { Account, AccountSummary, CreditRepayItem } from '$lib/types';
+import type { Account, AccountSummary, CreditRepayItem } from '#lib/types';
 
 export const accountApi = {
 	list: (params?: any) =>

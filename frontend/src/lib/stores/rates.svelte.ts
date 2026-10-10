@@ -6,8 +6,8 @@
  *  2. 基准货币切换后需要一处统一失效，否则列表还在用旧基准币的汇率折算；
  *  3. 刷新节流必须集中，否则连续记账会触发上游限流。
  */
-import { fxApi } from '$lib/api/modules/exrate';
-import type { FxSnapshot } from '$lib/types';
+import { fxApi } from '#lib/api/modules/exrate';
+import type { FxSnapshot } from '#lib/types';
 
 let base = $state('CNY');
 let rates = $state<Record<string, number>>({});

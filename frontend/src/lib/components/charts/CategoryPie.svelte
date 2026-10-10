@@ -9,7 +9,7 @@
 		ArcElement
 	} from 'chart.js';
 	import { baseOptions, PALETTE, useMounted, centsToYuan } from './chartSetup';
-	import { privacyStore } from '$lib/stores/privacy';
+	import { privacyStore } from '#lib/stores/privacy';
 
 	interface Item {
 		id: number;

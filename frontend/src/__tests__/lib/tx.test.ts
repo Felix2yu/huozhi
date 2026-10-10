@@ -10,7 +10,7 @@ import {
 	highlightSegments,
 	firstGrapheme,
 	clampMoneyInput
-} from '$lib/utils/tx';
+} from '#lib/utils/tx';
 
 describe('statsBucket', () => {
 	it('收入类归入income', () => {

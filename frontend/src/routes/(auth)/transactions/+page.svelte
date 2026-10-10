@@ -3,19 +3,19 @@
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
 	import { createWindowVirtualizer } from '@tanstack/svelte-virtual';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Card from '$lib/components/ui/Card.svelte';
-	import Dialog from '$lib/components/ui/Dialog.svelte';
-	import Tabs from '$lib/components/ui/Tabs.svelte';
-	import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
-	import Input from '$lib/components/ui/Input.svelte';
-	import Label from '$lib/components/ui/Label.svelte';
-	import AccountSelect from '$lib/components/AccountSelect.svelte';
-	import { txApi } from '$lib/api/modules/transactions';
-	import { appStore } from '$lib/stores/app';
-	import { hzToast } from '$lib/components/ui/toast';
-	import { formatMoney, formatRelativeDate, currencySymbol } from '$lib/utils/format';
-	import { ratesStore } from '$lib/stores/rates.svelte';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Card from '#lib/components/ui/Card.svelte';
+	import Dialog from '#lib/components/ui/Dialog.svelte';
+	import Tabs from '#lib/components/ui/Tabs.svelte';
+	import TabsTrigger from '#lib/components/ui/TabsTrigger.svelte';
+	import Input from '#lib/components/ui/Input.svelte';
+	import Label from '#lib/components/ui/Label.svelte';
+	import AccountSelect from '#lib/components/AccountSelect.svelte';
+	import { txApi } from '#lib/api/modules/transactions';
+	import { appStore } from '#lib/stores/app';
+	import { hzToast } from '#lib/components/ui/toast';
+	import { formatMoney, formatRelativeDate, currencySymbol } from '#lib/utils/format';
+	import { ratesStore } from '#lib/stores/rates.svelte';
 	import {
 		amountDisplay,
 		baseAmount,
@@ -23,8 +23,8 @@
 		recomputeDaySubtotal,
 		toneClass,
 		typeLabel
-	} from '$lib/utils/tx';
-	import type { Category, DayGroup, Transaction, TransactionListData } from '$lib/types';
+	} from '#lib/utils/tx';
+	import type { Category, DayGroup, Transaction, TransactionListData } from '#lib/types';
 	import { Plus, Search, Filter, X, Trash2, CheckSquare, Loader2, Copy } from '@lucide/svelte';
 
 	type TabType = 'all' | 'expense' | 'income' | 'transfer';

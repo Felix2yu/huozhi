@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { type HTMLAttributes } from 'svelte/elements';
-	import { cn } from '$lib/utils/cn';
+	import { cn } from '#lib/utils/cn';
 	import { cva, type VariantProps } from 'class-variance-authority';
 
 	const variants = cva(

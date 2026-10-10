@@ -1,7 +1,7 @@
 /** 全局应用状态 - Svelte 5 runes */
-import { http } from '$lib/api/http';
-import { privacyStore } from '$lib/stores/privacy';
-import type { User, Book, Category, Tag, Account } from '$lib/types';
+import { http } from '#lib/api/http';
+import { privacyStore } from '#lib/stores/privacy';
+import type { User, Book, Category, Tag, Account } from '#lib/types';
 
 const BOOK_ID_KEY = 'hz_book_id';
 

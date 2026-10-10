@@ -13,7 +13,7 @@
 		Filler
 	} from 'chart.js';
 	import { baseOptions, INCOME_COLOR, EXPENSE_COLOR, useMounted, centsToYuan } from './chartSetup';
-	import { privacyStore } from '$lib/stores/privacy';
+	import { privacyStore } from '#lib/stores/privacy';
 
 	interface Point {
 		date: string;

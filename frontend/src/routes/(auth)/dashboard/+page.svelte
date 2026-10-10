@@ -1,15 +1,15 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Card from '$lib/components/ui/Card.svelte'
-import CardContent from '$lib/components/ui/CardContent.svelte'
-import CardHeader from '$lib/components/ui/CardHeader.svelte'
-import CardTitle from '$lib/components/ui/CardTitle.svelte';
-	import { appStore } from '$lib/stores/app';
-	import AccountIcon from '$lib/components/AccountIcon.svelte';
-	import { accountApi, txApi, statsApi } from '$lib/api/modules';
-	import { formatMoney, getMonthRange, formatRelativeDate } from '$lib/utils/format';
-	import type { CreditRepayItem, Transaction, AssetOverview, TransactionListData } from '$lib/types';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Card from '#lib/components/ui/Card.svelte'
+import CardContent from '#lib/components/ui/CardContent.svelte'
+import CardHeader from '#lib/components/ui/CardHeader.svelte'
+import CardTitle from '#lib/components/ui/CardTitle.svelte';
+	import { appStore } from '#lib/stores/app';
+	import AccountIcon from '#lib/components/AccountIcon.svelte';
+	import { accountApi, txApi, statsApi } from '#lib/api/modules';
+	import { formatMoney, getMonthRange, formatRelativeDate } from '#lib/utils/format';
+	import type { CreditRepayItem, Transaction, AssetOverview, TransactionListData } from '#lib/types';
 	import {
 		Wallet,
 		ArrowUpRight,

@@ -10,27 +10,27 @@
 	 * 并接入 AI 智能记账（A6）。
 	 */
 	import { goto } from '$app/navigation';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Input from '$lib/components/ui/Input.svelte';
-	import Card from '$lib/components/ui/Card.svelte';
-	import CardContent from '$lib/components/ui/CardContent.svelte';
-	import CardHeader from '$lib/components/ui/CardHeader.svelte';
-	import CardTitle from '$lib/components/ui/CardTitle.svelte';
-	import Tabs from '$lib/components/ui/Tabs.svelte';
-	import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
-	import Label from '$lib/components/ui/Label.svelte';
-	import Badge from '$lib/components/ui/Badge.svelte';
-	import AccountSelect from '$lib/components/AccountSelect.svelte';
-	import CategoryPicker from '$lib/components/CategoryPicker.svelte';
-	import { txApi } from '$lib/api/modules/transactions';
-	import { uploadApi } from '$lib/api/modules/upload';
-	import { appStore } from '$lib/stores/app';
-	import { hzToast } from '$lib/components/ui/toast';
-	import { aiApi } from '$lib/api/modules/ai';
-	import { formatDate, formatMoney, currencySymbol } from '$lib/utils/format';
-	import { clampMoneyInput } from '$lib/utils/tx';
-	import { ratesStore } from '$lib/stores/rates.svelte';
-	import { CURRENCIES } from '$lib/types';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Input from '#lib/components/ui/Input.svelte';
+	import Card from '#lib/components/ui/Card.svelte';
+	import CardContent from '#lib/components/ui/CardContent.svelte';
+	import CardHeader from '#lib/components/ui/CardHeader.svelte';
+	import CardTitle from '#lib/components/ui/CardTitle.svelte';
+	import Tabs from '#lib/components/ui/Tabs.svelte';
+	import TabsTrigger from '#lib/components/ui/TabsTrigger.svelte';
+	import Label from '#lib/components/ui/Label.svelte';
+	import Badge from '#lib/components/ui/Badge.svelte';
+	import AccountSelect from '#lib/components/AccountSelect.svelte';
+	import CategoryPicker from '#lib/components/CategoryPicker.svelte';
+	import { txApi } from '#lib/api/modules/transactions';
+	import { uploadApi } from '#lib/api/modules/upload';
+	import { appStore } from '#lib/stores/app';
+	import { hzToast } from '#lib/components/ui/toast';
+	import { aiApi } from '#lib/api/modules/ai';
+	import { formatDate, formatMoney, currencySymbol } from '#lib/utils/format';
+	import { clampMoneyInput } from '#lib/utils/tx';
+	import { ratesStore } from '#lib/stores/rates.svelte';
+	import { CURRENCIES } from '#lib/types';
 	import { onMount } from 'svelte';
 	import {
 		Sparkles, Save, X, ChevronDown, ChevronUp, ImagePlus, Trash2, Wand2, RefreshCw

@@ -6,18 +6,18 @@
 	 * 且「查看月度账单」用 window.open + document.write(JSON.stringify(data)) 裸显 JSON。
 	 * 现在挂在 设置 → 数据 下，并把月度账单渲染成可读、可打印的 HTML 账单。
 	 */
-	import Card from '$lib/components/ui/Card.svelte';
-	import CardContent from '$lib/components/ui/CardContent.svelte';
-	import CardHeader from '$lib/components/ui/CardHeader.svelte';
-	import CardTitle from '$lib/components/ui/CardTitle.svelte';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Input from '$lib/components/ui/Input.svelte';
-	import Badge from '$lib/components/ui/Badge.svelte';
-	import { ioApi } from '$lib/api/modules/io';
-	import { appStore } from '$lib/stores/app';
-	import { hzToast } from '$lib/components/ui/toast';
-	import { http } from '$lib/api/http';
-	import { formatMoney } from '$lib/utils/format';
+	import Card from '#lib/components/ui/Card.svelte';
+	import CardContent from '#lib/components/ui/CardContent.svelte';
+	import CardHeader from '#lib/components/ui/CardHeader.svelte';
+	import CardTitle from '#lib/components/ui/CardTitle.svelte';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Input from '#lib/components/ui/Input.svelte';
+	import Badge from '#lib/components/ui/Badge.svelte';
+	import { ioApi } from '#lib/api/modules/io';
+	import { appStore } from '#lib/stores/app';
+	import { hzToast } from '#lib/components/ui/toast';
+	import { http } from '#lib/api/http';
+	import { formatMoney } from '#lib/utils/format';
 	import dayjs from 'dayjs';
 	import { Download, FileText, Printer } from '@lucide/svelte';
 

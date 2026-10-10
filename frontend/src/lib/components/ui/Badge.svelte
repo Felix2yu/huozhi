@@ -1,5 +1,5 @@
 <script lang="ts">
-import { cn } from '$lib/utils/cn';
+import { cn } from '#lib/utils/cn';
 import { cva, type VariantProps } from 'class-variance-authority';
 
 const variants = cva(

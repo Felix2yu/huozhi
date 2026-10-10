@@ -6,7 +6,7 @@ import {
 	formatRelativeDate,
 	getMonthRange,
 	moneyColor
-} from '$lib/utils/format';
+} from '#lib/utils/format';
 
 describe('formatMoney', () => {
 	it('格式化正数金额', () => {

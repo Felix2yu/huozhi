@@ -8,7 +8,7 @@
  *
  * formatMoney / formatShortMoney 统一读 masked，实现全站金额遮蔽。
  */
-import { http } from '$lib/api/http';
+import { http } from '#lib/api/http';
 
 const KEY = 'hz_hide_amounts';
 

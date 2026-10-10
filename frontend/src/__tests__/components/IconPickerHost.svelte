@@ -3,7 +3,7 @@
 	 * 仅用于测试的宿主组件：用 `bind:value` 绑定 IconPicker，
 	 * 并把绑定值渲染出来，以验证「选择图标后能回传到父组件」。
 	 */
-	import IconPicker from '$lib/components/IconPicker.svelte';
+	import IconPicker from '#lib/components/IconPicker.svelte';
 
 	let {
 		bankName = '',

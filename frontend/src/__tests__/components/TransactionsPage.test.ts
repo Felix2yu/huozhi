@@ -54,7 +54,7 @@ const listFn = vi.fn(async () => ({
 const removeFn = vi.fn(async () => ({}));
 const batchRemoveFn = vi.fn(async () => ({ deleted_count: 2 }));
 
-vi.mock('$lib/stores/app', () => ({
+vi.mock('#lib/stores/app', () => ({
 	appStore: {
 		get categories() {
 			return {
@@ -83,7 +83,7 @@ vi.mock('$lib/stores/app', () => ({
 	}
 }));
 
-vi.mock('$lib/api/modules/transactions', () => ({
+vi.mock('#lib/api/modules/transactions', () => ({
 	txApi: {
 		list: listFn,
 		remove: removeFn,
@@ -91,7 +91,7 @@ vi.mock('$lib/api/modules/transactions', () => ({
 	}
 }));
 
-vi.mock('$lib/components/ui/toast', () => ({
+vi.mock('#lib/components/ui/toast', () => ({
 	hzToast: {
 		success: vi.fn(),
 		error: vi.fn(),
@@ -101,7 +101,7 @@ vi.mock('$lib/components/ui/toast', () => ({
 	}
 }));
 
-vi.mock('$lib/utils/tx', () => ({
+vi.mock('#lib/utils/tx', () => ({
 	amountDisplay: (tx: any) => ({
 		sign: tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : '',
 		abs: tx.amount / 100,
@@ -121,7 +121,7 @@ vi.mock('$lib/utils/tx', () => ({
 	typeLabel: (t: string) => ({ income: '收入', expense: '支出', transfer: '转账', refund: '退款', reimburse: '报销', adjust: '余额调整' }[t] || t)
 }));
 
-vi.mock('$lib/utils/format', () => ({
+vi.mock('#lib/utils/format', () => ({
 	formatMoney: (v: number) => `¥${v}`,
 	formatRelativeDate: () => '今天'
 }));

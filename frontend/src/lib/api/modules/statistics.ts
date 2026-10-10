@@ -3,7 +3,7 @@ import type {
 	StatisticsData,
 	AssetOverview,
 	AssetPoint
-} from '$lib/types';
+} from '#lib/types';
 
 export const statsApi = {
 	overview: (params: any) =>

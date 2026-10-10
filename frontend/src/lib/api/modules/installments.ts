@@ -1,5 +1,5 @@
 import { http } from '../http';
-import type { Installment } from '$lib/types';
+import type { Installment } from '#lib/types';
 
 export const installmentApi = {
 	list: () => http.get<Installment[]>('/installments'),

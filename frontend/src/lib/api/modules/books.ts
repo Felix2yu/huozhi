@@ -1,5 +1,5 @@
 import { http } from '../http';
-import type { Book } from '$lib/types';
+import type { Book } from '#lib/types';
 
 export const bookApi = {
 	list: () => http.get<Book[]>('/books'),

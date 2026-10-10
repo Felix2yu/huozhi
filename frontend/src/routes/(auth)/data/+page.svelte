@@ -1,17 +1,17 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Card from '$lib/components/ui/Card.svelte';
-	import CardContent from '$lib/components/ui/CardContent.svelte';
-	import Input from '$lib/components/ui/Input.svelte';
-	import Label from '$lib/components/ui/Label.svelte';
-	import Badge from '$lib/components/ui/Badge.svelte';
-	import { appStore } from '$lib/stores/app';
-	import { ioApi } from '$lib/api/modules/io';
-	import { authApi } from '$lib/api/modules/auth';
-	import { accountApi } from '$lib/api/modules/accounts';
-	import { hzToast } from '$lib/components/ui/toast';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Card from '#lib/components/ui/Card.svelte';
+	import CardContent from '#lib/components/ui/CardContent.svelte';
+	import Input from '#lib/components/ui/Input.svelte';
+	import Label from '#lib/components/ui/Label.svelte';
+	import Badge from '#lib/components/ui/Badge.svelte';
+	import { appStore } from '#lib/stores/app';
+	import { ioApi } from '#lib/api/modules/io';
+	import { authApi } from '#lib/api/modules/auth';
+	import { accountApi } from '#lib/api/modules/accounts';
+	import { hzToast } from '#lib/components/ui/toast';
 	import {
 		Download,
 		Upload,

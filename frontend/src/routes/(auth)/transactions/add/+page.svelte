@@ -1,7 +1,7 @@
 <script lang="ts">
 	// 记一笔：与编辑页共用 TransactionForm，消除两份复制粘贴的实现（C16）
 	import { page } from '$app/state';
-	import TransactionForm from '$lib/components/TransactionForm.svelte';
+	import TransactionForm from '#lib/components/TransactionForm.svelte';
 
 	// 从 URL 参数读取克隆数据（复制账单时使用）
 	const cloneData = $derived.by(() => {

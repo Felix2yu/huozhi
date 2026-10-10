@@ -1,5 +1,5 @@
 import { http } from '../http';
-import type { Category } from '$lib/types';
+import type { Category } from '#lib/types';
 
 export const categoryApi = {
 	list: (params?: any) =>

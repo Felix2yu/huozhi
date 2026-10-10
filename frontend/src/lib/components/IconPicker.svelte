@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { getBankIcon } from '$lib/utils/bank-themes';
-	import { getIconName } from '$lib/utils/icon-names';
-	import { bankIconUrls, resolveAccountIcon } from '$lib/utils/bank-icons';
+	import { getBankIcon } from '#lib/utils/bank-themes';
+	import { getIconName } from '#lib/utils/icon-names';
+	import { bankIconUrls, resolveAccountIcon } from '#lib/utils/bank-icons';
 	import AccountIcon from './AccountIcon.svelte';
 	import { Search, X } from '@lucide/svelte';
 

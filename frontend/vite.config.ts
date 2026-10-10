@@ -1,12 +1,32 @@
+import adapter from '@sveltejs/adapter-static';
 import tailwindcss from '@tailwindcss/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
 	plugins: [
 		tailwindcss(),
-		sveltekit(),
+		// SvelteKit 3 起不再读取 svelte.config.js，配置一律通过 sveltekit() 插件传入。
+		// 不属于 SvelteKit 的键（preprocess 等）会透传给 vite-plugin-svelte。
+		sveltekit({
+			preprocess: vitePreprocess(),
+			adapter: adapter({
+				pages: 'build',
+				assets: 'build',
+				fallback: 'index.html',
+				precompress: false,
+				strict: true
+			}),
+			alias: {
+				$components: 'src/lib/components',
+				$api: 'src/lib/api',
+				$stores: 'src/lib/stores',
+				$utils: 'src/lib/utils',
+				$constants: 'src/lib/constants'
+			}
+		}),
 		VitePWA({
 			registerType: 'autoUpdate',
 			includeAssets: [

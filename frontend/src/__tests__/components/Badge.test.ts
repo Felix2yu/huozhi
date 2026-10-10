@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
-import Badge from '$lib/components/ui/Badge.svelte';
+import Badge from '#lib/components/ui/Badge.svelte';
 
 describe('Badge', () => {
 	it('渲染默认样式', () => {

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { Account } from '$lib/types';
-	import { getBankBrand } from '$lib/utils/bank-themes';
-	import { resolveAccountIcon } from '$lib/utils/bank-icons';
+	import type { Account } from '#lib/types';
+	import { getBankBrand } from '#lib/utils/bank-themes';
+	import { resolveAccountIcon } from '#lib/utils/bank-icons';
 
 	let {
 		account = null,

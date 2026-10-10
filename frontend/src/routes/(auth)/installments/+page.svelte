@@ -1,18 +1,18 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Card from '$lib/components/ui/Card.svelte';
-	import CardContent from '$lib/components/ui/CardContent.svelte';
-	import Progress from '$lib/components/ui/Progress.svelte';
-	import Dialog from '$lib/components/ui/Dialog.svelte';
-	import Input from '$lib/components/ui/Input.svelte';
-	import Label from '$lib/components/ui/Label.svelte';
-	import AccountSelect from '$lib/components/AccountSelect.svelte';
-	import { installmentApi } from '$lib/api/modules/installments';
-	import { appStore } from '$lib/stores/app';
-	import { hzToast } from '$lib/components/ui/toast';
-	import { formatMoney, formatDate } from '$lib/utils/format';
-	import type { Installment } from '$lib/types';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Card from '#lib/components/ui/Card.svelte';
+	import CardContent from '#lib/components/ui/CardContent.svelte';
+	import Progress from '#lib/components/ui/Progress.svelte';
+	import Dialog from '#lib/components/ui/Dialog.svelte';
+	import Input from '#lib/components/ui/Input.svelte';
+	import Label from '#lib/components/ui/Label.svelte';
+	import AccountSelect from '#lib/components/AccountSelect.svelte';
+	import { installmentApi } from '#lib/api/modules/installments';
+	import { appStore } from '#lib/stores/app';
+	import { hzToast } from '#lib/components/ui/toast';
+	import { formatMoney, formatDate } from '#lib/utils/format';
+	import type { Installment } from '#lib/types';
 	import { Plus, CreditCard, Trash2 } from '@lucide/svelte';
 
 	let list = $state<Installment[]>([]);

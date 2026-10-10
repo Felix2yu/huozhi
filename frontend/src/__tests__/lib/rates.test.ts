@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { currencySymbol, currencyLabel } from '$lib/utils/format';
-import type { FxSnapshot } from '$lib/types';
+import { currencySymbol, currencyLabel } from '#lib/utils/format';
+import type { FxSnapshot } from '#lib/types';
 
 // fxApi 打真实网络，测试里替换成可控返回值
-vi.mock('$lib/api/modules/exrate', () => {
+vi.mock('#lib/api/modules/exrate', () => {
 	const snapshot: FxSnapshot = {
 		base: 'CNY',
 		rates: { CNY: 1, USD: 7.2, JPY: 0.05 },
@@ -44,11 +44,11 @@ describe('币种符号与名称', () => {
 describe('ratesStore', () => {
 	beforeEach(() => {
 		// store 是模块级单例，每个用例前重置到未加载状态
-		return import('$lib/stores/rates.svelte').then((m) => m.ratesStore.invalidate());
+		return import('#lib/stores/rates.svelte').then((m) => m.ratesStore.invalidate());
 	});
 
 	it('未加载时外币汇率未知（返回 null，而不是拿 1 冒充折算结果）', async () => {
-		const { ratesStore } = await import('$lib/stores/rates.svelte');
+		const { ratesStore } = await import('#lib/stores/rates.svelte');
 		ratesStore.invalidate();
 		expect(ratesStore.rate('CNY')).toBe(1); // 基准币自身恒为 1:1
 		expect(ratesStore.rate('USD')).toBeNull();
@@ -56,7 +56,7 @@ describe('ratesStore', () => {
 	});
 
 	it('加载后按「1 外币 = N 基准币」折算', async () => {
-		const { ratesStore } = await import('$lib/stores/rates.svelte');
+		const { ratesStore } = await import('#lib/stores/rates.svelte');
 		ratesStore.invalidate();
 		await ratesStore.load('CNY');
 		expect(ratesStore.base).toBe('CNY');
@@ -67,7 +67,7 @@ describe('ratesStore', () => {
 	});
 
 	it('没有该币种汇率时 convert 返回 null', async () => {
-		const { ratesStore } = await import('$lib/stores/rates.svelte');
+		const { ratesStore } = await import('#lib/stores/rates.svelte');
 		ratesStore.invalidate();
 		await ratesStore.load('CNY');
 		expect(ratesStore.rate('GBP')).toBeNull();

@@ -1,18 +1,18 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Card from '$lib/components/ui/Card.svelte';
-	import CardContent from '$lib/components/ui/CardContent.svelte';
-	import Progress from '$lib/components/ui/Progress.svelte';
-	import Dialog from '$lib/components/ui/Dialog.svelte';
-	import Input from '$lib/components/ui/Input.svelte';
-	import Label from '$lib/components/ui/Label.svelte';
-	import AccountSelect from '$lib/components/AccountSelect.svelte';
-	import { savingApi } from '$lib/api/modules/savings';
-	import { appStore } from '$lib/stores/app';
-	import { hzToast } from '$lib/components/ui/toast';
-	import { formatMoney, formatDate } from '$lib/utils/format';
-	import type { SavingPlan } from '$lib/types';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Card from '#lib/components/ui/Card.svelte';
+	import CardContent from '#lib/components/ui/CardContent.svelte';
+	import Progress from '#lib/components/ui/Progress.svelte';
+	import Dialog from '#lib/components/ui/Dialog.svelte';
+	import Input from '#lib/components/ui/Input.svelte';
+	import Label from '#lib/components/ui/Label.svelte';
+	import AccountSelect from '#lib/components/AccountSelect.svelte';
+	import { savingApi } from '#lib/api/modules/savings';
+	import { appStore } from '#lib/stores/app';
+	import { hzToast } from '#lib/components/ui/toast';
+	import { formatMoney, formatDate } from '#lib/utils/format';
+	import type { SavingPlan } from '#lib/types';
 	import { Plus, PiggyBank, Pencil, Trash2, Coins, Wallet } from '@lucide/svelte';
 
 	let plans = $state<SavingPlan[]>([]);

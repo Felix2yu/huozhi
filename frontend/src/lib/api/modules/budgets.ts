@@ -1,5 +1,5 @@
 import { http } from '../http';
-import type { Budget, BudgetView } from '$lib/types';
+import type { Budget, BudgetView } from '#lib/types';
 
 export const budgetApi = {
 	list: (params?: any) => http.get<BudgetView[]>('/budgets', { params }),

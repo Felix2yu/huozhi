@@ -2,21 +2,21 @@
 	import { slide } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 
-	import Button from '$lib/components/ui/Button.svelte';
-	import Card from '$lib/components/ui/Card.svelte';
-	import Dialog from '$lib/components/ui/Dialog.svelte';
-	import Input from '$lib/components/ui/Input.svelte';
-	import Label from '$lib/components/ui/Label.svelte';
-	import Badge from '$lib/components/ui/Badge.svelte';
-	import Tabs from '$lib/components/ui/Tabs.svelte';
-	import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Card from '#lib/components/ui/Card.svelte';
+	import Dialog from '#lib/components/ui/Dialog.svelte';
+	import Input from '#lib/components/ui/Input.svelte';
+	import Label from '#lib/components/ui/Label.svelte';
+	import Badge from '#lib/components/ui/Badge.svelte';
+	import Tabs from '#lib/components/ui/Tabs.svelte';
+	import TabsTrigger from '#lib/components/ui/TabsTrigger.svelte';
 
-	import { appStore } from '$lib/stores/app';
-	import { categoryApi } from '$lib/api/modules/categories';
-	import { hzToast } from '$lib/components/ui/toast';
-	import { cn } from '$lib/utils/cn';
+	import { appStore } from '#lib/stores/app';
+	import { categoryApi } from '#lib/api/modules/categories';
+	import { hzToast } from '#lib/components/ui/toast';
+	import { cn } from '#lib/utils/cn';
 
-	import type { Category, CategoryKind } from '$lib/types';
+	import type { Category, CategoryKind } from '#lib/types';
 	import {
 		Plus,
 		Pencil,

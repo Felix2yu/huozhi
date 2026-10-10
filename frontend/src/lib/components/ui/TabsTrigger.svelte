@@ -1,6 +1,6 @@
 <script lang="ts">
 import { getContext } from 'svelte';
-import { cn } from '$lib/utils/cn';
+import { cn } from '#lib/utils/cn';
 
 let {
 	class: className = '',

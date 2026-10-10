@@ -1,18 +1,18 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Card from '$lib/components/ui/Card.svelte';
-	import CardContent from '$lib/components/ui/CardContent.svelte';
-	import Badge from '$lib/components/ui/Badge.svelte';
-	import Dialog from '$lib/components/ui/Dialog.svelte';
-	import Input from '$lib/components/ui/Input.svelte';
-	import Label from '$lib/components/ui/Label.svelte';
-	import AccountSelect from '$lib/components/AccountSelect.svelte';
-	import { recurringApi } from '$lib/api/modules/recurring';
-	import { appStore } from '$lib/stores/app';
-	import { hzToast } from '$lib/components/ui/toast';
-	import { formatMoney, formatRelativeDate } from '$lib/utils/format';
-	import type { Recurring, RecurringType } from '$lib/types';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Card from '#lib/components/ui/Card.svelte';
+	import CardContent from '#lib/components/ui/CardContent.svelte';
+	import Badge from '#lib/components/ui/Badge.svelte';
+	import Dialog from '#lib/components/ui/Dialog.svelte';
+	import Input from '#lib/components/ui/Input.svelte';
+	import Label from '#lib/components/ui/Label.svelte';
+	import AccountSelect from '#lib/components/AccountSelect.svelte';
+	import { recurringApi } from '#lib/api/modules/recurring';
+	import { appStore } from '#lib/stores/app';
+	import { hzToast } from '#lib/components/ui/toast';
+	import { formatMoney, formatRelativeDate } from '#lib/utils/format';
+	import type { Recurring, RecurringType } from '#lib/types';
 	import { Plus, Repeat, Trash2, Pause, Play } from '@lucide/svelte';
 
 	let list = $state<Recurring[]>([]);

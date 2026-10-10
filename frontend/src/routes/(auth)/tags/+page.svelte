@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Card from '$lib/components/ui/Card.svelte';
-	import CardContent from '$lib/components/ui/CardContent.svelte';
-	import Dialog from '$lib/components/ui/Dialog.svelte';
-	import Input from '$lib/components/ui/Input.svelte';
-	import Label from '$lib/components/ui/Label.svelte';
-	import { tagApi } from '$lib/api/modules/tags';
-	import { appStore } from '$lib/stores/app';
-	import { hzToast } from '$lib/components/ui/toast';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Card from '#lib/components/ui/Card.svelte';
+	import CardContent from '#lib/components/ui/CardContent.svelte';
+	import Dialog from '#lib/components/ui/Dialog.svelte';
+	import Input from '#lib/components/ui/Input.svelte';
+	import Label from '#lib/components/ui/Label.svelte';
+	import { tagApi } from '#lib/api/modules/tags';
+	import { appStore } from '#lib/stores/app';
+	import { hzToast } from '#lib/components/ui/toast';
 	import { Plus, Tag, Pencil, Trash2, Hash } from '@lucide/svelte';
 
 	// 预设配色（与标签 dot / 卡片强调色一致）

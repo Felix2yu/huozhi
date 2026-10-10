@@ -9,7 +9,7 @@
  * HTTP 4xx/5xx 是服务端正常返回的业务/状态错误，不应入队。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { ioApi } from '$lib/api/modules/io';
+import { ioApi } from '#lib/api/modules/io';
 
 // 先 mock localStorage
 const store: Record<string, string> = {};
@@ -39,7 +39,7 @@ import http, {
 	ERR_OFFLINE_QUEUED,
 	ERR_TIMEOUT,
 	ERR_BAD_RESPONSE
-} from '$lib/api/http';
+} from '#lib/api/http';
 
 describe('HTTP client - Bug #5 offline queue conditions', () => {
 	beforeEach(() => {
@@ -229,7 +229,7 @@ describe('HTTP client - Bug #5 offline queue conditions', () => {
 	});
 
 	it('subscribeQueue 返回取消订阅函数', async () => {
-		const { subscribeQueue } = await import('$lib/api/http');
+		const { subscribeQueue } = await import('#lib/api/http');
 		const cancel = subscribeQueue(() => {});
 		expect(typeof cancel).toBe('function');
 		cancel();
@@ -278,13 +278,13 @@ describe('HTTP client - Bug #5 offline queue conditions', () => {
 
 	it('replayQueue在离线时中断', async () => {
 		vi.stubGlobal('navigator', { onLine: false });
-		const { replayQueue } = await import('$lib/api/http');
+		const { replayQueue } = await import('#lib/api/http');
 		const result = await replayQueue();
 		expect(result.remaining).toBe(0);
 	});
 
 	it('清除队列后queueCount为0', async () => {
-		const { clearQueue, queueCount } = await import('$lib/api/http');
+		const { clearQueue, queueCount } = await import('#lib/api/http');
 		clearQueue();
 		expect(queueCount()).toBe(0);
 	});

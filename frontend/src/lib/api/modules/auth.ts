@@ -1,5 +1,5 @@
 import { http } from '../http';
-import type { User } from '$lib/types';
+import type { User } from '#lib/types';
 
 export const authApi = {
 	register: (data: { username: string; email?: string; password: string; nickname?: string }) =>

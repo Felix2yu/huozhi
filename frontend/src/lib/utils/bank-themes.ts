@@ -1,5 +1,5 @@
 // 银行主题色映射
-import type { AccountType } from '$lib/types';
+import type { AccountType } from '#lib/types';
 
 export interface BankTheme {
 	color: string;

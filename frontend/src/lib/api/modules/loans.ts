@@ -1,5 +1,5 @@
 import { http } from '../http';
-import type { Loan, LoanRepayment } from '$lib/types';
+import type { Loan, LoanRepayment } from '#lib/types';
 
 export interface CreateLoanPayload {
   direction: 'lend' | 'borrow';

@@ -12,7 +12,7 @@
  */
 import { getBankIcon } from './bank-themes';
 
-const rawIcons = import.meta.glob<string>('$lib/assets/bank-icons/*.svg', {
+const rawIcons = import.meta.glob<string>('#lib/assets/bank-icons/*.svg', {
 	eager: true,
 	query: '?url',
 	import: 'default'

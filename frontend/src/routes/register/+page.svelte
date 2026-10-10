@@ -1,15 +1,15 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Input from '$lib/components/ui/Input.svelte';
-	import Label from '$lib/components/ui/Label.svelte';
-	import Card from '$lib/components/ui/Card.svelte'
-import CardContent from '$lib/components/ui/CardContent.svelte'
-import CardDescription from '$lib/components/ui/CardDescription.svelte'
-import CardHeader from '$lib/components/ui/CardHeader.svelte'
-import CardTitle from '$lib/components/ui/CardTitle.svelte';
-	import { authApi } from '$lib/api/modules/auth';
-	import { hzToast } from '$lib/components/ui/toast';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Input from '#lib/components/ui/Input.svelte';
+	import Label from '#lib/components/ui/Label.svelte';
+	import Card from '#lib/components/ui/Card.svelte'
+import CardContent from '#lib/components/ui/CardContent.svelte'
+import CardDescription from '#lib/components/ui/CardDescription.svelte'
+import CardHeader from '#lib/components/ui/CardHeader.svelte'
+import CardTitle from '#lib/components/ui/CardTitle.svelte';
+	import { authApi } from '#lib/api/modules/auth';
+	import { hzToast } from '#lib/components/ui/toast';
 
 	let username = $state('');
 	let email = $state('');

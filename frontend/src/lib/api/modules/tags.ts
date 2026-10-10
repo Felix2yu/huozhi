@@ -1,5 +1,5 @@
 import { http } from '../http';
-import type { Tag } from '$lib/types';
+import type { Tag } from '#lib/types';
 
 export const tagApi = {
 	list: () => http.get<Tag[]>('/tags'),

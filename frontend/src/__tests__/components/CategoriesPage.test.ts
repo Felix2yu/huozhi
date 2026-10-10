@@ -26,7 +26,7 @@ const CATEGORIES = [
 
 const loadDictionaries = vi.fn(async () => {});
 
-vi.mock('$lib/stores/app', () => ({
+vi.mock('#lib/stores/app', () => ({
 	appStore: {
 		get categories() {
 			return { expense: CATEGORIES, income: [], system: [] };
@@ -40,7 +40,7 @@ vi.mock('$lib/stores/app', () => ({
 	}
 }));
 
-vi.mock('$lib/api/modules/categories', () => ({
+vi.mock('#lib/api/modules/categories', () => ({
 	categoryApi: {
 		create: vi.fn(async () => ({})),
 		update: vi.fn(async () => ({})),
@@ -48,7 +48,7 @@ vi.mock('$lib/api/modules/categories', () => ({
 	}
 }));
 
-vi.mock('$lib/components/ui/toast', () => ({
+vi.mock('#lib/components/ui/toast', () => ({
 	hzToast: {
 		success: vi.fn(),
 		error: vi.fn(),

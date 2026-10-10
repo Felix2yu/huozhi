@@ -1,15 +1,15 @@
 <script lang="ts">
-	import Card from '$lib/components/ui/Card.svelte';
-	import CardContent from '$lib/components/ui/CardContent.svelte';
-	import Tabs from '$lib/components/ui/Tabs.svelte';
-	import TabsTrigger from '$lib/components/ui/TabsTrigger.svelte';
-	import { appStore } from '$lib/stores/app';
-	import { statsApi } from '$lib/api/modules/statistics';
-	import { formatMoney } from '$lib/utils/format';
-	import CategoryPie from '$lib/components/charts/CategoryPie.svelte';
-	import TrendLine from '$lib/components/charts/TrendLine.svelte';
-	import MonthlyBars from '$lib/components/charts/MonthlyBars.svelte';
-	import type { StatisticsData, AssetOverview } from '$lib/types';
+	import Card from '#lib/components/ui/Card.svelte';
+	import CardContent from '#lib/components/ui/CardContent.svelte';
+	import Tabs from '#lib/components/ui/Tabs.svelte';
+	import TabsTrigger from '#lib/components/ui/TabsTrigger.svelte';
+	import { appStore } from '#lib/stores/app';
+	import { statsApi } from '#lib/api/modules/statistics';
+	import { formatMoney } from '#lib/utils/format';
+	import CategoryPie from '#lib/components/charts/CategoryPie.svelte';
+	import TrendLine from '#lib/components/charts/TrendLine.svelte';
+	import MonthlyBars from '#lib/components/charts/MonthlyBars.svelte';
+	import type { StatisticsData, AssetOverview } from '#lib/types';
 	import { BarChart3, ArrowUpRight, ArrowDownRight, TrendingUp, Wallet } from '@lucide/svelte';
 
 	let data = $state<StatisticsData | null>(null);

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { appStore } from '$lib/stores/app';
+	import { appStore } from '#lib/stores/app';
 
 	onMount(async () => {
 		try {

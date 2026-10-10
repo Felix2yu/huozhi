@@ -1,5 +1,5 @@
 import { http } from '../http';
-import type { FxSnapshot } from '$lib/types';
+import type { FxSnapshot } from '#lib/types';
 
 export const fxApi = {
 	/**

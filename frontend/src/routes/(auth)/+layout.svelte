@@ -2,18 +2,18 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { cn } from '$lib/utils/cn';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Sheet from '$lib/components/ui/Sheet.svelte';
-	import Badge from '$lib/components/ui/Badge.svelte';
-	import { appStore } from '$lib/stores/app';
-	import { privacyStore } from '$lib/stores/privacy';
-	import { hzToast } from '$lib/components/ui/toast';
-	import { http, replayQueue, subscribeQueue, queueCount } from '$lib/api/http';
-	import { accountApi, txApi } from '$lib/api/modules';
-	import { getMonthRange, formatMoney } from '$lib/utils/format';
-	import { connectWs, disconnectWs, onSync } from '$lib/ws';
-	import type { WsMessage } from '$lib/ws';
+	import { cn } from '#lib/utils/cn';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Sheet from '#lib/components/ui/Sheet.svelte';
+	import Badge from '#lib/components/ui/Badge.svelte';
+	import { appStore } from '#lib/stores/app';
+	import { privacyStore } from '#lib/stores/privacy';
+	import { hzToast } from '#lib/components/ui/toast';
+	import { http, replayQueue, subscribeQueue, queueCount } from '#lib/api/http';
+	import { accountApi, txApi } from '#lib/api/modules';
+	import { getMonthRange, formatMoney } from '#lib/utils/format';
+	import { connectWs, disconnectWs, onSync } from '#lib/ws';
+	import type { WsMessage } from '#lib/ws';
 	import {
 		LayoutDashboard,
 		Receipt,

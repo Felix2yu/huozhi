@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
-import { cn } from '$lib/utils/cn';
+import { cn } from '#lib/utils/cn';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const inputSource = readFileSync(

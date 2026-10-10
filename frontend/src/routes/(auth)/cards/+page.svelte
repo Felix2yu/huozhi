@@ -1,16 +1,16 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Card from '$lib/components/ui/Card.svelte'
-	import CardContent from '$lib/components/ui/CardContent.svelte'
-	import Badge from '$lib/components/ui/Badge.svelte';
-	import { accountApi } from '$lib/api/modules/accounts';
-	import { appStore } from '$lib/stores/app';
-	import { formatMoney } from '$lib/utils/format';
-	import { getBankTheme, getCardGradient } from '$lib/utils/bank-themes';
-	import { resolveAccountIcon } from '$lib/utils/bank-icons';
-	import type { Account, CreditRepayItem } from '$lib/types';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Card from '#lib/components/ui/Card.svelte'
+	import CardContent from '#lib/components/ui/CardContent.svelte'
+	import Badge from '#lib/components/ui/Badge.svelte';
+	import { accountApi } from '#lib/api/modules/accounts';
+	import { appStore } from '#lib/stores/app';
+	import { formatMoney } from '#lib/utils/format';
+	import { getBankTheme, getCardGradient } from '#lib/utils/bank-themes';
+	import { resolveAccountIcon } from '#lib/utils/bank-icons';
+	import type { Account, CreditRepayItem } from '#lib/types';
 	import { Plus, CreditCard, Wallet } from '@lucide/svelte';
 
 	let creditCards = $state<Account[]>([]);

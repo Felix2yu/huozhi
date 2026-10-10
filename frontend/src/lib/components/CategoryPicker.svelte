@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { appStore } from '$lib/stores/app';
-	import type { Category, CategoryKind } from '$lib/types';
+	import { appStore } from '#lib/stores/app';
+	import type { Category, CategoryKind } from '#lib/types';
 	import { Check, ChevronsUpDown, CornerDownRight, Search } from '@lucide/svelte';
 
 	let {

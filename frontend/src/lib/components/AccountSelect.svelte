@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { appStore } from '$lib/stores/app';
+	import { appStore } from '#lib/stores/app';
 	import AccountIcon from './AccountIcon.svelte';
 	import { ChevronsUpDown, Check } from '@lucide/svelte';
 

@@ -1,15 +1,15 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Card from '$lib/components/ui/Card.svelte';
-	import CardContent from '$lib/components/ui/CardContent.svelte';
-	import Badge from '$lib/components/ui/Badge.svelte';
-	import AccountIcon from '$lib/components/AccountIcon.svelte';
-	import { appStore } from '$lib/stores/app';
-	import { accountApi } from '$lib/api/modules/accounts';
-	import { formatMoney } from '$lib/utils/format';
-	import type { Account, AccountSummary } from '$lib/types';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Card from '#lib/components/ui/Card.svelte';
+	import CardContent from '#lib/components/ui/CardContent.svelte';
+	import Badge from '#lib/components/ui/Badge.svelte';
+	import AccountIcon from '#lib/components/AccountIcon.svelte';
+	import { appStore } from '#lib/stores/app';
+	import { accountApi } from '#lib/api/modules/accounts';
+	import { formatMoney } from '#lib/utils/format';
+	import type { Account, AccountSummary } from '#lib/types';
 	import {
 		Plus,
 		Wallet,

@@ -1,5 +1,5 @@
 import { http } from '../http';
-import type { Reimbursement } from '$lib/types';
+import type { Reimbursement } from '#lib/types';
 
 export const reimbApi = {
 	list: () => http.get<Reimbursement[]>('/reimbursements'),

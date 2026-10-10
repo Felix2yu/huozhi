@@ -1,15 +1,15 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Card from '$lib/components/ui/Card.svelte';
-	import CardContent from '$lib/components/ui/CardContent.svelte';
-	import Dialog from '$lib/components/ui/Dialog.svelte';
-	import Input from '$lib/components/ui/Input.svelte';
-	import Label from '$lib/components/ui/Label.svelte';
-	import Badge from '$lib/components/ui/Badge.svelte';
-	import { bookApi } from '$lib/api/modules/books';
-	import { appStore } from '$lib/stores/app';
-	import { hzToast } from '$lib/components/ui/toast';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Card from '#lib/components/ui/Card.svelte';
+	import CardContent from '#lib/components/ui/CardContent.svelte';
+	import Dialog from '#lib/components/ui/Dialog.svelte';
+	import Input from '#lib/components/ui/Input.svelte';
+	import Label from '#lib/components/ui/Label.svelte';
+	import Badge from '#lib/components/ui/Badge.svelte';
+	import { bookApi } from '#lib/api/modules/books';
+	import { appStore } from '#lib/stores/app';
+	import { hzToast } from '#lib/components/ui/toast';
 	import { BookMarked, Plus, Users, Pencil, Trash2, UserPlus, Archive, ArchiveRestore } from '@lucide/svelte';
 
 	// Dialog state
