@@ -29,6 +29,11 @@ export default defineConfig({
 		}),
 		VitePWA({
 			registerType: 'autoUpdate',
+			// 注意：不要把 outDir 改成 build/。adapter-static 在收尾阶段会 `rm -rf build`
+			// 再重写，插件此时生成的 sw.js 会被清掉（构建日志里能看到 files generated
+			// build/sw.js 之后紧跟 Wrote site to "build"）。
+			// 最终产物的 sw.js 由 scripts/build-sw.mjs 在 vite build 之后生成，
+			// 此时 build/ 已就绪，预缓存清单才有内容。
 			includeAssets: [
 				'favicon.ico',
 				'favicon.svg',
@@ -62,8 +67,10 @@ export default defineConfig({
 					{ src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }
 				]
 			},
+			// 此处的 workbox 配置只作用于插件自身生成的 dist/sw.js —— 那份产物不进
+			// 最终站点。真正生效的 Service Worker（含预缓存与下面的 runtimeCaching 策略）
+			// 由 scripts/build-sw.mjs 生成，策略以那份脚本为准。
 			workbox: {
-				// 使用默认 globDirectory（Vite outDir），adapter-static 会复制到 build/
 				globPatterns: ['**/*.{js,css,html,svg,png,json}'],
 				runtimeCaching: [
 					// API 请求：NetworkFirst（在线优先，离线回退缓存）
