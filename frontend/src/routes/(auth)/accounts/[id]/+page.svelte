@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import Button from '#lib/components/ui/Button.svelte';
@@ -18,7 +18,7 @@
 	import type { Account, AccountType } from '#lib/types';
 	import { Save, X, Archive } from '@lucide/svelte';
 
-	let accountId = $derived(Number(($page?.params as any)?.id));
+	let accountId = $derived(Number((page?.params as any)?.id));
 	let account = $state<Account | null>(null);
 	let loading = $state(true);
 	let saving = $state(false);

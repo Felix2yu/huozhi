@@ -1,5 +1,8 @@
 {
-	"extends": "./.svelte-kit/tsconfig.json",
+	// SvelteKit 3 起 tsconfig 应继承 $app/tsconfig（等价于旧的 ./.svelte-kit/tsconfig.json
+	// 但会额外声明 #lib 等子路径导入）。继续写旧路径会让 svelte-check 报
+	// tsconfig_extends_missing 并把全部 #lib/* 导入判为 Cannot find module。
+	"extends": "$app/tsconfig",
 	"compilerOptions": {
 		"rewriteRelativeImportExtensions": true,
 		"allowJs": true,

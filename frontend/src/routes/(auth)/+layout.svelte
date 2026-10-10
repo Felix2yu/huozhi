@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { cn } from '#lib/utils/cn';
 	import Button from '#lib/components/ui/Button.svelte';
@@ -52,7 +52,7 @@
 		try {
 			const ok = await appStore.checkAuth();
 			if (!ok) {
-				const path = $page?.url?.pathname || '/dashboard';
+				const path = page?.url?.pathname || '/dashboard';
 				goto(`/login?redirect=${encodeURIComponent(path)}`);
 				return;
 			}
@@ -154,7 +154,7 @@
 
 	// 路由变化后自动收起
 	$effect(() => {
-		if ($page?.url) {
+		if (page?.url) {
 			sidebarOpen = false;
 		}
 	});
@@ -218,7 +218,7 @@
 		{ to: '', label: '更多', icon: Menu, more: true }
 	];
 
-	let currentPath = $derived($page?.url?.pathname || '');
+	let currentPath = $derived(page?.url?.pathname || '');
 
 	function isActive(to: string): boolean {
 		if (to === '/dashboard') return currentPath === '/dashboard';

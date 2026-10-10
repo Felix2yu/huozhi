@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Input from '#lib/components/ui/Input.svelte';
@@ -33,7 +33,7 @@ import CardTitle from '#lib/components/ui/CardTitle.svelte';
 			// 加载基础数据
 			await appStore.loadBooks();
 			await appStore.loadDictionaries();
-			const redirect = $page?.url?.searchParams?.get('redirect') || '/dashboard';
+			const redirect = page?.url?.searchParams?.get('redirect') || '/dashboard';
 			goto(redirect);
 		} catch (e: any) {
 			error = e.message || '登录失败';
