@@ -31,9 +31,10 @@ ignore:
 flags:
   backend:
     paths:
-      - backend/**/*.go
+      - internal/**/*.go
+      - cmd/**/*.go
     carryforward: true
   frontend:
     paths:
-      - frontend/src/**
+      - web/src/**
     carryforward: true

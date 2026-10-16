@@ -129,22 +129,22 @@ pnpm run dev                        # 监听 http://localhost:5173（已代理 /
 
 ```
 huozhi/
-├── backend/                        # Go 后端
-│   ├── cmd/huozhi-server/          # 入口 main.go
-│   ├── internal/
-│   │   ├── config/                 # 配置加载（YAML + 环境变量）
-│   │   ├── database/               # GORM + SQLite/PostgreSQL
-│   │   ├── models/                 # 全部数据模型（User,Book,Account,Category,Tx...）
-│   │   ├── handlers/               # 每个 handler 对应 REST 资源
-│   │   │   └── tx_core.go          # 与 gin 解耦的交易核心层（Web / MCP / 定时任务共用）
-│   │   ├── mcp/                    # MCP 服务端（协议 + 传输 + 13 个账单工具）
-│   │   ├── router/                 # Gin 路由定义
-│   │   ├── middleware/             # JWT / API Key / MCP 鉴权
-│   │   └── dto/                    # 请求/响应 DTO
-│   └── pkg/
-│       ├── auth/                   # bcrypt 密码
-│       └── jwt/                    # JWT 签发/解析
-├── frontend/
+├── cmd/huozhi-server/              # 入口 main.go
+├── internal/
+│   ├── config/                     # 配置加载（YAML + 环境变量）
+│   ├── database/                   # GORM + SQLite/PostgreSQL
+│   ├── models/                     # 全部数据模型（User,Book,Account,Category,Tx...）
+│   ├── handlers/                   # 每个 handler 对应 REST 资源
+│   │   └── tx_core.go              # 与 gin 解耦的交易核心层（Web / MCP / 定时任务共用）
+│   ├── mcp/                        # MCP 服务端（协议 + 传输 + 13 个账单工具）
+│   ├── router/                     # Gin 路由定义
+│   ├── middleware/                 # JWT / API Key / MCP 鉴权
+│   ├── web/                        # go:embed 前端产物（embed.go + dist/ 占位）
+│   └── dto/                        # 请求/响应 DTO
+├── pkg/
+│   ├── auth/                       # bcrypt 密码
+│   └── jwt/                        # JWT 签发/解析
+├── web/
 │   ├── src/
 │   │   ├── lib/
 │   │   │   ├── api/                # 模块式 HTTP API 封装
@@ -161,16 +161,17 @@ huozhi/
 │   │       ├── login/              # 登录页
 │   │       └── register/           # 注册页
 │   └── vite.config.ts + svelte.config.js
-├── scripts/entrypoint.sh           # Docker 入口脚本（自动生成JWT密钥）
-├── Dockerfile                      # 多阶段镜像：Go build → Vite build → 单进程 Go 托管前后端
-└── docker-compose.yaml             # 零依赖一键启动（SQLite）
+├── scripts/docker-entrypoint.sh    # Docker 入口脚本（自动生成 JWT 密钥）
+├── config.example.yaml             # 配置样例（镜像内置为 /app/config.yaml）
+├── Dockerfile                      # 装配式镜像：CI 预编译产物 → 单进程 Go 托管前后端
+└── docker-compose.yml              # 零依赖一键启动（SQLite）
 ```
 
 ---
 
 ## API 一览
 
-全部 REST 接口定义在 `backend/internal/router/router.go`：
+全部 REST 接口定义在 `internal/router/router.go`：
 
 ```
 POST /api/auth/register   POST /api/auth/login   GET /api/auth/me  ...
