@@ -25,16 +25,16 @@ jobs:
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     with:
-      go-dir: backend
+      go-dir: .
       test-packages: ./...
-      web-dir: frontend
+      web-dir: web
       web-test-command: pnpm run test:coverage
       # internal/web 包带 //go:embed，产物缺失时包编译不过——
       # 先把前端产物摆到内嵌位置，再跑 go vet / go test
       frontend-stage-command: |
-        mkdir -p backend/internal/web/dist
-        cp -R frontend/build/. backend/internal/web/dist/
-      frontend-coverage-file: frontend/coverage/cobertura-coverage.xml
+        mkdir -p internal/web/dist
+        cp -R web/build/. internal/web/dist/
+      frontend-coverage-file: web/coverage/cobertura-coverage.xml
 
   image:
     needs: test
@@ -43,17 +43,17 @@ jobs:
       packages: write
     uses: Felix2yu/.github/.github/workflows/reusable-image.yml@v1
     with:
-      go-dir: backend
+      go-dir: .
       main-package: ./cmd/huozhi-server
       binary-name: huozhi-server
       image-name: ghcr.io/felix2yu/huozhi
       # 纯 Go SQLite 驱动（glebarez/sqlite），无需 CGO，静态编译即可
       cgo: off
-      web-dir: frontend
+      web-dir: web
       # 产物摆到 go:embed 位置后由 go build 内嵌，镜像里不再 COPY 一份前端
       frontend-stage-command: |
-        mkdir -p backend/internal/web/dist
-        cp -R frontend/build/. backend/internal/web/dist/
+        mkdir -p internal/web/dist
+        cp -R web/build/. internal/web/dist/
 
   release:
     if: github.event_name == 'release'
@@ -61,11 +61,11 @@ jobs:
       contents: write
     uses: Felix2yu/.github/.github/workflows/reusable-release.yml@v1
     with:
-      go-dir: backend
+      go-dir: .
       main-package: ./cmd/huozhi-server
       binary-name: huozhi-server
       cgo: off
-      web-dir: frontend
+      web-dir: web
       frontend-stage-command: |
-        mkdir -p backend/internal/web/dist
-        cp -R frontend/build/. backend/internal/web/dist/
+        mkdir -p internal/web/dist
+        cp -R web/build/. internal/web/dist/

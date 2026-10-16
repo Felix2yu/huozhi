@@ -30,10 +30,9 @@ WORKDIR /app
 COPY --chmod=755 bin/huozhi-server /app/huozhi-server
 
 # 后端配置（默认 sqlite，可通过环境变量切 postgres）
-COPY backend/config.example.yaml /app/config.yaml
+COPY config.example.yaml /app/config.yaml
 
-COPY scripts/entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+COPY --chmod=755 scripts/docker-entrypoint.sh /app/entrypoint.sh
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -fsS http://127.0.0.1:8080/api/health || exit 1

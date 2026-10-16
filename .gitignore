@@ -3,32 +3,33 @@
 Thumbs.db
 
 # Go
-backend/huozhi-server
-backend/coverage.out
+/huozhi-server
+/coverage.out
+/bin/
 *.test
 *.out
 
 # Node
-frontend/node_modules
+web/node_modules
 # 统一 pnpm：其他包管理器的锁文件不入库（双锁并存会误导本地操作）
 package-lock.json
 yarn.lock
 bun.lock
 bun.lockb
-frontend/dist
-frontend/.vite
-frontend/coverage/
-frontend/*.log
-frontend/*.tsbuildinfo
-frontend/vite.config.js
-frontend/vite.config.d.ts
+web/dist
+web/.vite
+web/coverage/
+web/*.log
+web/*.tsbuildinfo
+web/vite.config.js
+web/vite.config.d.ts
 
 # Env / Config
 .env
 .env.local
-frontend/.env.local
-backend/config.yaml
-backend/config.local.yaml
+web/.env.local
+/config.yaml
+/config.local.yaml
 docker/.env
 
 # IDE
@@ -44,8 +45,8 @@ docker/.env
 *.dylib
 
 # Uploads / Data
-backend/uploads/
-backend/backups/
+/uploads/
+/backups/
 /data/
 *.db
 *.sqlite
@@ -53,20 +54,24 @@ backend/backups/
 # WorkBuddy project data
 .workbuddy/
 
-# 前端内嵌产物（go:embed 到 backend/internal/web/dist）：
+# 前端内嵌产物（go:embed 到 internal/web/dist）：
 # 只保留 .gitkeep 占位，保证未构建前端时 go build / go test 仍能编译通过
-backend/internal/web/dist/*
-!backend/internal/web/dist/.gitkeep
+internal/web/dist/*
+!internal/web/dist/.gitkeep
 
 # SvelteKit
-frontend/build/
-frontend/.svelte-kit/
-frontend/vitest.config.js
-frontend/vitest.config.d.ts
-frontend/svelte.config.cjs
+web/build/
+web/.svelte-kit/
+web/vitest.config.js
+web/vitest.config.d.ts
+web/svelte.config.cjs
 
 # 本地数据（含 huozhi.db 与 .db.bak-<时间戳> 备份，整目录忽略）
-backend/data/
+/data/
+
+# 迁移后 backend/ 残留：旧布局的本地数据（config/db/backups/uploads）与本地
+# 构建的二进制，均未入库。待确认后迁移到根级对应位置或清理
+/backend/
 
 # React 前端备份（暂存用，不提交）
 frontend-react-backup/
