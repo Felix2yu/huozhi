@@ -264,6 +264,10 @@ import CardTitle from '#lib/components/ui/CardTitle.svelte';
 					</div>
 				{:else}
 					{#each recentTxs as tx (tx.id)}
+						<!-- 分类只查一次并收进 {@const}：原先在一行里连写三次
+						        categoryOf(tx)，其中两次的 `.color` 直接访问会被 TS 判
+						        「Object is possibly 'undefined'」 -->
+						{@const cat = categoryOf(tx)}
 						<button
 							type="button"
 							class="flex items-center gap-3 py-2.5 px-3 hover:bg-accent/50 transition cursor-pointer text-left w-full"
@@ -272,17 +276,17 @@ import CardTitle from '#lib/components/ui/CardTitle.svelte';
 							<!-- C19：class 属性为空（重构残留），图标没有底色 -->
 							<div
 								class="w-9 h-9 rounded-lg grid place-items-center text-sm font-semibold bg-muted"
-								style={categoryOf(tx)?.color ? `background:${categoryOf(tx).color}22;color:${categoryOf(tx).color}` : ''}
+								style={cat?.color ? `background:${cat.color}22;color:${cat.color}` : ''}
 							>
-								{categoryOf(tx)?.icon || tx.description?.[0] || tx.merchant?.[0] || '¥'}
+								{cat?.icon || tx.description?.[0] || tx.merchant?.[0] || '¥'}
 							</div>
 							<div class="flex-1 min-w-0">
 								<div class="text-sm font-medium truncate">
-									{tx.description || tx.merchant || categoryOf(tx)?.name || '未分类'}
+									{tx.description || tx.merchant || cat?.name || '未分类'}
 								</div>
 								<!-- C20：副标题补上「分类 · 账户」，与分类管理/账户资产的数据资产对齐 -->
 								<div class="text-xs text-muted-foreground truncate">
-									{categoryOf(tx)?.name || '未分类'} · {accountOf(tx)?.name || '—'} · {formatRelativeDate(tx.tx_date)}
+									{cat?.name || '未分类'} · {accountOf(tx)?.name || '—'} · {formatRelativeDate(tx.tx_date)}
 								</div>
 							</div>
 							<div

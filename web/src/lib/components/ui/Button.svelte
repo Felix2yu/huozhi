@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { type HTMLAttributes } from 'svelte/elements';
+	import { type HTMLButtonAttributes } from 'svelte/elements';
 	import { cn } from '#lib/utils/cn';
 	import { cva, type VariantProps } from 'class-variance-authority';
 
@@ -42,7 +42,7 @@
 		variant?: VariantProps<typeof variants>['variant'];
 		size?: VariantProps<typeof variants>['size'];
 		type?: 'button' | 'submit' | 'reset';
-	} & HTMLAttributes<HTMLButtonElement> = $props();
+	} & HTMLButtonAttributes = $props();
 
 	const classes = $derived(cn(variants({ variant, size }), className));
 </script>

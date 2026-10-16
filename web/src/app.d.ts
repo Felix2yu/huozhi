@@ -10,19 +10,8 @@ declare global {
 	}
 }
 
-// `virtual:pwa-register` 的类型声明。
-// 手写而非 `/// <reference types="vite-plugin-pwa/client" />`：与其它仓库保持一致的写法，
-// 也不依赖 pnpm 的 node_modules 提升行为。
-declare module 'virtual:pwa-register' {
-	export interface RegisterSWOptions {
-		immediate?: boolean;
-		onNeedRefresh?: () => void;
-		onOfflineReady?: () => void;
-		onRegistered?: (registration: ServiceWorkerRegistration | undefined) => void;
-		onRegisterError?: (error: unknown) => void;
-	}
-
-	export function registerSW(options?: RegisterSWOptions): (reload?: boolean) => Promise<void>;
-}
+// `virtual:pwa-register` 的类型声明见 src/pwa-register.d.ts：
+// 本文件是模块（末尾有 `export {}`），写在模块里的 `declare module` 只是「模块增强」，
+// 无法凭空声明一个 ambient 模块，TS 会判 `Cannot find module 'virtual:pwa-register'`。
 
 export {};

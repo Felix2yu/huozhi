@@ -38,6 +38,14 @@ export interface User {
   default_book_id?: number;
   // 隐私模式：全站金额以 •••• 遮蔽，点击临时显示
   hide_amounts?: boolean;
+  // 自动备份设置（后端 models.User 的 auto_backup_*；keep_count 是 int，
+  // dto 侧 binding min=1,max=30，所以提交前必须 Number() 而不是发字符串）
+  auto_backup_enabled?: boolean;
+  // dto binding 是 oneof=daily weekly monthly，这里跟着收紧，否则赋值给页面里的
+  // 'daily' | 'weekly' | 'monthly' state 会退化成 string 而报 TS2322
+  auto_backup_frequency?: 'daily' | 'weekly' | 'monthly';
+  auto_backup_time?: string;
+  auto_backup_keep_count?: number;
 }
 
 // ====== 汇率 ======
@@ -94,6 +102,16 @@ export interface Book {
   is_archived: boolean;
   sort: number;
   created_at: string;
+}
+
+/**
+ * GET /books 的返回体：后端 handlers/book.go 在 models.Book 之外再包一层共享标注
+ * （`bookView{ models.Book; IsShared; Role }`），共享账本据此显示「可记账 / 只读」。
+ * 非共享账本后端固定回填 role = "owner"，所以两个字段都存在且必有。
+ */
+export interface BookView extends Book {
+  is_shared: boolean;
+  role: 'owner' | 'editor' | 'viewer';
 }
 
 // ====== 账户 / 资产 ======

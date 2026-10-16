@@ -25,39 +25,40 @@
 | `pnpm format` | Prettier 格式化 |
 | `pnpm test` | 运行 Vitest |
 
-### 前端目前没有静态类型覆盖（已知缺陷，别把绿灯当通过）
+### 前端类型检查：已恢复真实覆盖（`check` 绿灯 = 类型真的过）
 
-三层都是空的，2026-10-16 实测：
+`pnpm check` = `svelte-kit sync && svelte-check --tsconfig ./tsconfig.json`（**plain 路径，不带 `--tsgo`**），
+基线 `0 errors and 10 warnings`（10 条是 `<slot>` 弃用 + 自闭合非 void 标签的既有告警）。
 
-1. `pnpm check` 走 `svelte-check --tsgo`，它**不产生任何类型诊断**。往 `src/lib/utils/cn.ts`
-   加 `export const x: number = "str"`、往某个 `.svelte` 的 `<script lang="ts">` 加未声明标识符，
-   `--tsgo` 依旧 `found 0 errors and 10 warnings`；同一条命令去掉 `--tsgo` 报 290 errors，
-   两处注入都被抓到。原因：`#lib/*` 声明在 `package.json` 的 `imports` 里，`--tsgo` 的虚拟文件
-   布局解析不到，类型程序是空的 —— 既不报错，也不检查。
-2. CI 从不跑 `check`：`ci.yml` 没设 `web-build-command`，reusable workflow 默认执行
-   `pnpm run build`，而 build = `vite build && node scripts/build-sw.mjs`，不含类型检查。
-3. `pnpm test` / `test:coverage` 走 Vitest + esbuild，只转译不查类型，所以它绿也不能补这一层。
+历史背景（2026-10-16 实测）：`--tsgo` 的虚拟文件布局解析不到只声明在 `package.json` imports 里的
+`#lib/*`，类型程序是空的——注入 `export const x: number = "str"` 仍报 `0 errors`，是假绿灯。
+TS7 的 checker 本体对 svelte-check 仍是 experimental，所以改用 TS6 plain 路径，
+`@typescript/native`（npm:typescript@^7）依赖已移除，`typescript` 留在 `~6.0.0`。
 
-去掉 `--tsgo` 也不是现成的解法：`#lib/stores/app` 指向 `app.svelte.ts`，TS 的扩展名解析映射不到，
-光这一类就 288 条。在 tsconfig 补 `"paths": {"#lib/*": ["./src/lib/*.svelte.ts", "./src/lib/*.svelte.js", "./src/lib/*"]}`
-加 `"types": ["$app/types", "vitest/globals", "node"]` 能把它压到 **66 条**（`plain` 与
-`--tsgo-experimental-api` 两条路径数目一致），但还没法直接采用：
+现在必须守住的几条约束（改 tsconfig 前先看）：
 
-- 子配置的 `paths` 是**整体覆盖**而不是合并，`$app/tsconfig` 继承来的 `$components`/`$api`/`$stores`
-  等映射会被顶掉，实测反而多出 2 条 `$app/environment` 解析失败；要用就得把这些条目一并抄全。
-- **不要加 `baseUrl`**，TS7 已移除该选项，加了 `--tsgo` 会立刻报
-  `Option 'baseUrl' has been removed`。
-- 其中 37 条 `'"disabled"' does not exist in ...` 是**真实缺陷**，已定位并实测：`src/lib/components/ui/Button.svelte`
-  的 props 写成 `} & HTMLAttributes<HTMLButtonElement> = $props()`，而 `svelte/elements` 的泛型
-  `HTMLAttributes<T>` 只含全局属性、不含元素专属属性，`disabled` 不在其中；组件内部把 `...rest` 透传给
-  `<button>`，运行时是好的，类型上是漏的。改成 `& HTMLButtonAttributes` 后这 37 条全消（66 → 29）。
-  全仓只有 Button 用这个写法，其余 8 条 `"for"` 来自别的组件，要按同样思路逐个看。
-- 剩下的 29 条里混着真实问题（`'previewTx' is possibly 'null'`、`Property 'role' does not exist on type 'Book'`、
-  `Type 'number' is not assignable to type 'string'`、`Object is possibly 'undefined'`）和上面 `paths`
-  覆盖带来的 2 条 `$app/environment`，需要逐条判：前者该修代码，后者该把继承来的映射抄全。
+- `web/tsconfig.json` 里的 `paths` 是**必需**的：镜像 `#lib` / `#lib/*`（含
+  `./src/lib/*.svelte.ts`、`*.svelte.js` 候选），并且**把 `$app/tsconfig` 继承来的 10 条一并抄全**
+  ——子配置 `paths` 是整体覆盖不是合并，漏抄会集体解析失败。
+- **不要加 `baseUrl`**：TS7 已移除该选项，加了其它检查模式会直接崩。
+- **不要走 `--tsgo` / `--tsgo-experimental-api`**：plain 路径的类型程序覆盖 4787 个文件
+  （`svelte-check --output machine` 的 `COMPLETED` 行），别名撤掉后这两个模式会被版本守卫直接拒掉
+  （`svelte-check failed`）。更要紧的是它们此前的行为：别名还在时，因为解析不到 `#lib/*`，
+  类型程序里只装进 54 个转译产物并**静默报 0 errors** —— 注入硬错误也不涨，是假绿灯。
+- `exclude` 里的 `build` / `dist` / `coverage` 不能省：本仓没有 `include`，默认 `**/*` 会把
+  vite 产物灌进类型程序，`checkJs: true` 下压缩后的 JS 会贡献上千条诊断。
+- `.svelte.ts` 模块用 **`from './x.svelte'`** 形式导入（先例：`#lib/stores/rates.svelte`）；
+  写成裸 `./x` 只有 Vite 能解析，TS 侧会报 Cannot find module。
+- Kit 3 里 `$app/environment` 已废弃且无类型，用 `$app/env`（`browser` / `dev` / `building` / `version`）。
+- `virtual:pwa-register` 的声明放在 `src/pwa-register.d.ts`（全局脚本文件）：写进带 `export {}` 的
+  `app.d.ts` 只会成为模块增强，照样报 Cannot find module。
 
-恢复覆盖时优先走 `--tsgo-experimental-api`（它与 plain 数目一致、用的是 TS7），把上面几条收干净后，
-再把 `check` 挂进 CI 的 `web-build-command`。
+验证覆盖是真的而不是换了个标签：往 `src/lib/utils/cn.ts` 加 `export const __probe: number = "str"`、
+往某个 `.svelte` 的 `<script lang="ts">` 加未声明标识符，`pnpm run check` 必须**失败**（两处都抓到，
+exit code 1）；`--tsgo` 那套在这两处都是假通过。
+
+CI 侧：`ci.yml` 的 `test` job 已设 `web-build-command`（先 `pnpm run check` 再 `pnpm run build`），
+`build` 本身不含类型检查，所以 check 不接进 CI 就等于没有静态类型闸门。
 
 ## 后端开发（仓库根）
 

@@ -8,7 +8,7 @@
 		Legend,
 		ArcElement
 	} from 'chart.js';
-	import { baseOptions, PALETTE, useMounted, centsToYuan } from './chartSetup';
+	import { baseOptions, PALETTE, useMounted, centsToYuan } from './chartSetup.svelte';
 	import { privacyStore } from '#lib/stores/privacy';
 
 	interface Item {
@@ -69,7 +69,7 @@
 </script>
 
 <div style={`height:${height}px`}>
-	{#if mounted && items.length > 0}
+	{#if mounted() && items.length > 0}
 		{#key masked}
 			<Pie {data} {options} />
 		{/key}

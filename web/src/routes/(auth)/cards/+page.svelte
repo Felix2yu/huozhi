@@ -33,7 +33,9 @@
 		}
 	});
 
-	function formatCardNumber(card: Account): string {
+	// 只用到卡末四位：还款提醒里的条目不是 Account（是账单视图），
+	// 参数按实际用到的字段收窄，避免调用方被迫构造一个假的 Account。
+	function formatCardNumber(card: Pick<Account, 'card_no4'>): string {
 		if (card.card_no4) {
 			return `•••• ${card.card_no4}`;
 		}

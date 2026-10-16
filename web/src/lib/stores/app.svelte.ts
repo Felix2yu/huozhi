@@ -1,7 +1,7 @@
 /** 全局应用状态 - Svelte 5 runes */
 import { http } from '#lib/api/http';
 import { privacyStore } from '#lib/stores/privacy';
-import type { User, Book, Category, Tag, Account } from '#lib/types';
+import type { User, BookView, Category, Tag, Account } from '#lib/types';
 
 const BOOK_ID_KEY = 'hz_book_id';
 
@@ -17,7 +17,7 @@ if (typeof localStorage !== 'undefined') {
 	isAuth = !!token;
 }
 
-let books = $state<Book[]>([]);
+let books = $state<BookView[]>([]);
 let currentBookId = $state<number>(
 	typeof localStorage !== 'undefined'
 		? Number(localStorage.getItem(BOOK_ID_KEY) || 0)
@@ -79,7 +79,7 @@ let bookPrefApplied = false;
 
 async function loadBooks(): Promise<void> {
 	try {
-		const list = await http.get<Book[]>('/books');
+		const list = await http.get<BookView[]>('/books');
 		books = list;
 
 		// 打开应用优先落到用户偏好的默认账本（未设置 / 已归档则退回 Book.is_default）

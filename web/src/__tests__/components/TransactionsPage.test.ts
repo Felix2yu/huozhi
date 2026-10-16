@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/svelte';
 
+// 预览弹窗底部的「编辑」按钮会 goto()，这里换成可断言的替身
+const gotoFn = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock('$app/navigation', () => ({ goto: gotoFn }));
+
 const MOCK_TXS = [
 	{
 		id: 1,
@@ -175,8 +179,30 @@ describe('交易列表页 - 有数据', () => {
 		});
 	});
 
-	it('预览弹窗显示标签信息', async () => {
+	// 转账预览：{@const toAccountId = previewTx.to_account_id} 把 id 提到闭包外，
+	// appStore.accounts.find((a) => a.id === toAccountId) 才能拿到已收窄的值。
+	it('转账预览显示转入账户名（{@const toAccountId} 生效）', async () => {
 		render(Page);
+		await waitFor(() => screen.getByText('转入定期'));
+		await fireEvent.click(screen.getByText('转入定期'));
+		await waitFor(() => {
+			expect(screen.getByText('转入账户')).toBeTruthy();
+		});
+		// 命中 MOCK_TXS[2].to_account_id = 2 → accounts[1].name
+		expect(screen.getByText('招行储蓄')).toBeTruthy();
+	});
+
+	it('预览弹窗编辑按钮跳转 /transactions/edit/<id>', async () => {
+		render(Page);
+		await waitFor(() => screen.getByText('转入定期'));
+		await fireEvent.click(screen.getByText('转入定期'));
+		await waitFor(() => screen.getByText('编辑'));
+		gotoFn.mockClear();
+		await fireEvent.click(screen.getByText('编辑'));
+		await waitFor(() => expect(gotoFn).toHaveBeenCalledWith('/transactions/edit/3'));
+	});
+
+	it('预览弹窗显示标签信息', async () => {		render(Page);
 		await waitFor(() => screen.getByText('午餐'));
 		await fireEvent.click(screen.getByText('午餐'));
 		await waitFor(() => {

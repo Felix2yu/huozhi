@@ -29,6 +29,11 @@ jobs:
       test-packages: ./...
       web-dir: web
       web-test-command: pnpm run test:coverage
+      # 类型检查必须显式串进 CI：build 只有 vite build + build-sw.mjs，不含 svelte-check；
+      # check 走 plain 路径（TS6），产出真实诊断——check 绿 = 类型真的过。
+      web-build-command: |
+        pnpm run check
+        pnpm run build
       # internal/web 包带 //go:embed，产物缺失时包编译不过——
       # 先把前端产物摆到内嵌位置，再跑 go vet / go test
       frontend-stage-command: |

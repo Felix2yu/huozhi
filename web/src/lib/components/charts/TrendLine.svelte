@@ -12,7 +12,7 @@
 		CategoryScale,
 		Filler
 	} from 'chart.js';
-	import { baseOptions, INCOME_COLOR, EXPENSE_COLOR, useMounted, centsToYuan } from './chartSetup';
+	import { baseOptions, INCOME_COLOR, EXPENSE_COLOR, useMounted, centsToYuan } from './chartSetup.svelte';
 	import { privacyStore } from '#lib/stores/privacy';
 
 	interface Point {
@@ -70,7 +70,7 @@
 </script>
 
 <div style={`height:${height}px`}>
-	{#if mounted && points.length > 0}
+	{#if mounted() && points.length > 0}
 		{#key masked}
 			<Line {data} {options} />
 		{/key}

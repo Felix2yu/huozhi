@@ -77,7 +77,9 @@
 	let autoBackupEnabled = $state(false);
 	let autoBackupFrequency = $state<'daily' | 'weekly' | 'monthly'>('daily');
 	let autoBackupTime = $state('03:00');
-	let autoBackupKeepCount = $state(7);
+	// Input 的 value 是字符串双向绑定（<input> 的 value 只能是 string），
+	// 所以这里保持字符串态，出网前再转数字。
+	let autoBackupKeepCount = $state('7');
 	let autoBackupSaving = $state(false);
 	let autoBackupList = $state<Array<{ name: string; size: number; time: string }>>([]);
 	let autoBackupListLoading = $state(false);
@@ -99,10 +101,10 @@
 	$effect(() => {
 		const user = appStore.user;
 		if (user) {
-			autoBackupEnabled = (user as any).auto_backup_enabled ?? false;
-			autoBackupFrequency = (user as any).auto_backup_frequency ?? 'daily';
-			autoBackupTime = (user as any).auto_backup_time ?? '03:00';
-			autoBackupKeepCount = (user as any).auto_backup_keep_count ?? 7;
+			autoBackupEnabled = user.auto_backup_enabled ?? false;
+			autoBackupFrequency = user.auto_backup_frequency ?? 'daily';
+			autoBackupTime = user.auto_backup_time ?? '03:00';
+			autoBackupKeepCount = String(user.auto_backup_keep_count ?? 7);
 		}
 	});
 
@@ -114,7 +116,8 @@
 				auto_backup_enabled: autoBackupEnabled,
 				auto_backup_frequency: autoBackupFrequency,
 				auto_backup_time: autoBackupTime,
-				auto_backup_keep_count: autoBackupKeepCount
+				// 后端 dto 是 *int（binding min=1,max=30），发字符串会直接 400
+				auto_backup_keep_count: Number(autoBackupKeepCount) || 7
 			} as any);
 			hzToast.success('自动备份设置已保存');
 		} catch (e: any) {
