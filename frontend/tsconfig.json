@@ -4,6 +4,25 @@
 	// tsconfig_extends_missing 并把全部 #lib/* 导入判为 Cannot find module。
 	"extends": "$app/tsconfig",
 	"compilerOptions": {
+		// kit 的 package.json imports 别名在 svelte2tsx 的虚拟文件布局下解析不到，
+		// 这里显式镜像一份 paths；子配置的 paths 是整体覆盖，所以必须把 $app/tsconfig
+		// 继承来的 10 条一并抄全，否则 $components/$api/... 会集体解析失败。
+		"paths": {
+			"#lib": ["./src/lib"],
+			"#lib/*": ["./src/lib/*.svelte.ts", "./src/lib/*.svelte.js", "./src/lib/*"],
+			"$components": ["./src/lib/components"],
+			"$components/*": ["./src/lib/components/*"],
+			"$api": ["./src/lib/api"],
+			"$api/*": ["./src/lib/api/*"],
+			"$stores": ["./src/lib/stores"],
+			"$stores/*": ["./src/lib/stores/*"],
+			"$utils": ["./src/lib/utils"],
+			"$utils/*": ["./src/lib/utils/*"],
+			"$constants": ["./src/lib/constants"],
+			"$constants/*": ["./src/lib/constants/*"]
+		},
+		"types": ["$app/types", "vitest/globals", "node"],
+
 		"rewriteRelativeImportExtensions": true,
 		"allowJs": true,
 		"checkJs": true,
@@ -14,7 +33,14 @@
 		"sourceMap": true,
 		"strict": true,
 		"moduleResolution": "bundler"
-	}
+	},
+	// 生成物必须挡在类型程序外：本仓 tsconfig 没有 include，默认 `**/*` 会把
+	// vite 产物（build/、dist/）与覆盖率目录（coverage/）一起灌进来；checkJs: true
+	// 下压缩后的 JS 会贡献上千条诊断（实测 build/ 存在时 plain svelte-check 报 8423 errors）。
+	// 这里用 exclude 而不是收窄 include：root 下的 vite.config.ts / vitest.config.ts /
+	// scripts/*.mjs 仍然需要被检查；.svelte-kit/types 是路由类型（$types.d.ts）的所在地，
+	// 不能排除。
+	"exclude": ["node_modules", "build", "dist", "coverage"]
 	// Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias
 	// except $lib which is handled by https://svelte.dev/docs/kit/configuration#files
 	//
