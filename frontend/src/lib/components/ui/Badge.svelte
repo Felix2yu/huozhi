@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { HTMLAttributes } from 'svelte/elements';
 import { cn } from '#lib/utils/cn';
 import { cva, type VariantProps } from 'class-variance-authority';
 
@@ -29,7 +30,7 @@ let {
 }: {
 	class?: string;
 	variant?: VariantProps<typeof variants>['variant'];
-} = $props();
+} & HTMLAttributes<HTMLDivElement> = $props();
 
 const classes = $derived(cn(variants({ variant }), className));
 </script>
