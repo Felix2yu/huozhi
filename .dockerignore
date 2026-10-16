@@ -1,0 +1,66 @@
+# 装配式镜像：Dockerfile 只 COPY 预编译产物（bin/huozhi-server）、
+# 内置配置（config.example.yaml）与入口脚本（scripts/docker-entrypoint.sh）。
+# 下列排除项都不得命中这三者。
+
+# Git / CI / 文档
+.git/
+.github/
+.gitignore
+.dockerignore
+README.md
+AGENTS.md
+LICENSE
+docs/
+
+# Go 构建/测试产物
+*.test
+*.out
+coverage.out
+huozhi-server
+
+# 前端源码与依赖（产物经 go:embed 打进二进制，镜像不需要 Node 工具链）
+web/node_modules/
+web/build/
+web/dist/
+web/.svelte-kit/
+web/coverage/
+web/vite.config.js
+web/vite.config.d.ts
+web/vitest.config.js
+web/vitest.config.d.ts
+web/svelte.config.cjs
+**/node_modules/
+
+# 本地数据与配置（运行时由数据卷提供）
+data/
+uploads/
+backups/
+config.yaml
+config.local.yaml
+*.db
+*.db.bak-*
+*.sqlite
+.env
+.env.*
+
+# 暂存目录（不入库，也不进构建上下文）
+frontend-react-backup/
+outputs/
+.trae/
+.zcode/
+.workbuddy/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 动态库
+*.exe
+*.dll
+*.so
+*.dylib

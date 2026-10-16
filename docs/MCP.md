@@ -217,7 +217,7 @@ location /api/mcp {
 ## 7. 实现结构
 
 ```
-backend/internal/mcp/
+internal/mcp/
 ├── protocol.go      # JSON-RPC 2.0 消息、协议版本协商、工具/结果类型
 ├── server.go        # 方法分发（initialize / tools/list / tools/call / ping）、会话表
 ├── transport.go     # Streamable HTTP（POST/GET/DELETE，SSE 编解码）
@@ -227,8 +227,8 @@ backend/internal/mcp/
 ├── resolve.go       # 参数取值 + 分类/账户/账本/标签「名称 → ID」解析
 └── schema/          # JSON Schema 构造助手
 
-backend/internal/handlers/tx_core.go   # 与 gin 解耦的交易核心层（余额/预算/派生流水）
-backend/internal/middleware/mcp.go     # MCP 鉴权（API Key / JWT 三通道）
+internal/handlers/tx_core.go   # 与 gin 解耦的交易核心层（余额/预算/派生流水）
+internal/middleware/mcp.go     # MCP 鉴权（API Key / JWT 三通道）
 ```
 
 **关键设计：写操作不另起炉灶。** MCP 的建/改/删全部调用 `handlers.CreateTx / UpdateTx / DeleteTx /

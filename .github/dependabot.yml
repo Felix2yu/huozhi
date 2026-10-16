@@ -4,7 +4,7 @@
 version: 2
 updates:
   - package-ecosystem: "gomod"
-    directory: "/backend"
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "friday"
@@ -27,7 +27,7 @@ updates:
         update-types: ["major"]
 
   - package-ecosystem: "npm"
-    directory: "/frontend"
+    directory: "/web"
     schedule:
       interval: "weekly"
       day: "friday"
@@ -48,7 +48,7 @@ updates:
       npm-major:
         patterns: ["*"]
         update-types: ["major"]
-    # 与 preset 同步：typescript 的 major 不提 PR。frontend 的 typescript@~6 是给
+    # 与 preset 同步：typescript 的 major 不提 PR。web 的 typescript@~6 是给
     # svelte-kit sync / svelte-check / typescript-eslint 用的 JS 编译器 API 宿主，
     # 直接换成 7 会让 CI 在 pnpm install 的 postinstall 崩（PR#102 的 test/test 就是这么红的）。
     # 本仓库只走 svelte-check 的默认路径：曾用过的 @typescript/native 别名 + --tsgo 已在
