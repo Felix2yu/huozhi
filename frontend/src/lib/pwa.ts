@@ -1,4 +1,4 @@
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 
 /**
  * 注册 Service Worker（构建时由 vite-plugin-pwa 生成 `/sw.js`）。

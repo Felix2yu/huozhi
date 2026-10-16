@@ -10,6 +10,8 @@
 	import { appStore } from '#lib/stores/app';
 	import { hzToast } from '#lib/components/ui/toast';
 	import { Plus, Tag, Pencil, Trash2, Hash } from '@lucide/svelte';
+	// 数据结构用共享的 Tag 接口；`Tag` 这个名字已被上面的 lucide 图标占用，故取别名
+	import type { Tag as TagModel } from '#lib/types';
 
 	// 预设配色（与标签 dot / 卡片强调色一致）
 	const PALETTE = [
@@ -19,7 +21,7 @@
 	];
 
 	let showDialog = $state(false);
-	let editingTag = $state<{ id: number; name: string; color: string; sort: number } | null>(null);
+	let editingTag = $state<TagModel | null>(null);
 	let tagName = $state('');
 	let selectedColor = $state('');
 	let saving = $state(false);
@@ -37,7 +39,7 @@
 		showDialog = true;
 	}
 
-	function openEdit(tag: { id: number; name: string; color: string; sort: number }) {
+	function openEdit(tag: TagModel) {
 		editingTag = tag;
 		tagName = tag.name;
 		selectedColor = tag.color || '';

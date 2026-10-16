@@ -1,8 +1,9 @@
 import { http } from '../http';
-import type { Book } from '#lib/types';
+import type { Book, BookView } from '#lib/types';
 
 export const bookApi = {
-	list: () => http.get<Book[]>('/books'),
+	// 列表接口带共享标注（is_shared / role），见 types.ts 的 BookView
+	list: () => http.get<BookView[]>('/books'),
 	get: (id: number) => http.get<Book>(`/books/${id}`),
 	create: (data: Partial<Book>) => http.post<Book>('/books', data),
 	update: (id: number, data: Partial<Book>) => http.put<Book>(`/books/${id}`, data),

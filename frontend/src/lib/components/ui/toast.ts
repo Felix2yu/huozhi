@@ -12,10 +12,10 @@ export const hzToast = {
 	offline: (message: string) =>
 		toast(message, {
 			duration: 4000,
-			style: {
-				background: 'var(--color-muted)',
-				border: '1px solid var(--color-border)'
-			}
+			// svelte-sonner v1 的 toastOptions.style 是「CSS 字符串」，会被拼进
+			// style={`${restProps.style} ${toast.style}`}；传对象只会得到 "[object Object]"，
+			// 浏览器直接忽略，所以这里必须写成声明串。
+			style: 'background: var(--color-muted); border: 1px solid var(--color-border)'
 		})
 };
 

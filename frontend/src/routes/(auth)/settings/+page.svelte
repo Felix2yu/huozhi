@@ -18,7 +18,7 @@
 	import { hzToast } from '#lib/components/ui/toast';
 	import { CURRENCIES } from '#lib/types';
 	import { onMount } from 'svelte';
-	import { browser } from '$app/environment';
+	import { browser } from '$app/env';
 	import {
 		User,
 		Palette,

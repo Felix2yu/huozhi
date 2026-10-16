@@ -814,11 +814,14 @@
 					<span>{getAccountName(previewTx)}</span>
 				</div>
 				{#if previewTx.to_account_id}
+					<!-- {@const} 把 id 提到闭包外取：previewTx 是可重新赋值的 $state，
+					        在 find 的箭头函数里 TS 无法沿用 {#if} 的收窄 -->
+					{@const toAccountId = previewTx.to_account_id}
 					<div class="flex justify-between">
 						<span class="text-muted-foreground">转入账户</span>
 						<span
 							>{previewTx.to_account_name ||
-								appStore.accounts.find((a) => a.id === previewTx.to_account_id)?.name ||
+								appStore.accounts.find((a) => a.id === toAccountId)?.name ||
 								'—'}</span
 						>
 					</div>
@@ -851,7 +854,7 @@
 			</div>
 
 			<div class="flex gap-2 pt-2">
-				<Button class="flex-1" onclick={() => goto(`/transactions/edit/${previewTx.id}`)}>
+				<Button class="flex-1" onclick={() => previewTx && goto(`/transactions/edit/${previewTx.id}`)}>
 					编辑
 				</Button>
 				<Button
