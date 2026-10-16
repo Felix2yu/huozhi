@@ -2,13 +2,20 @@
 packages:
   - "."
 
-# 工具链刻意跑在 TypeScript 7 上（check 脚本用 svelte-check --tsgo，
-# @typescript/native 提供），而 kit 3 的 write_tsconfig 会 import('typescript')
-# 并调用 ts.readConfigFile —— TS7 只导出 default/version/versionMajorMinor，
-# 那个 API 已不存在，会直接让构建崩在 "Cannot read properties of undefined"。
-# 因此 typescript 本体钉在 6.x（kit 需要它的完整 API），TS7 只走 native 通道。
-# npm 时代靠 --legacy-peer-deps 无差别压掉所有 peer 检查；这里只放行确实知道的几处，
-# 于是将来冒出新的 peer 冲突仍会在安装日志里显形。
+# typescript 钉在 6.x：kit 3 的 write_tsconfig 会 import('typescript') 并调用
+# ts.readConfigFile / ts.sys，而 TS7（原生 Go 编译器）只导出 default/version/
+# versionMajorMinor，那个 JS 编译器 API 已不存在，直接把依赖换成 7 会让构建崩在
+# "Cannot read properties of undefined"。svelte-check 也因此只能走默认路径 ——
+# 曾试过的 @typescript/native 别名 + --tsgo 因解析不到 #lib/* 而静默报 0 errors，
+# 已在 PR#105 撤除。理由与实测见 Felix2yu/.github/docs/dependabot.md 第六节。
+overrides:
+  # 传递依赖的安全补丁（GHSA 告警：brace-expansion / serialize-javascript / source-map-js）。
+  # dependabot 的安全任务在 frontend→web 改名后一直提不出 PR，这里按 major 限定并钉到同 major 的修复版（^x.y.z）：
+  # 写成 >=2.1.7 会让 pnpm 把 2.x 的消费者直接解到 5.0.12，安全补丁不该顺带跨 major 升级。
+  brace-expansion@2: "^2.1.7"
+  serialize-javascript@7: "^7.1.2"
+  source-map-js@1: "^1.2.2"
+
 peerDependencyRules:
   allowedVersions:
     typescript: "^5 || ^6 || ^7"
