@@ -72,10 +72,10 @@ func ListAccounts(c *gin.Context) {
 
 	// 汇总
 	type summary struct {
-		TotalAsset  models.Money `json:"total_asset"`
-		TotalDebt   models.Money `json:"total_debt"`
-		NetAsset    models.Money `json:"net_asset"`
-		CashFlow    models.Money `json:"cash_flow"`
+		TotalAsset models.Money `json:"total_asset"`
+		TotalDebt  models.Money `json:"total_debt"`
+		NetAsset   models.Money `json:"net_asset"`
+		CashFlow   models.Money `json:"cash_flow"`
 	}
 	s := summary{}
 	for _, a := range accounts {
@@ -163,17 +163,17 @@ func CreateAccount(c *gin.Context) {
 		database.DB.Where("user_id = ? AND kind = ? AND name = ?", uid, models.KindSystem, "余额调整").First(&adjCat)
 		if adjCat.ID > 0 {
 			adjTx := models.Transaction{
-				UserID:            uid,
-				BookID:            req.BookID,
-				Type:              models.TxAdjust,
-				Amount:            models.FromYuan(req.InitialAmount),
-				Currency:          acc.Currency,
-				CategoryID:        adjCat.ID,
-				AccountID:         acc.ID,
-				TxDate:            time.Now(),
-				Description:       "初始金额",
-				IncludeInBalance:  true,
-				IncludeInBudget:   false,
+				UserID:           uid,
+				BookID:           req.BookID,
+				Type:             models.TxAdjust,
+				Amount:           models.FromYuan(req.InitialAmount),
+				Currency:         acc.Currency,
+				CategoryID:       adjCat.ID,
+				AccountID:        acc.ID,
+				TxDate:           time.Now(),
+				Description:      "初始金额",
+				IncludeInBalance: true,
+				IncludeInBudget:  false,
 			}
 			database.DB.Create(&adjTx)
 		}
@@ -423,10 +423,10 @@ func GetCreditSummary(c *gin.Context) {
 		BillDay     int          `json:"bill_day"`
 		Balance     models.Money `json:"balance"`
 		CreditLimit models.Money `json:"credit_limit"`
-		DaysLeft    int          `json:"days_left"`     // 距下一个还款日还剩几天
-		RepayDate   string       `json:"repay_date"`    // 下次还款日
-		BillAmount  models.Money `json:"bill_amount"`   // 已出账金额（本月支出）
-		Overdue     bool         `json:"overdue"`        // 是否已逾期
+		DaysLeft    int          `json:"days_left"`   // 距下一个还款日还剩几天
+		RepayDate   string       `json:"repay_date"`  // 下次还款日
+		BillAmount  models.Money `json:"bill_amount"` // 已出账金额（本月支出）
+		Overdue     bool         `json:"overdue"`     // 是否已逾期
 	}
 	var out []repayOut
 

@@ -71,7 +71,7 @@ func TestParseQianJiRows(t *testing.T) {
 	database.DB.Create(&models.Category{UserID: uid, BookID: daily, Name: "医疗", Kind: models.KindExpense, Icon: "x"})
 	database.DB.Create(&models.Category{UserID: uid, BookID: daily, Name: "交通", Kind: models.KindExpense, Icon: "x"})
 	rows := qianjiSampleRows()
-	txs, err := parseQianJiRows(rows, nil,uid, bookID)
+	txs, err := parseQianJiRows(rows, nil, uid, bookID)
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
@@ -166,7 +166,7 @@ func TestParseQianJiRowsSubCategory(t *testing.T) {
 		{"ID", "时间", "账本", "分类", "二级分类", "类型", "金额", "币种", "账户1", "账户2", "备注", "已报销", "手续费", "优惠券", "记账者", "账单标记", "标签", "账单图片", "关联账单"},
 		{"sc1", "2026-09-03 12:00:00", "日常账本", "餐饮", "火锅", "支出", "120", "CNY", "现金", "", "聚餐", "", "", "", "子翼", "", "", "", ""},
 	}
-	txs, err := parseQianJiRows(rows, nil,uid, bookID)
+	txs, err := parseQianJiRows(rows, nil, uid, bookID)
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestParseQianJiRowsSubCategory(t *testing.T) {
 	}
 
 	// 再次导入同名二级分类，应复用而非新建
-	txs2, _ := parseQianJiRows(rows, nil,uid, bookID)
+	txs2, _ := parseQianJiRows(rows, nil, uid, bookID)
 	var sub2 models.Category
 	database.DB.First(&sub2, txs2[0].CategoryID)
 	if sub2.ID != sub.ID {
@@ -209,7 +209,7 @@ func TestParseQianJiRowsBookAndReimburse(t *testing.T) {
 		{"b2", "2026-09-04 12:00:00", "旅行账本", "餐饮", "", "支出", "80", "CNY", "现金", "", "晚餐", "否", "", "", "子翼", "", "", "", ""},
 		{"b3", "2026-09-05 12:00:00", "家庭账本", "餐饮", "", "支出", "50", "CNY", "现金", "", "买菜", "", "", "", "子翼", "", "", "", ""},
 	}
-	txs, err := parseQianJiRows(rows, nil,uid, 0)
+	txs, err := parseQianJiRows(rows, nil, uid, 0)
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
@@ -241,7 +241,8 @@ func TestParseQianJiRowsBookAndReimburse(t *testing.T) {
 	}
 }
 
-func TestParseQianJi_EndToEndXLSX(t *testing.T) {	uid, bookID := qjSetup(t)
+func TestParseQianJi_EndToEndXLSX(t *testing.T) {
+	uid, bookID := qjSetup(t)
 	data := buildXLSX(t, qianjiSampleRows())
 	txs, err := parseQianJi(bytes.NewReader(data), uid, bookID)
 	if err != nil {
@@ -262,7 +263,7 @@ func TestParseQianJiRowsTransferByAccounts(t *testing.T) {
 		{"ID", "时间", "账本", "分类", "二级分类", "类型", "金额", "币种", "账户1", "账户2", "备注", "已报销", "手续费", "优惠券", "记账者", "账单标记", "标签", "账单图片", "关联账单"},
 		{"qjx", "2026-09-03 10:00:00", "日常账本", "", "", "", "500", "CNY", "招商银行储蓄卡", "平安银行信用卡", "信用卡还款", "", "", "", "子翼", "", "", "", ""},
 	}
-	txs, err := parseQianJiRows(rows, nil,uid, bookID)
+	txs, err := parseQianJiRows(rows, nil, uid, bookID)
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
@@ -332,7 +333,7 @@ func TestParseQianJiRowsPreviouslyMissingFields(t *testing.T) {
 		// 退款：关联回 ext-001（钱迹里「关联账单」通常指向原始支出），已报销列给金额
 		{"ext-002", "2026-09-04 12:00:00", "日常账本", "医疗", "", "退款", "50", "CNY", "现金", "", "退药", "88.5", "", "", "子翼", "", "", "", "ext-001"},
 	}
-	txs, err := parseQianJiRows(rows, nil,uid, 0)
+	txs, err := parseQianJiRows(rows, nil, uid, 0)
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}

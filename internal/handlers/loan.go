@@ -35,16 +35,16 @@ func ensureLoanAccount(db *gorm.DB, uid, bookID uint, direction models.LoanDirec
 		return &acc, true
 	}
 	acc = models.Account{
-		UserID:        uid,
-		BookID:        bookID,
-		Name:          wantName,
-		Type:          wantType,
-		Currency:      "CNY",
-		Balance:       0,
-		InitialAmount: 0,
-		Icon:          "🤝",
-		Color:         "#64748b",
-		IncludeInTotal: true,
+		UserID:          uid,
+		BookID:          bookID,
+		Name:            wantName,
+		Type:            wantType,
+		Currency:        "CNY",
+		Balance:         0,
+		InitialAmount:   0,
+		Icon:            "🤝",
+		Color:           "#64748b",
+		IncludeInTotal:  true,
 		IncludeInBudget: false,
 	}
 	if err := db.Create(&acc).Error; err != nil {
@@ -119,19 +119,19 @@ func CreateLoan(c *gin.Context) {
 	}
 
 	loan := models.Loan{
-		UserID:        uid,
-		BookID:        req.BookID,
-		Direction:     direction,
-		Counterparty:  req.Counterparty,
-		Principal:     principal,
-		Currency:      currency,
-		InterestRate:  req.InterestRate,
-		InterestType:  interestType,
-		AccountID:     req.AccountID,
-		LoanDate:      loanDate,
-		DueDate:       dueDate,
-		Note:          req.Note,
-		Status:        "active",
+		UserID:       uid,
+		BookID:       req.BookID,
+		Direction:    direction,
+		Counterparty: req.Counterparty,
+		Principal:    principal,
+		Currency:     currency,
+		InterestRate: req.InterestRate,
+		InterestType: interestType,
+		AccountID:    req.AccountID,
+		LoanDate:     loanDate,
+		DueDate:      dueDate,
+		Note:         req.Note,
+		Status:       "active",
 	}
 	if err := db.Create(&loan).Error; err != nil {
 		db.Rollback()
@@ -259,15 +259,15 @@ func RepayLoan(c *gin.Context) {
 	updateAccountBalances(db, &tx, from, to, true)
 
 	repay := models.LoanRepayment{
-		UserID:        uid,
-		BookID:        loan.BookID,
-		LoanID:        loan.ID,
-		Amount:        amount,
+		UserID:         uid,
+		BookID:         loan.BookID,
+		LoanID:         loan.ID,
+		Amount:         amount,
 		InterestAmount: interest,
 		RepayAccountID: req.RepayAccountID,
-		RepaidAt:      repaidAt,
-		Note:          req.Note,
-		TransactionID: tx.ID,
+		RepaidAt:       repaidAt,
+		Note:           req.Note,
+		TransactionID:  tx.ID,
 	}
 
 	// 利息：lend 还款利息 → 收入；borrow 还款利息 → 支出（均进/出还款账户）

@@ -629,15 +629,15 @@ func GetBill(c *gin.Context) {
 	var budgets []models.Budget
 	database.DB.Where("user_id = ? AND start_date <= ? AND end_date >= ?", uid, last, first).Find(&budgets)
 	type budgOut struct {
-		ID          uint         `json:"id"`
-		Name        string       `json:"name"`
-		Amount      models.Money `json:"amount"`
-		UsedAmount  models.Money `json:"used_amount"`
-		Remaining   models.Money `json:"remaining"`
-		UsageRate   float64      `json:"usage_rate"`
-		IsOverBudget bool        `json:"is_over_budget"`
-		CategoryID  uint         `json:"category_id"`
-		CategoryName string      `json:"category_name"`
+		ID           uint         `json:"id"`
+		Name         string       `json:"name"`
+		Amount       models.Money `json:"amount"`
+		UsedAmount   models.Money `json:"used_amount"`
+		Remaining    models.Money `json:"remaining"`
+		UsageRate    float64      `json:"usage_rate"`
+		IsOverBudget bool         `json:"is_over_budget"`
+		CategoryID   uint         `json:"category_id"`
+		CategoryName string       `json:"category_name"`
 	}
 	var budgOuts []budgOut
 	for _, b := range budgets {
@@ -689,11 +689,11 @@ func GetBill(c *gin.Context) {
 
 	OK(c, gin.H{
 		"meta": gin.H{
-			"month":       monthStr,
-			"range_start": first.Format("2006-01-02"),
-			"range_end":   last.Format("2006-01-02"),
-			"book_name":   bookName,
-			"user_name":   user.Nickname,
+			"month":        monthStr,
+			"range_start":  first.Format("2006-01-02"),
+			"range_end":    last.Format("2006-01-02"),
+			"book_name":    bookName,
+			"user_name":    user.Nickname,
 			"generated_at": time.Now().Format("2006-01-02 15:04:05"),
 		},
 		"summary": gin.H{

@@ -27,7 +27,7 @@ var userSeq uint64
 
 func TestMain(m *testing.M) {
 	config.AppConfig = &config.Config{
-		JWT: config.JWTConfig{Secret: "test-secret", ExpireHours: 168, Issuer: "huozhi"},
+		JWT:    config.JWTConfig{Secret: "test-secret", ExpireHours: 168, Issuer: "huozhi"},
 		Upload: config.UploadConfig{Path: os.TempDir(), MaxSizeMB: 10, Allowed: "jpg,png"},
 	}
 	gin.SetMode(gin.TestMode)

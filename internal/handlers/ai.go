@@ -48,14 +48,14 @@ type aiSmartRecordRequest struct {
 }
 
 type aiSmartRecordResponse struct {
-	Description string  `json:"description"`
-	Amount      float64 `json:"amount"`
-	Type        string  `json:"type"`
-	CategoryID  uint    `json:"category_id"`
-	AccountID   uint    `json:"account_id,omitempty"`
-	TxDate      string  `json:"tx_date"` // YYYY-MM-DD
+	Description string   `json:"description"`
+	Amount      float64  `json:"amount"`
+	Type        string   `json:"type"`
+	CategoryID  uint     `json:"category_id"`
+	AccountID   uint     `json:"account_id,omitempty"`
+	TxDate      string   `json:"tx_date"` // YYYY-MM-DD
 	Tags        []string `json:"tags,omitempty"`
-	Raw         string  `json:"raw,omitempty"`
+	Raw         string   `json:"raw,omitempty"`
 }
 
 type aiStatusResponse struct {

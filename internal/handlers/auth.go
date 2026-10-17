@@ -378,8 +378,8 @@ func ChangePassword(c *gin.Context) {
 
 	newVer := user.TokenVersion + 1
 	if err := database.DB.Model(&user).Updates(map[string]interface{}{
-		"password_hash":  hash,
-		"token_version":  newVer,
+		"password_hash": hash,
+		"token_version": newVer,
 	}).Error; err != nil {
 		InternalErr(c, "修改密码失败: "+err.Error())
 		return
@@ -482,7 +482,7 @@ func HealthCheck(c *gin.Context) {
 // GenerateAPIKey 生成或重新生成API密钥
 func GenerateAPIKeyHandler(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	
+
 	var user models.User
 	if err := database.DB.First(&user, uid).Error; err != nil {
 		NotFound(c, "用户不存在")
@@ -491,10 +491,10 @@ func GenerateAPIKeyHandler(c *gin.Context) {
 
 	// 生成新的API key
 	newAPIKey := middleware.GenerateAPIKey()
-	
+
 	// 更新用户
 	if err := database.DB.Model(&user).Updates(map[string]interface{}{
-		"api_key":        newAPIKey,
+		"api_key":         newAPIKey,
 		"api_key_enabled": true,
 	}).Error; err != nil {
 		InternalErr(c, "生成API密钥失败: "+err.Error())
@@ -502,16 +502,16 @@ func GenerateAPIKeyHandler(c *gin.Context) {
 	}
 
 	OK(c, gin.H{
-		"api_key":      newAPIKey,
+		"api_key":         newAPIKey,
 		"api_key_enabled": true,
-		"message":      "API密钥已生成并启用",
+		"message":         "API密钥已生成并启用",
 	})
 }
 
 // GetAPIKeyInfo 获取当前API密钥信息
 func GetAPIKeyInfo(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	
+
 	var user models.User
 	if err := database.DB.First(&user, uid).Error; err != nil {
 		NotFound(c, "用户不存在")
@@ -519,7 +519,12 @@ func GetAPIKeyInfo(c *gin.Context) {
 	}
 
 	OK(c, gin.H{
-		"api_key":         func() string { if user.APIKey != nil { return *user.APIKey }; return "" }(),
+		"api_key": func() string {
+			if user.APIKey != nil {
+				return *user.APIKey
+			}
+			return ""
+		}(),
 		"api_key_enabled": user.APIKeyEnabled,
 		"has_api_key":     user.APIKey != nil,
 	})
@@ -528,7 +533,7 @@ func GetAPIKeyInfo(c *gin.Context) {
 // ToggleAPIKey 启用/禁用API密钥
 func ToggleAPIKey(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	
+
 	var user models.User
 	if err := database.DB.First(&user, uid).Error; err != nil {
 		NotFound(c, "用户不存在")

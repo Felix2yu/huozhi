@@ -9,21 +9,21 @@ import (
 
 // Message 推送消息格式
 type Message struct {
-	Type      string          `json:"type"`                // sync / ping / alert / error
-	Table     string          `json:"table,omitempty"`     // transactions / accounts / budgets / ...
-	Action    string          `json:"action,omitempty"`    // create / update / delete / over_budget
+	Type      string          `json:"type"`             // sync / ping / alert / error
+	Table     string          `json:"table,omitempty"`  // transactions / accounts / budgets / ...
+	Action    string          `json:"action,omitempty"` // create / update / delete / over_budget
 	ID        uint            `json:"id,omitempty"`
-	Data      json.RawMessage `json:"data,omitempty"`      // 附加数据（如超支详情）
+	Data      json.RawMessage `json:"data,omitempty"` // 附加数据（如超支详情）
 	Version   int64           `json:"version,omitempty"`
 	Timestamp time.Time       `json:"timestamp"`
 }
 
 // Hub 管理所有 WebSocket 连接，按 user_id 分组
 type Hub struct {
-	mu       sync.RWMutex
-	clients  map[uint]map[*Conn]bool // user_id -> set of *Conn
-	broadcast chan *Event
-	register  chan *Conn
+	mu         sync.RWMutex
+	clients    map[uint]map[*Conn]bool // user_id -> set of *Conn
+	broadcast  chan *Event
+	register   chan *Conn
 	unregister chan *Conn
 }
 

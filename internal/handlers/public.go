@@ -28,14 +28,14 @@ func GetPublicBill(c *gin.Context) {
 
 	// 返回精简信息，只包含外部系统需要的字段
 	type PublicBillResponse struct {
-		ID          uint          `json:"id"`
-		Description string        `json:"description"`
-		Amount      models.Money  `json:"amount"`
-		Currency    string        `json:"currency"`
-		Type        string        `json:"type"`
-		TxDate      string        `json:"tx_date"`
-		Merchant    string        `json:"merchant"`
-		Remark      string        `json:"remark"`
+		ID          uint         `json:"id"`
+		Description string       `json:"description"`
+		Amount      models.Money `json:"amount"`
+		Currency    string       `json:"currency"`
+		Type        string       `json:"type"`
+		TxDate      string       `json:"tx_date"`
+		Merchant    string       `json:"merchant"`
+		Remark      string       `json:"remark"`
 	}
 
 	OK(c, PublicBillResponse{
@@ -87,13 +87,13 @@ func ListPublicBills(c *gin.Context) {
 
 	// 返回精简信息
 	type PublicBillResponse struct {
-		ID          uint          `json:"id"`
-		Description string        `json:"description"`
-		Amount      models.Money  `json:"amount"`
-		Currency    string        `json:"currency"`
-		Type        string        `json:"type"`
-		TxDate      string        `json:"tx_date"`
-		Merchant    string        `json:"merchant"`
+		ID          uint         `json:"id"`
+		Description string       `json:"description"`
+		Amount      models.Money `json:"amount"`
+		Currency    string       `json:"currency"`
+		Type        string       `json:"type"`
+		TxDate      string       `json:"tx_date"`
+		Merchant    string       `json:"merchant"`
 	}
 
 	var responseList []PublicBillResponse

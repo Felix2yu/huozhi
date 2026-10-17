@@ -93,15 +93,15 @@ func New(mode string, staticDir string) *gin.Engine {
 			// 手动触发孤儿附件清理（日常由后台定时任务自动执行）
 			auth.POST("/uploads/cleanup", handlers.CleanupOrphanUploads)
 
-		// AI 智能分类 & 智能记账
-		auth.GET("/ai/status", handlers.AIStatus)
-		auth.POST("/ai/classify", handlers.AIClassify)
-		auth.POST("/ai/smart-record", handlers.AISmartRecord)
+			// AI 智能分类 & 智能记账
+			auth.GET("/ai/status", handlers.AIStatus)
+			auth.POST("/ai/classify", handlers.AIClassify)
+			auth.POST("/ai/smart-record", handlers.AISmartRecord)
 
-		// API密钥管理
-		auth.POST("/api-key/generate", handlers.GenerateAPIKeyHandler)
-		auth.GET("/api-key", handlers.GetAPIKeyInfo)
-		auth.POST("/api-key/toggle", handlers.ToggleAPIKey)
+			// API密钥管理
+			auth.POST("/api-key/generate", handlers.GenerateAPIKeyHandler)
+			auth.GET("/api-key", handlers.GetAPIKeyInfo)
+			auth.POST("/api-key/toggle", handlers.ToggleAPIKey)
 
 			// 账本
 			books := auth.Group("/books")
