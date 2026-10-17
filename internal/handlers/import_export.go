@@ -8,6 +8,7 @@ import (
 	"huozhi/internal/middleware"
 	"huozhi/internal/models"
 	"io"
+	"log"
 	"mime/multipart"
 	"strconv"
 	"strings"
@@ -44,10 +45,13 @@ func ExportTransactions(c *gin.Context) {
 	// 写入CSV缓存
 	c.Writer.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	c.Writer.Header().Set("Content-Disposition", "attachment; filename=huozhi_transactions_"+time.Now().Format("20060102")+".csv")
-	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF}) // UTF-8 BOM
+	if _, err := c.Writer.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil { // UTF-8 BOM
+		return
+	}
 
 	w := csv.NewWriter(c.Writer)
-	w.Write([]string{"交易日期", "类型", "分类", "金额", "货币", "账户", "目标账户", "描述", "商家", "标签", "备注", "报销状态"})
+	// csv.Writer 自身记住首个错误，逐条 Write 的返回值由结尾的 Error() 统一收口。
+	_ = w.Write([]string{"交易日期", "类型", "分类", "金额", "货币", "账户", "目标账户", "描述", "商家", "标签", "备注", "报销状态"})
 
 	// 映射ID→名称缓存
 	catCache := accountNameCache()
@@ -62,7 +66,7 @@ func ExportTransactions(c *gin.Context) {
 		if t.ToAccountID > 0 {
 			toAccStr = accCache(t.ToAccountID)
 		}
-		w.Write([]string{
+		_ = w.Write([]string{
 			t.TxDate.Format("2006-01-02 15:04:05"),
 			string(t.Type),
 			catCache(t.CategoryID),
@@ -78,6 +82,10 @@ func ExportTransactions(c *gin.Context) {
 		})
 	}
 	w.Flush()
+	if err := w.Error(); err != nil {
+		// 响应头已经发出去了，只能在服务端留下痕迹
+		log.Printf("导出 CSV 中途写入失败: %v", err)
+	}
 }
 
 // 简单缓存
@@ -477,13 +485,16 @@ func findAccountOrFirst(uid, bookID uint) models.Account {
 func DownloadImportTemplate(c *gin.Context) {
 	c.Writer.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	c.Writer.Header().Set("Content-Disposition", "attachment; filename=huozhi_template.csv")
-	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
+	_, _ = c.Writer.Write([]byte{0xEF, 0xBB, 0xBF}) // UTF-8 BOM
 	w := csv.NewWriter(c.Writer)
-	w.Write([]string{"交易日期", "类型(expense/income)", "金额", "分类名称", "描述/备注"})
+	_ = w.Write([]string{"交易日期", "类型(expense/income)", "金额", "分类名称", "描述/备注"})
 	now := time.Now()
-	w.Write([]string{now.Format("2006-01-02"), "expense", "35.50", "餐饮", "午餐：黄焖鸡米饭"})
-	w.Write([]string{now.Format("2006-01-02"), "income", "8000.00", "工资", "8月工资"})
+	_ = w.Write([]string{now.Format("2006-01-02"), "expense", "35.50", "餐饮", "午餐：黄焖鸡米饭"})
+	_ = w.Write([]string{now.Format("2006-01-02"), "income", "8000.00", "工资", "8月工资"})
 	w.Flush()
+	if err := w.Error(); err != nil {
+		log.Printf("导出 CSV 模板失败: %v", err)
+	}
 }
 
 // GetBill 获取月度账单完整数据（前端可渲染 + window.print() 导出 PDF）
@@ -512,7 +523,7 @@ func GetBill(c *gin.Context) {
 		q := database.DB.Where("user_id = ?", uid)
 		if bookIDStr != "" && bookIDStr != "0" {
 			var bid uint
-			fmt.Sscanf(bookIDStr, "%d", &bid)
+			_, _ = fmt.Sscanf(bookIDStr, "%d", &bid)
 			if bid > 0 {
 				q = q.Where("book_id = ?", bid)
 			}
@@ -760,6 +771,6 @@ func mapKeys(m map[uint]map[string]models.Money) []uint {
 
 func mustUint(s string) uint {
 	var n uint
-	fmt.Sscanf(s, "%d", &n)
+	_, _ = fmt.Sscanf(s, "%d", &n)
 	return n
 }

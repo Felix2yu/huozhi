@@ -7,16 +7,6 @@ import (
 	"huozhi/internal/models"
 )
 
-// getFirstAccount returns the first account id owned by uid in the book.
-func getFirstAccount(t *testing.T, uid, bookID uint) uint {
-	t.Helper()
-	var a models.Account
-	if err := database.DB.Where("user_id = ? AND book_id = ?", uid, bookID).First(&a).Error; err != nil {
-		t.Fatalf("getFirstAccount: %v", err)
-	}
-	return a.ID
-}
-
 func TestListAccounts(t *testing.T) {
 	_, tok, bookID := registerRealUser(t)
 	cases := []string{

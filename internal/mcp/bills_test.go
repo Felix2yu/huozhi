@@ -145,10 +145,10 @@ func TestInitializeHandshake(t *testing.T) {
 		t.Fatalf("initialize failed: %v", err)
 	}
 	var resp Response
-	json.Unmarshal(payload, &resp)
+	_ = json.Unmarshal(payload, &resp)
 	b, _ := json.Marshal(resp.Result)
 	var init InitializeResult
-	json.Unmarshal(b, &init)
+	_ = json.Unmarshal(b, &init)
 	if init.ProtocolVersion != "2025-03-26" {
 		t.Errorf("protocolVersion = %s", init.ProtocolVersion)
 	}
@@ -168,10 +168,10 @@ func TestToolsListCount(t *testing.T) {
 	raw, _ := json.Marshal(Request{JSONRPC: "2.0", ID: json.RawMessage(`1`), Method: "tools/list"})
 	payload, _, _ := s.HandleBytes(context.Background(), 1, raw)
 	var resp Response
-	json.Unmarshal(payload, &resp)
+	_ = json.Unmarshal(payload, &resp)
 	b, _ := json.Marshal(resp.Result)
 	var list ListToolsResult
-	json.Unmarshal(b, &list)
+	_ = json.Unmarshal(b, &list)
 	if len(list.Tools) != len(toolHandlers) {
 		t.Fatalf("tools = %d, handlers = %d（有工具没有绑定实现）", len(list.Tools), len(toolHandlers))
 	}
@@ -204,10 +204,10 @@ func TestUnknownToolReturnsToolError(t *testing.T) {
 	raw, _ := json.Marshal(Request{JSONRPC: "2.0", ID: json.RawMessage(`1`), Method: "tools/call", Params: params})
 	payload, _, _ := s.HandleBytes(context.Background(), 1, raw)
 	var resp Response
-	json.Unmarshal(payload, &resp)
+	_ = json.Unmarshal(payload, &resp)
 	b, _ := json.Marshal(resp.Result)
 	var res CallToolResult
-	json.Unmarshal(b, &res)
+	_ = json.Unmarshal(b, &res)
 	if !res.IsError {
 		t.Error("未知工具应返回 isError=true")
 	}
@@ -563,7 +563,7 @@ func TestUpdateAndDeleteAndRecover(t *testing.T) {
 	}
 
 	// 删除（软删除）
-	res, err = call(t, s, uid, "delete_transaction", map[string]any{"id": tx.ID})
+	_, err = call(t, s, uid, "delete_transaction", map[string]any{"id": tx.ID})
 	if err != nil {
 		t.Fatal(err)
 	}

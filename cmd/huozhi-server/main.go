@@ -48,7 +48,9 @@ func main() {
 	// 无论配置来自文件还是默认值，都必须挂到全局（jwt.GenerateToken、存储层等读取 config.AppConfig）
 	config.AppConfig = cfg
 	if _, err := os.Stat(cfg.Upload.Path); os.IsNotExist(err) {
-		os.MkdirAll(cfg.Upload.Path, 0755)
+		if err := os.MkdirAll(cfg.Upload.Path, 0755); err != nil {
+			log.Fatalf("创建上传目录失败: %v", err)
+		}
 	}
 
 	// 初始化存储层（本地 / S3）

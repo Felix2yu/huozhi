@@ -117,8 +117,8 @@ func CreateBook(c *gin.Context) {
 // UpdateBook 更新账本
 func UpdateBook(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	var reqUri dto.IDRequest
-	if err := c.ShouldBindUri(&reqUri); err != nil {
+	var reqURI dto.IDRequest
+	if err := c.ShouldBindUri(&reqURI); err != nil {
 		Bad(c, err.Error())
 		return
 	}
@@ -142,13 +142,13 @@ func UpdateBook(c *gin.Context) {
 		"is_archived": req.IsArchived, // C11：此前 updates 里没有该字段，账本无法归档
 		"sort":        req.Sort,
 	}
-	if err := database.DB.Model(&models.Book{}).Where("id = ? AND user_id = ?", reqUri.ID, uid).Updates(updates).Error; err != nil {
+	if err := database.DB.Model(&models.Book{}).Where("id = ? AND user_id = ?", reqURI.ID, uid).Updates(updates).Error; err != nil {
 		InternalErr(c, "更新失败: "+err.Error())
 		return
 	}
 
 	var book models.Book
-	database.DB.First(&book, reqUri.ID)
+	database.DB.First(&book, reqURI.ID)
 	Broadcast(c, "books", "update", book.ID)
 	OK(c, book)
 }
@@ -251,33 +251,39 @@ func ListArchivedBooks(c *gin.Context) {
 // ListBookMembers 成员列表
 func ListBookMembers(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	var reqUri dto.IDRequest
-	c.ShouldBindUri(&reqUri)
+	var reqURI dto.IDRequest
+	if err := c.ShouldBindUri(&reqURI); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 
 	// 检查成员资格
 	var mem models.BookMember
-	if database.DB.Where("book_id = ? AND user_id = ?", reqUri.ID, uid).Take(&mem).Error != nil {
+	if database.DB.Where("book_id = ? AND user_id = ?", reqURI.ID, uid).Take(&mem).Error != nil {
 		// 若是账本拥有者也可以
 		var book models.Book
-		if database.DB.Where("id = ? AND user_id = ?", reqUri.ID, uid).Take(&book).Error != nil {
+		if database.DB.Where("id = ? AND user_id = ?", reqURI.ID, uid).Take(&book).Error != nil {
 			Forbidden(c, "无权限")
 			return
 		}
 	}
 
 	var members []models.BookMember
-	database.DB.Where("book_id = ?", reqUri.ID).Find(&members)
+	database.DB.Where("book_id = ?", reqURI.ID).Find(&members)
 	OK(c, members)
 }
 
 // InviteBookMember 邀请成员
 func InviteBookMember(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	var reqUri dto.IDRequest
-	c.ShouldBindUri(&reqUri)
+	var reqURI dto.IDRequest
+	if err := c.ShouldBindUri(&reqURI); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 
 	var book models.Book
-	if err := database.DB.Where("id = ? AND user_id = ?", reqUri.ID, uid).First(&book).Error; err != nil {
+	if err := database.DB.Where("id = ? AND user_id = ?", reqURI.ID, uid).First(&book).Error; err != nil {
 		Forbidden(c, "只有账本拥有者可邀请成员")
 		return
 	}
@@ -312,14 +318,14 @@ func InviteBookMember(c *gin.Context) {
 
 	// 已是成员：返回明确的业务错误码（前端据此提示「该用户已在账本中」）
 	var exist models.BookMember
-	if err := database.DB.Where("book_id = ? AND user_id = ?", reqUri.ID, targetUser.ID).
+	if err := database.DB.Where("book_id = ? AND user_id = ?", reqURI.ID, targetUser.ID).
 		First(&exist).Error; err == nil {
 		Fail(c, 2004, "该用户已是成员")
 		return
 	}
 
 	mem := models.BookMember{
-		BookID:   reqUri.ID,
+		BookID:   reqURI.ID,
 		UserID:   targetUser.ID,
 		Role:     role,
 		JoinedAt: time.Now(),
@@ -330,8 +336,8 @@ func InviteBookMember(c *gin.Context) {
 	}
 	// 确保账本所有者也有一条 owner 成员记录，供成员列表/权限判定统一使用
 	var ownerMem models.BookMember
-	if err := database.DB.Where("book_id = ? AND user_id = ?", reqUri.ID, uid).First(&ownerMem).Error; err != nil {
-		database.DB.Create(&models.BookMember{BookID: reqUri.ID, UserID: uid, Role: "owner", JoinedAt: time.Now()})
+	if err := database.DB.Where("book_id = ? AND user_id = ?", reqURI.ID, uid).First(&ownerMem).Error; err != nil {
+		database.DB.Create(&models.BookMember{BookID: reqURI.ID, UserID: uid, Role: "owner", JoinedAt: time.Now()})
 	}
 	Created(c, mem)
 }
@@ -339,16 +345,19 @@ func InviteBookMember(c *gin.Context) {
 // RemoveBookMember 移除成员 / 退出共享账本
 func RemoveBookMember(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	var reqUri dto.IDRequest
-	c.ShouldBindUri(&reqUri)
+	var reqURI dto.IDRequest
+	if err := c.ShouldBindUri(&reqURI); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	memberID := c.Param("memberId")
 
 	var book models.Book
-	if err := database.DB.Where("id = ? AND user_id = ?", reqUri.ID, uid).First(&book).Error; err != nil {
+	if err := database.DB.Where("id = ? AND user_id = ?", reqURI.ID, uid).First(&book).Error; err != nil {
 		Forbidden(c, "只有账本拥有者可移除成员")
 		return
 	}
-	database.DB.Where("id = ? AND book_id = ? AND role != ?", memberID, reqUri.ID, "owner").
+	database.DB.Where("id = ? AND book_id = ? AND role != ?", memberID, reqURI.ID, "owner").
 		Delete(&models.BookMember{})
 	OK(c, nil)
 }

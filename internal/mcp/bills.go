@@ -229,7 +229,8 @@ func resolveAnalyzeRange(args map[string]any, now time.Time) (time.Time, time.Ti
 		s, e, _ := ParseRange("本月", now)
 		return s, e, nil
 	}
-	s, e := time.Time{}, time.Now()
+	var s time.Time
+	e := time.Now()
 	if start != nil {
 		s = *start
 	} else {

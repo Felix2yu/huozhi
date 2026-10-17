@@ -185,8 +185,11 @@ func CreateLoan(c *gin.Context) {
 // borrow 还款：transfer(from=还款账户, to=应付账户) 冲减欠款；利息另记一笔支出。
 func RepayLoan(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	var reqUri dto.IDRequest
-	c.ShouldBindUri(&reqUri)
+	var reqURI dto.IDRequest
+	if err := c.ShouldBindUri(&reqURI); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	var req dto.RepayLoanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		Bad(c, "参数错误: "+err.Error())
@@ -203,7 +206,7 @@ func RepayLoan(c *gin.Context) {
 
 	db := database.DB.Begin()
 	var loan models.Loan
-	if err := db.Where("id = ? AND user_id = ?", reqUri.ID, uid).First(&loan).Error; err != nil {
+	if err := db.Where("id = ? AND user_id = ?", reqURI.ID, uid).First(&loan).Error; err != nil {
 		db.Rollback()
 		NotFound(c, "借贷记录不存在")
 		return
@@ -333,15 +336,18 @@ func RepayLoan(c *gin.Context) {
 // UpdateLoan 更新借贷状态 / 备注（例如手动标记结清）。
 func UpdateLoan(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	var reqUri dto.IDRequest
-	c.ShouldBindUri(&reqUri)
+	var reqURI dto.IDRequest
+	if err := c.ShouldBindUri(&reqURI); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	var req dto.UpdateLoanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		Bad(c, "参数错误: "+err.Error())
 		return
 	}
 	var loan models.Loan
-	if err := database.DB.Where("id = ? AND user_id = ?", reqUri.ID, uid).First(&loan).Error; err != nil {
+	if err := database.DB.Where("id = ? AND user_id = ?", reqURI.ID, uid).First(&loan).Error; err != nil {
 		NotFound(c, "借贷记录不存在")
 		return
 	}
@@ -357,12 +363,15 @@ func UpdateLoan(c *gin.Context) {
 // DeleteLoan 删除借贷及其全部关联交易（创建 transfer + 各次还款 transfer + 利息交易），并回滚账户余额。
 func DeleteLoan(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	var reqUri dto.IDRequest
-	c.ShouldBindUri(&reqUri)
+	var reqURI dto.IDRequest
+	if err := c.ShouldBindUri(&reqURI); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 
 	db := database.DB.Begin()
 	var loan models.Loan
-	if err := db.Where("id = ? AND user_id = ?", reqUri.ID, uid).First(&loan).Error; err != nil {
+	if err := db.Where("id = ? AND user_id = ?", reqURI.ID, uid).First(&loan).Error; err != nil {
 		db.Rollback()
 		NotFound(c, "借贷记录不存在")
 		return

@@ -488,30 +488,42 @@ func CreateSavingPlan(c *gin.Context) {
 }
 func UpdateSavingPlan(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	var reqUri dto.IDRequest
-	c.ShouldBindUri(&reqUri)
+	var reqURI dto.IDRequest
+	if err := c.ShouldBindUri(&reqURI); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	var s models.SavingPlan
-	c.ShouldBindJSON(&s)
-	database.DB.Model(&models.SavingPlan{}).Where("id = ? AND user_id = ?", reqUri.ID, uid).Updates(map[string]interface{}{
+	if err := c.ShouldBindJSON(&s); err != nil {
+		Fail(c, 400, "请求体格式错误")
+		return
+	}
+	database.DB.Model(&models.SavingPlan{}).Where("id = ? AND user_id = ?", reqURI.ID, uid).Updates(map[string]interface{}{
 		"name": s.Name, "icon": s.Icon, "color": s.Color, "target_amount": s.TargetAmount,
 		"target_date": s.TargetDate, "status": s.Status,
 	})
 	var ns models.SavingPlan
-	database.DB.First(&ns, reqUri.ID)
+	database.DB.First(&ns, reqURI.ID)
 	OK(c, ns)
 }
 func DeleteSavingPlan(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var req dto.IDRequest
-	c.ShouldBindUri(&req)
+	if err := c.ShouldBindUri(&req); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	database.DB.Where("id = ? AND user_id = ?", req.ID, uid).Delete(&models.SavingPlan{})
 	Broadcast(c, "saving_plans", "delete", req.ID)
 	OK(c, nil)
 }
 func AddSavingRecord(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	var reqUri dto.IDRequest
-	c.ShouldBindUri(&reqUri)
+	var reqURI dto.IDRequest
+	if err := c.ShouldBindUri(&reqURI); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	var req dto.AddSavingRecordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		Bad(c, err.Error())
@@ -521,14 +533,14 @@ func AddSavingRecord(c *gin.Context) {
 	// 旧实现只累加 current_amount，计划进度与真实资产完全脱节。
 	db := database.DB.Begin()
 	var plan models.SavingPlan
-	if err := db.Where("id = ? AND user_id = ?", reqUri.ID, uid).First(&plan).Error; err != nil {
+	if err := db.Where("id = ? AND user_id = ?", reqURI.ID, uid).First(&plan).Error; err != nil {
 		db.Rollback()
 		NotFound(c, "存钱计划不存在")
 		return
 	}
 	amt := models.FromYuan(req.Amount)
 	rec := models.SavingRecord{
-		UserID: uid, SavingPlanID: reqUri.ID,
+		UserID: uid, SavingPlanID: reqURI.ID,
 		Amount: amt, RecordDate: req.RecordDate.T(),
 		TransactionID: req.TransactionID, Note: req.Note,
 	}
@@ -537,7 +549,7 @@ func AddSavingRecord(c *gin.Context) {
 		InternalErr(c, "记录失败: "+err.Error())
 		return
 	}
-	db.Model(&models.SavingPlan{}).Where("id = ?", reqUri.ID).
+	db.Model(&models.SavingPlan{}).Where("id = ?", reqURI.ID).
 		UpdateColumn("current_amount", gorm.Expr("current_amount + ?", int64(amt)))
 
 	txID := uint(0)
@@ -556,7 +568,7 @@ func AddSavingRecord(c *gin.Context) {
 
 	// 达标自动完成
 	var updated models.SavingPlan
-	database.DB.First(&updated, reqUri.ID)
+	database.DB.First(&updated, reqURI.ID)
 	if updated.TargetAmount > 0 && updated.CurrentAmount >= updated.TargetAmount && updated.Status == "active" {
 		database.DB.Model(&models.SavingPlan{}).Where("id = ?", updated.ID).Update("status", "done")
 		updated.Status = "done"
@@ -618,10 +630,13 @@ func CreateRecurring(c *gin.Context) {
 
 func ToggleRecurring(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	var reqUri dto.IDRequest
-	c.ShouldBindUri(&reqUri)
+	var reqURI dto.IDRequest
+	if err := c.ShouldBindUri(&reqURI); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	var r models.Recurring
-	if err := database.DB.Where("id = ? AND user_id = ?", reqUri.ID, uid).First(&r).Error; err != nil {
+	if err := database.DB.Where("id = ? AND user_id = ?", reqURI.ID, uid).First(&r).Error; err != nil {
 		Bad(c, "未找到该周期任务")
 		return
 	}
@@ -640,14 +655,17 @@ func ToggleRecurring(c *gin.Context) {
 		})
 	}
 	// 重新查询返回最新值
-	database.DB.First(&r, reqUri.ID)
+	database.DB.First(&r, reqURI.ID)
 	Broadcast(c, "recurring", "update", r.ID)
 	OK(c, r)
 }
 func DeleteRecurring(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var req dto.IDRequest
-	c.ShouldBindUri(&req)
+	if err := c.ShouldBindUri(&req); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	database.DB.Where("id = ? AND user_id = ?", req.ID, uid).Delete(&models.Recurring{})
 	Broadcast(c, "recurring", "delete", req.ID)
 	OK(c, nil)
@@ -697,7 +715,10 @@ func CreateInstallment(c *gin.Context) {
 func DeleteInstallment(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var req dto.IDRequest
-	c.ShouldBindUri(&req)
+	if err := c.ShouldBindUri(&req); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	database.DB.Where("id = ? AND user_id = ?", req.ID, uid).Delete(&models.Installment{})
 	Broadcast(c, "installments", "delete", req.ID)
 	OK(c, nil)
@@ -754,8 +775,11 @@ func CreateReimbursement(c *gin.Context) {
 }
 func UpdateReimbursement(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	var reqUri dto.IDRequest
-	c.ShouldBindUri(&reqUri)
+	var reqURI dto.IDRequest
+	if err := c.ShouldBindUri(&reqURI); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	var req dto.UpdateReimbursementRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		Bad(c, err.Error())
@@ -765,7 +789,7 @@ func UpdateReimbursement(c *gin.Context) {
 	// 先读原单：更新前的总额是「已收齐」金额兜底与幂等入账的依据，
 	// 也避免把不存在的 id 当成成功处理。
 	var old models.Reimbursement
-	if err := database.DB.Where("id = ? AND user_id = ?", reqUri.ID, uid).
+	if err := database.DB.Where("id = ? AND user_id = ?", reqURI.ID, uid).
 		First(&old).Error; err != nil {
 		NotFound(c, "报销单不存在")
 		return
@@ -788,14 +812,14 @@ func UpdateReimbursement(c *gin.Context) {
 		updates["received_at"] = now
 	}
 	if err := database.DB.Model(&models.Reimbursement{}).
-		Where("id = ? AND user_id = ?", reqUri.ID, uid).Updates(updates).Error; err != nil {
+		Where("id = ? AND user_id = ?", reqURI.ID, uid).Updates(updates).Error; err != nil {
 		InternalErr(c, "更新失败: "+err.Error())
 		return
 	}
 
 	// 更新相关交易状态 + 生成收款交易（B5）
 	var rm models.Reimbursement
-	database.DB.First(&rm, reqUri.ID)
+	database.DB.First(&rm, reqURI.ID)
 	rm.TransactionIDs = normalizeIDs(rm.TransactionIDs)
 	receivedTxID := uint(0)
 	if req.Status == "received" || req.Status == "partial" {
@@ -814,14 +838,17 @@ func UpdateReimbursement(c *gin.Context) {
 			db.Rollback()
 		}
 	}
-	Broadcast(c, "reimbursements", "update", reqUri.ID)
+	Broadcast(c, "reimbursements", "update", reqURI.ID)
 	OK(c, gin.H{"id": rm.ID, "status": rm.Status, "received_amount": rm.ReceivedAmount,
 		"transaction_id": receivedTxID})
 }
 func DeleteReimbursement(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var req dto.IDRequest
-	c.ShouldBindUri(&req)
+	if err := c.ShouldBindUri(&req); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	database.DB.Where("id = ? AND user_id = ?", req.ID, uid).Delete(&models.Reimbursement{})
 	Broadcast(c, "reimbursements", "delete", req.ID)
 	OK(c, nil)

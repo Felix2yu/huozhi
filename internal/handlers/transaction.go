@@ -359,8 +359,8 @@ func ListTransactions(c *gin.Context) {
 // UpdateTransaction 更新交易（补丁语义）
 func UpdateTransaction(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	var reqUri dto.IDRequest
-	if err := c.ShouldBindUri(&reqUri); err != nil {
+	var reqURI dto.IDRequest
+	if err := c.ShouldBindUri(&reqURI); err != nil {
 		Bad(c, "参数错误")
 		return
 	}
@@ -369,7 +369,7 @@ func UpdateTransaction(c *gin.Context) {
 		Bad(c, "参数错误: "+err.Error())
 		return
 	}
-	tx, cerr := UpdateTx(uid, reqUri.ID, req)
+	tx, cerr := UpdateTx(uid, reqURI.ID, req)
 	if cerr != nil {
 		FailFromCore(c, cerr)
 		return
@@ -529,15 +529,18 @@ func CreateBudget(c *gin.Context) {
 
 func UpdateBudget(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	var reqUri dto.IDRequest
-	c.ShouldBindUri(&reqUri)
+	var reqURI dto.IDRequest
+	if err := c.ShouldBindUri(&reqURI); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	var req dto.UpdateBudgetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		Bad(c, "参数错误: "+err.Error())
 		return
 	}
 	var old models.Budget
-	if err := database.DB.Where("id = ? AND user_id = ?", reqUri.ID, uid).First(&old).Error; err != nil {
+	if err := database.DB.Where("id = ? AND user_id = ?", reqURI.ID, uid).First(&old).Error; err != nil {
 		NotFound(c, "预算不存在")
 		return
 	}
@@ -576,14 +579,14 @@ func UpdateBudget(c *gin.Context) {
 	}
 	if len(updates) > 0 {
 		if err := database.DB.Model(&models.Budget{}).
-			Where("id = ? AND user_id = ?", reqUri.ID, uid).Updates(updates).Error; err != nil {
+			Where("id = ? AND user_id = ?", reqURI.ID, uid).Updates(updates).Error; err != nil {
 			InternalErr(c, "更新失败: "+err.Error())
 			return
 		}
 	}
 
 	var nb models.Budget
-	database.DB.First(&nb, reqUri.ID)
+	database.DB.First(&nb, reqURI.ID)
 	// 区间/分类/金额任一变化都会影响已用金额口径，统一重算（B2）
 	recalcBudgetUsed(database.DB, &nb)
 	OK(c, nb)
@@ -604,7 +607,10 @@ func userMonthStart(uid uint) int {
 func DeleteBudget(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var req dto.IDRequest
-	c.ShouldBindUri(&req)
+	if err := c.ShouldBindUri(&req); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	database.DB.Where("id = ? AND user_id = ?", req.ID, uid).Delete(&models.Budget{})
 	OK(c, nil)
 }

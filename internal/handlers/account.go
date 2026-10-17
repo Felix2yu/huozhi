@@ -98,7 +98,10 @@ func ListAccounts(c *gin.Context) {
 func GetAccount(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var req dto.IDRequest
-	c.ShouldBindUri(&req)
+	if err := c.ShouldBindUri(&req); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	var acc models.Account
 	if err := database.DB.Where("id = ? AND user_id = ?", req.ID, uid).First(&acc).Error; err != nil {
 		NotFound(c, "账户不存在")
@@ -186,8 +189,11 @@ func CreateAccount(c *gin.Context) {
 // UpdateAccount 更新账户
 func UpdateAccount(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	var reqUri dto.IDRequest
-	c.ShouldBindUri(&reqUri)
+	var reqURI dto.IDRequest
+	if err := c.ShouldBindUri(&reqURI); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	var req dto.UpdateAccountRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		Bad(c, "参数错误: "+err.Error())
@@ -222,9 +228,9 @@ func UpdateAccount(c *gin.Context) {
 			updates["card_no4"] = tail4(req.FullCardNo)
 		}
 	}
-	database.DB.Model(&models.Account{}).Where("id = ? AND user_id = ?", reqUri.ID, uid).Updates(updates)
+	database.DB.Model(&models.Account{}).Where("id = ? AND user_id = ?", reqURI.ID, uid).Updates(updates)
 	var acc models.Account
-	database.DB.First(&acc, reqUri.ID)
+	database.DB.First(&acc, reqURI.ID)
 	Broadcast(c, "accounts", "update", acc.ID)
 	OK(c, acc)
 }
@@ -236,8 +242,8 @@ func UpdateAccount(c *gin.Context) {
 // CVV 字段已整体移除（PCI-DSS 禁止存储授权后的 CVV2/CVC2）。
 func GetFullCardNo(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	var reqUri dto.IDRequest
-	if err := c.ShouldBindUri(&reqUri); err != nil {
+	var reqURI dto.IDRequest
+	if err := c.ShouldBindUri(&reqURI); err != nil {
 		Bad(c, "参数错误")
 		return
 	}
@@ -259,7 +265,7 @@ func GetFullCardNo(c *gin.Context) {
 	}
 
 	var acc models.Account
-	if err := database.DB.Where("id = ? AND user_id = ?", reqUri.ID, uid).First(&acc).Error; err != nil {
+	if err := database.DB.Where("id = ? AND user_id = ?", reqURI.ID, uid).First(&acc).Error; err != nil {
 		NotFound(c, "账户不存在")
 		return
 	}
@@ -279,7 +285,10 @@ func GetFullCardNo(c *gin.Context) {
 func DeleteAccount(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var req dto.IDRequest
-	c.ShouldBindUri(&req)
+	if err := c.ShouldBindUri(&req); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	// 安全起见，不硬删除，改为归档
 	if err := database.DB.Model(&models.Account{}).Where("id = ? AND user_id = ?", req.ID, uid).
 		Update("is_archived", true).Error; err != nil {
@@ -293,8 +302,11 @@ func DeleteAccount(c *gin.Context) {
 // AdjustAccountBalance 调整账户余额
 func AdjustAccountBalance(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	var reqUri dto.IDRequest
-	c.ShouldBindUri(&reqUri)
+	var reqURI dto.IDRequest
+	if err := c.ShouldBindUri(&reqURI); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	var req dto.AdjustAccountRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		Bad(c, "参数错误: "+err.Error())
@@ -305,7 +317,7 @@ func AdjustAccountBalance(c *gin.Context) {
 	// 且 diff 可为负，会写入 amount < 0 的 adjust 交易（列表/统计展示异常）。
 	db := database.DB.Begin()
 	var acc models.Account
-	if err := db.Where("id = ? AND user_id = ?", reqUri.ID, uid).First(&acc).Error; err != nil {
+	if err := db.Where("id = ? AND user_id = ?", reqURI.ID, uid).First(&acc).Error; err != nil {
 		db.Rollback()
 		NotFound(c, "账户不存在")
 		return
@@ -398,7 +410,10 @@ func CreateAccountGroup(c *gin.Context) {
 func DeleteAccountGroup(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var req dto.IDRequest
-	c.ShouldBindUri(&req)
+	if err := c.ShouldBindUri(&req); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	database.DB.Where("id = ? AND user_id = ?", req.ID, uid).Delete(&models.AccountGroup{})
 	Broadcast(c, "account_groups", "delete", req.ID)
 	OK(c, nil)

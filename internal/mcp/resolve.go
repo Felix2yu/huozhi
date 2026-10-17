@@ -1,7 +1,6 @@
 package mcp
 
 import (
-	"errors"
 	"fmt"
 	"huozhi/internal/database"
 	"huozhi/internal/handlers"
@@ -157,7 +156,7 @@ func newResolver(uid uint) *Resolver {
 }
 
 // toolErrorf 构造带提示的工具错误
-func toolErrorf(format string, a ...any) error { return errors.New(fmt.Sprintf(format, a...)) }
+func toolErrorf(format string, a ...any) error { return fmt.Errorf(format, a...) }
 
 // Books 按名称/ID 解析账本，返回全部匹配项
 func (r *Resolver) Books(name string) ([]candidate, error) {

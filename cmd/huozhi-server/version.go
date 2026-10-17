@@ -2,4 +2,4 @@ package main
 
 // version 由 CI 注入：-ldflags "-X main.version=v1.2.3"。
 // 本地直接 go build 时保持 "dev"。
-var version = "dev"
+var version = "dev" //nolint:unused // 由 CI 用 -ldflags "-X main.version=..." 注入，编译期无法静态看到读取点

@@ -507,7 +507,7 @@ func drawingMediaTargets(zr *zip.Reader, drawingPath string) (map[string]string,
 	}
 	m := make(map[string]string, len(rels))
 	for _, r := range rels {
-		m[r.Id] = r.Target
+		m[r.ID] = r.Target
 	}
 	return m, nil
 }
@@ -574,7 +574,7 @@ func drawingAnchors(zr *zip.Reader, drawingPath string) ([]anchor, error) {
 
 // relEntry 为 .rels 关系文件中的一条 Relationship。
 type relEntry struct {
-	Id     string `xml:"Id,attr"`
+	ID     string `xml:"Id,attr"`
 	Target string `xml:"Target,attr"`
 	Type   string `xml:"Type,attr"`
 }
@@ -634,14 +634,6 @@ func firstNonEmpty(vals ...string) string {
 }
 
 // ========== 极简 xlsx 读取（无需第三方库，覆盖钱迹导出的简单结构） ==========
-
-func readXLSX(r io.Reader) ([][]string, error) {
-	data, err := io.ReadAll(r)
-	if err != nil {
-		return nil, err
-	}
-	return readXLSXBytes(data)
-}
 
 func readXLSXBytes(data []byte) ([][]string, error) {
 	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
