@@ -224,17 +224,17 @@ func processRecurring(r *models.Recurring) {
 
 	// 创建交易
 	tx := models.Transaction{
-		UserID:        lock.UserID,
-		BookID:        lock.BookID,
-		Type:          lock.Type,
-		Amount:        lock.Amount,
-		Currency:      "CNY",
-		CategoryID:    lock.CategoryID,
-		AccountID:     lock.AccountID,
-		ToAccountID:   lock.ToAccountID,
-		TxDate:        now,
-		Description:   "[周期]" + lock.Description,
-		RecurringID:   lock.ID,
+		UserID:           lock.UserID,
+		BookID:           lock.BookID,
+		Type:             lock.Type,
+		Amount:           lock.Amount,
+		Currency:         "CNY",
+		CategoryID:       lock.CategoryID,
+		AccountID:        lock.AccountID,
+		ToAccountID:      lock.ToAccountID,
+		TxDate:           now,
+		Description:      "[周期]" + lock.Description,
+		RecurringID:      lock.ID,
 		IncludeInBalance: true,
 		IncludeInBudget:  true,
 	}

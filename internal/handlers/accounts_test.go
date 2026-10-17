@@ -53,15 +53,15 @@ func TestGetAccount(t *testing.T) {
 func TestCreateAccount(t *testing.T) {
 	uid, tok, bookID := registerRealUser(t)
 	w := do(authReq("POST", "/api/accounts", tok, map[string]interface{}{
-		"book_id":       bookID,
-		"name":          "招商银行",
-		"type":          "bank",
+		"book_id":        bookID,
+		"name":           "招商银行",
+		"type":           "bank",
 		"initial_amount": 1000,
-		"full_card_no":  "6225880123456789",
-		"card_no4":      "6789",
-		"bill_day":      5,
-		"repay_day":     25,
-		"currency":      "CNY",
+		"full_card_no":   "6225880123456789",
+		"card_no4":       "6789",
+		"bill_day":       5,
+		"repay_day":      25,
+		"currency":       "CNY",
 	}))
 	if w.Code != 201 {
 		t.Fatalf("create %d %s", w.Code, w.Body.String())

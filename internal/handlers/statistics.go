@@ -2,11 +2,11 @@ package handlers
 
 import (
 	"fmt"
-	"sort"
 	"huozhi/internal/database"
 	"huozhi/internal/dto"
 	"huozhi/internal/middleware"
 	"huozhi/internal/models"
+	"sort"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -60,16 +60,16 @@ func GetStatistics(c *gin.Context) {
 
 	result := gin.H{
 		"range": gin.H{
-			"start":         req.StartDate.Format("2006-01-02"),
-			"end":           req.EndDate.Format("2006-01-02"),
-			"days":          int(req.EndDate.T().Sub(req.StartDate.T()).Hours()/24) + 1,
+			"start": req.StartDate.Format("2006-01-02"),
+			"end":   req.EndDate.Format("2006-01-02"),
+			"days":  int(req.EndDate.T().Sub(req.StartDate.T()).Hours()/24) + 1,
 		},
 		"summary": gin.H{
-			"total_income":  totalIncome,
-			"total_expense": totalExpense,
-			"net":           totalIncome - totalExpense,
-			"income_count":  incomeCount,
-			"expense_count": expenseCount,
+			"total_income":      totalIncome,
+			"total_expense":     totalExpense,
+			"net":               totalIncome - totalExpense,
+			"income_count":      incomeCount,
+			"expense_count":     expenseCount,
 			"transaction_count": incomeCount + expenseCount,
 			"avg_daily_expense": 0.0,
 		},
@@ -387,10 +387,10 @@ func GetAssetTimeline(c *gin.Context) {
 			Order("snap_date DESC").First(&snap)
 		if snap.ID > 0 {
 			points = append(points, point{
-				Month: d.Format("2006-01"),
+				Month:      d.Format("2006-01"),
 				TotalAsset: snap.TotalAsset,
-				TotalDebt: snap.TotalDebt,
-				NetAsset: snap.NetAsset,
+				TotalDebt:  snap.TotalDebt,
+				NetAsset:   snap.NetAsset,
 			})
 			continue
 		}
@@ -471,7 +471,10 @@ func ListSavingPlans(c *gin.Context) {
 func CreateSavingPlan(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var req dto.CreateSavingPlanRequest
-	if err := c.ShouldBindJSON(&req); err != nil { Bad(c, err.Error()); return }
+	if err := c.ShouldBindJSON(&req); err != nil {
+		Bad(c, err.Error())
+		return
+	}
 	s := models.SavingPlan{
 		UserID: uid, BookID: req.BookID, AccountID: req.AccountID,
 		Name: req.Name, Icon: req.Icon, Color: req.Color,
@@ -510,7 +513,10 @@ func AddSavingRecord(c *gin.Context) {
 	var reqUri dto.IDRequest
 	c.ShouldBindUri(&reqUri)
 	var req dto.AddSavingRecordRequest
-	if err := c.ShouldBindJSON(&req); err != nil { Bad(c, err.Error()); return }
+	if err := c.ShouldBindJSON(&req); err != nil {
+		Bad(c, err.Error())
+		return
+	}
 	// B6：存钱真实产生资金流 —— 生成交易、扣减来源账户余额、写回 transaction_id。
 	// 旧实现只累加 current_amount，计划进度与真实资产完全脱节。
 	db := database.DB.Begin()
@@ -568,7 +574,10 @@ func ListRecurrings(c *gin.Context) {
 func CreateRecurring(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var req dto.CreateRecurringRequest
-	if err := c.ShouldBindJSON(&req); err != nil { Bad(c, "参数错误: "+err.Error()); return }
+	if err := c.ShouldBindJSON(&req); err != nil {
+		Bad(c, "参数错误: "+err.Error())
+		return
+	}
 	// 用本地时区解析：time.Parse 会把「2026-09-25」解析成 UTC 零时，
 	// 后续 09:00 的执行锚点也就变成了 UTC 09:00（东八区实际是下午 5 点），
 	// 且西半球用户会整体偏移到前一天。
@@ -587,7 +596,7 @@ func CreateRecurring(c *gin.Context) {
 		CategoryID: req.CategoryID, AccountID: req.AccountID, ToAccountID: req.ToAccountID,
 		Description: req.Description, TagIDs: req.TagIDs,
 		RecurringType: models.RecurringType(req.RecurringType),
-		Interval: req.Interval, Weekday: req.Weekday, MonthDay: req.MonthDay,
+		Interval:      req.Interval, Weekday: req.Weekday, MonthDay: req.MonthDay,
 		StartDate: sd, EndDate: ed, MaxTimes: req.MaxTimes,
 		Status: "active",
 	}
@@ -613,7 +622,7 @@ func ToggleRecurring(c *gin.Context) {
 	c.ShouldBindUri(&reqUri)
 	var r models.Recurring
 	if err := database.DB.Where("id = ? AND user_id = ?", reqUri.ID, uid).First(&r).Error; err != nil {
-		Bad(c, "未找到该周期任务");
+		Bad(c, "未找到该周期任务")
 		return
 	}
 	if r.Status == "active" {
@@ -626,7 +635,7 @@ func ToggleRecurring(c *gin.Context) {
 			nextRun = r.ComputeNextRun(now)
 		}
 		database.DB.Model(&r).Updates(map[string]interface{}{
-			"status":     "active",
+			"status":      "active",
 			"next_run_at": nextRun,
 		})
 	}
@@ -654,7 +663,10 @@ func ListInstallments(c *gin.Context) {
 func CreateInstallment(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var req dto.CreateInstallmentRequest
-	if err := c.ShouldBindJSON(&req); err != nil { Bad(c, err.Error()); return }
+	if err := c.ShouldBindJSON(&req); err != nil {
+		Bad(c, err.Error())
+		return
+	}
 	// 首次还款日必填且必须是合法日期：解析失败会拿到零值时间，
 	// 让 RunInstallmentRepayments 立刻判定「已到期」并生成一条日期为 0001-01-01 的还款流水。
 	first, err := time.ParseInLocation("2006-01-02", req.FirstRepayDate, time.Local)
@@ -718,7 +730,10 @@ func ListReimbursements(c *gin.Context) {
 func CreateReimbursement(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var req dto.CreateReimbursementRequest
-	if err := c.ShouldBindJSON(&req); err != nil { Bad(c, err.Error()); return }
+	if err := c.ShouldBindJSON(&req); err != nil {
+		Bad(c, err.Error())
+		return
+	}
 	r := models.Reimbursement{
 		UserID: uid, BookID: req.BookID, Name: req.Name,
 		TotalAmount: models.FromYuan(req.TotalAmount), Remark: req.Remark,
@@ -742,7 +757,10 @@ func UpdateReimbursement(c *gin.Context) {
 	var reqUri dto.IDRequest
 	c.ShouldBindUri(&reqUri)
 	var req dto.UpdateReimbursementRequest
-	if err := c.ShouldBindJSON(&req); err != nil { Bad(c, err.Error()); return }
+	if err := c.ShouldBindJSON(&req); err != nil {
+		Bad(c, err.Error())
+		return
+	}
 
 	// 先读原单：更新前的总额是「已收齐」金额兜底与幂等入账的依据，
 	// 也避免把不存在的 id 当成成功处理。

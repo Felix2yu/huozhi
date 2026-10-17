@@ -253,10 +253,10 @@ func applyBudgetUsed(db *gorm.DB, uid, bookID, catID uint, date time.Time, amoun
 
 // fillTxViewFields 批量补齐列表/详情返回体里的只读派生字段。
 //
-// 1) amount_base：外币流水折算后的基准币种金额（原 B-02 的前端可见部分）；
-// 2) category_name / account_name / to_account_name：此前前端靠本地字典反查，
-//    而字典是按 currentBookId 加载的，「全部账本」视图下跨账本流水必然查不到，
-//    稳定显示「未分类」和「—」（原 P-06）。改为服务端用两次批量查询补齐。
+//  1. amount_base：外币流水折算后的基准币种金额（原 B-02 的前端可见部分）；
+//  2. category_name / account_name / to_account_name：此前前端靠本地字典反查，
+//     而字典是按 currentBookId 加载的，「全部账本」视图下跨账本流水必然查不到，
+//     稳定显示「未分类」和「—」（原 P-06）。改为服务端用两次批量查询补齐。
 func fillTxViewFields(list []models.Transaction) {
 	if len(list) == 0 {
 		return
@@ -336,6 +336,7 @@ func GetTransaction(c *gin.Context) {
 	}
 	OK(c, tx)
 }
+
 // ListTransactions 交易列表（分页+按日分组）
 func ListTransactions(c *gin.Context) {
 	uid := middleware.GetUID(c)
@@ -354,6 +355,7 @@ func ListTransactions(c *gin.Context) {
 		"summary": res.Summary,
 	}, res.Page, res.PageSize, res.Total)
 }
+
 // UpdateTransaction 更新交易（补丁语义）
 func UpdateTransaction(c *gin.Context) {
 	uid := middleware.GetUID(c)
@@ -374,6 +376,7 @@ func UpdateTransaction(c *gin.Context) {
 	}
 	OK(c, tx)
 }
+
 // DeleteTransaction 删除交易（软删除+回滚余额）
 func DeleteTransaction(c *gin.Context) {
 	uid := middleware.GetUID(c)
@@ -388,6 +391,7 @@ func DeleteTransaction(c *gin.Context) {
 	}
 	OK(c, nil)
 }
+
 // ========== 批量操作 ==========
 
 type BatchDeleteRequest struct {
@@ -413,6 +417,7 @@ func BatchDeleteTransactions(c *gin.Context) {
 	}
 	OK(c, gin.H{"deleted_count": n})
 }
+
 // RecoverTransaction 撤销软删除（回收站恢复）。
 // 后端早已是软删除（BaseModel.DeletedAt），这里提供按 ID 恢复，并回滚余额与预算。
 func RecoverTransaction(c *gin.Context) {
@@ -428,6 +433,7 @@ func RecoverTransaction(c *gin.Context) {
 	}
 	OK(c, gin.H{"recovered": req.ID})
 }
+
 // ListDeletedTransactions 回收站：列出软删除的交易
 func ListDeletedTransactions(c *gin.Context) {
 	uid := middleware.GetUID(c)
@@ -439,6 +445,7 @@ func ListDeletedTransactions(c *gin.Context) {
 	}
 	OK(c, list)
 }
+
 // ========== 预算 Budget ==========
 
 func ListBudgets(c *gin.Context) {
@@ -470,7 +477,7 @@ func ListBudgets(c *gin.Context) {
 		v.IsOverBudget = b.UsedAmount > b.Amount
 		days := b.EndDate.Sub(b.StartDate).Hours()/24 + 1
 		if days > 0 {
-			v.DailyBudget = math.Round((b.Amount - b.UsedAmount).Yuan()/days*100) / 100
+			v.DailyBudget = math.Round((b.Amount-b.UsedAmount).Yuan()/days*100) / 100
 		}
 		out = append(out, v)
 	}

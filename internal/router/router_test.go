@@ -19,19 +19,19 @@ func TestNewRegistersRoutes(t *testing.T) {
 		t.Fatal("expected routes to be registered")
 	}
 	want := map[string]bool{
-		"GET /api/health":              false,
-		"POST /api/auth/login":         false,
-		"GET /api/ai/status":           false,
-		"GET /api/books":               false,
-		"GET /api/accounts":            false,
-		"GET /api/categories":          false,
-		"GET /api/transactions":        false,
-		"GET /api/statistics":          false,
-		"GET /api/saving-plans":        false,
-		"GET /api/recurring":           false,
-		"GET /api/installments":        false,
-		"GET /api/reimbursements":      false,
-		"POST /api/io/import":          false,
+		"GET /api/health":         false,
+		"POST /api/auth/login":    false,
+		"GET /api/ai/status":      false,
+		"GET /api/books":          false,
+		"GET /api/accounts":       false,
+		"GET /api/categories":     false,
+		"GET /api/transactions":   false,
+		"GET /api/statistics":     false,
+		"GET /api/saving-plans":   false,
+		"GET /api/recurring":      false,
+		"GET /api/installments":   false,
+		"GET /api/reimbursements": false,
+		"POST /api/io/import":     false,
 	}
 	for _, rt := range routes {
 		key := rt.Method + " " + rt.Path

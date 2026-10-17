@@ -164,8 +164,8 @@ func InstallmentRunner() {
 // 此前只把关联交易标成 done，钱在资产里凭空消失，净资产失真。
 //
 // 幂等口径：按「报销单已入账总额」判定，而不是「是否存在等额收款流水」。
-//  - 重复提交同一金额：已入账 >= 本次金额 → 直接跳过，不会重复加钱；
-//  - 部分到账后再收齐（300 → 500）：只补差额 200，不会因曾入过账而整笔丢失。
+//   - 重复提交同一金额：已入账 >= 本次金额 → 直接跳过，不会重复加钱；
+//   - 部分到账后再收齐（300 → 500）：只补差额 200，不会因曾入过账而整笔丢失。
 func payReimbursement(db *gorm.DB, rm *models.Reimbursement, accountID uint, amount models.Money, when time.Time) (uint, bool) {
 	if amount <= 0 || accountID == 0 {
 		return 0, false
@@ -238,7 +238,7 @@ func depositSaving(db *gorm.DB, plan *models.SavingPlan, amount models.Money,
 				UserID: plan.UserID, BookID: plan.BookID, Type: models.TxTransfer,
 				Amount: amount, Currency: from.Currency, AccountID: from.ID, ToAccountID: to.ID,
 				CategoryID: ensureSystemCategory(db, plan.UserID, plan.BookID, "转账", models.KindSystem, "🔄"),
-				TxDate: when, Description: "[存钱] " + plan.Name,
+				TxDate:     when, Description: "[存钱] " + plan.Name,
 				RelatedType: models.RelatedSaving, IncludeInBalance: true, IncludeInBudget: false,
 			}
 			if err := db.Create(&tx).Error; err == nil {
@@ -252,7 +252,7 @@ func depositSaving(db *gorm.DB, plan *models.SavingPlan, amount models.Money,
 		UserID: plan.UserID, BookID: plan.BookID, Type: models.TxExpense,
 		Amount: amount, Currency: from.Currency, AccountID: from.ID,
 		CategoryID: ensureSystemCategory(db, plan.UserID, plan.BookID, "存钱", models.KindExpense, "🏦"),
-		TxDate: when, Description: "[存钱] " + plan.Name,
+		TxDate:     when, Description: "[存钱] " + plan.Name,
 		RelatedType: models.RelatedSaving, IncludeInBalance: true, IncludeInBudget: false,
 	}
 	if err := db.Create(&tx).Error; err != nil {
@@ -328,14 +328,14 @@ func AuditAccounts(c *gin.Context) {
 	database.DB.Where("user_id = ? AND is_archived = ?", uid, false).Find(&accounts)
 
 	type row struct {
-		AccountID   uint         `json:"account_id"`
-		Name        string       `json:"name"`
-		Type        string       `json:"type"`
-		Balance     models.Money `json:"balance"`
-		Computed    models.Money `json:"computed"`
-		Diff        models.Money `json:"diff"`
-		TxCount     int          `json:"tx_count"`
-		NeedFix     bool         `json:"need_fix"`
+		AccountID uint         `json:"account_id"`
+		Name      string       `json:"name"`
+		Type      string       `json:"type"`
+		Balance   models.Money `json:"balance"`
+		Computed  models.Money `json:"computed"`
+		Diff      models.Money `json:"diff"`
+		TxCount   int          `json:"tx_count"`
+		NeedFix   bool         `json:"need_fix"`
 	}
 	rows := make([]row, 0, len(accounts))
 	for i := range accounts {
@@ -382,20 +382,20 @@ func RecalcAccountBalance(c *gin.Context) {
 // ========== B8：全量备份 / 恢复 ==========
 
 type backupSnapshot struct {
-	Version      string                  `json:"version"`
-	ExportedAt   time.Time               `json:"exported_at"`
-	Books        []models.Book           `json:"books"`
-	Accounts     []models.Account        `json:"accounts"`
-	Categories   []models.Category       `json:"categories"`
-	Tags         []models.Tag            `json:"tags"`
-	Budgets      []models.Budget         `json:"budgets"`
-	Transactions []models.Transaction    `json:"transactions"`
-	SavingPlans  []models.SavingPlan     `json:"saving_plans"`
-	SavingRecords []models.SavingRecord  `json:"saving_records"`
-	Recurrings   []models.Recurring      `json:"recurrings"`
-	Installments []models.Installment    `json:"installments"`
+	Version        string                 `json:"version"`
+	ExportedAt     time.Time              `json:"exported_at"`
+	Books          []models.Book          `json:"books"`
+	Accounts       []models.Account       `json:"accounts"`
+	Categories     []models.Category      `json:"categories"`
+	Tags           []models.Tag           `json:"tags"`
+	Budgets        []models.Budget        `json:"budgets"`
+	Transactions   []models.Transaction   `json:"transactions"`
+	SavingPlans    []models.SavingPlan    `json:"saving_plans"`
+	SavingRecords  []models.SavingRecord  `json:"saving_records"`
+	Recurrings     []models.Recurring     `json:"recurrings"`
+	Installments   []models.Installment   `json:"installments"`
 	Reimbursements []models.Reimbursement `json:"reimbursements"`
-	Loans        []models.Loan           `json:"loans"`
+	Loans          []models.Loan          `json:"loans"`
 	LoanRepayments []models.LoanRepayment `json:"loan_repayments"`
 }
 
