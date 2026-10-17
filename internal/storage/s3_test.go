@@ -80,7 +80,7 @@ func (m *mockS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		w.Header().Set("Content-Type", "application/xml")
-		xml.NewEncoder(w).Encode(page)
+		_ = xml.NewEncoder(w).Encode(page)
 		return
 	}
 	switch r.Method {

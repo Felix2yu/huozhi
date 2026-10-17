@@ -87,8 +87,15 @@ func applyBookScope(c *gin.Context, q *gorm.DB, uid uint) *gorm.DB {
 	return q.Where("(user_id = ? OR book_id IN ?)", uid, ids)
 }
 
+// 下面三个判权函数是 B-05 结论的落地产物，但目前还没有接线：交易
+// Get/Update/Delete/Recover 等入口仍在用 `AND user_id = ?` 过滤，
+// 共享账本成员「看得到但改不了」的问题因此依然存在。
+// 接线会改变授权语义（editor 将对共享账本内的交易获得写权限），
+// 需要单独一轮改动 + 权限用例，这里先留 //nolint:unused 防止静态检查
+// 把结论当成死代码删掉。
+
 // canWriteBook 判断用户是否有某账本的写权限（owner 或 editor 成员）
-func canWriteBook(c *gin.Context, uid, bookID uint) bool {
+func canWriteBook(c *gin.Context, uid, bookID uint) bool { //nolint:unused // 待接线，见上方说明
 	if bookID == 0 {
 		return false
 	}
@@ -105,7 +112,7 @@ func canWriteBook(c *gin.Context, uid, bookID uint) bool {
 }
 
 // ownsOrSharesAccount 校验账户归属：本人所有，或属于本人可见的共享账本
-func ownsOrSharesAccount(c *gin.Context, uid, accountID uint) bool {
+func ownsOrSharesAccount(c *gin.Context, uid, accountID uint) bool { //nolint:unused // 待接线，见上方说明
 	if accountID == 0 {
 		return false
 	}
@@ -127,7 +134,7 @@ func ownsOrSharesAccount(c *gin.Context, uid, accountID uint) bool {
 // 而 Get/Update/Delete/BatchDelete/Recover/ListDeleted 全部只按 user_id 过滤，
 // 共享账本成员「看得到但改不了」，且 CreateTransaction 用 canWriteBook 允许 editor 写入
 // ——形成「能建不能改」的权限分叉。这里给出唯一的判定入口。
-func canWriteTx(c *gin.Context, uid uint, tx *models.Transaction) bool {
+func canWriteTx(c *gin.Context, uid uint, tx *models.Transaction) bool { //nolint:unused // 待接线，见上方说明
 	if tx.UserID == uid {
 		// 自己记的账永远可改（即使账本已被删除/退出）
 		return true

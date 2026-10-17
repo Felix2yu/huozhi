@@ -137,7 +137,7 @@ func ParseRange(expr string, now time.Time) (start, end time.Time, ok bool) {
 		y := today.Year() + 1
 		return time.Date(y, 1, 1, 0, 0, 0, 0, today.Location()),
 			time.Date(y, 12, 31, 0, 0, 0, 0, today.Location()), true
-	case "全部", "所有", "全部时间", "all", "alltime", "all time":
+	case "全部", "所有", "全部时间", "all", "alltime", "all time": //nolint:misspell // alltime 是用户可能输入的关键词，不是文案
 		return time.Date(1970, 1, 1, 0, 0, 0, 0, today.Location()), today, true
 	}
 

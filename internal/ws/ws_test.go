@@ -97,7 +97,7 @@ func TestServeWSAndHub(t *testing.T) {
 
 	// broadcast a sync message and verify the client receives it
 	h.Broadcast(1, "transactions", "create", 9)
-	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_, msg, err := conn.ReadMessage()
 	if err != nil {
 		t.Fatalf("read broadcast: %v", err)

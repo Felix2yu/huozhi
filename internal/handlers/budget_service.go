@@ -95,12 +95,12 @@ func recalcBudgetUsed(db *gorm.DB, b *models.Budget) models.Money {
 // RecalcBudgetHandler POST /budgets/:id/recalc —— 手动重算单条预算（对账入口）
 func RecalcBudgetHandler(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	var reqUri dto.IDRequest
-	if err := c.ShouldBindUri(&reqUri); err != nil {
+	var reqURI dto.IDRequest
+	if err := c.ShouldBindUri(&reqURI); err != nil {
 		Bad(c, "参数错误")
 		return
 	}
-	id := reqUri.ID
+	id := reqURI.ID
 	var b models.Budget
 	if err := database.DB.Where("id = ? AND user_id = ?", id, uid).First(&b).Error; err != nil {
 		NotFound(c, "预算不存在")

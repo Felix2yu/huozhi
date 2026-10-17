@@ -118,8 +118,11 @@ func CreateCategory(c *gin.Context) {
 // UpdateCategory 更新分类
 func UpdateCategory(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	var reqUri dto.IDRequest
-	c.ShouldBindUri(&reqUri)
+	var reqURI dto.IDRequest
+	if err := c.ShouldBindUri(&reqURI); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	// 先解析原始 JSON，用于区分「未传入字段」与「显式传了零值」，
 	// 作为 update mask，避免部分更新时把未传字段清零。
 	raw := map[string]interface{}{}
@@ -134,7 +137,7 @@ func UpdateCategory(c *gin.Context) {
 	}
 
 	var old models.Category
-	database.DB.Where("id = ? AND user_id = ?", reqUri.ID, uid).First(&old)
+	database.DB.Where("id = ? AND user_id = ?", reqURI.ID, uid).First(&old)
 	if old.IsSystem {
 		Fail(c, 3001, "系统分类不可修改")
 		return
@@ -172,7 +175,7 @@ func UpdateCategory(c *gin.Context) {
 	}
 	database.DB.Model(&old).Updates(updates)
 	var cat models.Category
-	database.DB.First(&cat, reqUri.ID)
+	database.DB.First(&cat, reqURI.ID)
 	Broadcast(c, "categories", "update", cat.ID)
 	OK(c, cat)
 }
@@ -181,7 +184,10 @@ func UpdateCategory(c *gin.Context) {
 func DeleteCategory(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var req dto.IDRequest
-	c.ShouldBindUri(&req)
+	if err := c.ShouldBindUri(&req); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	var cat models.Category
 	database.DB.Where("id = ? AND user_id = ?", req.ID, uid).First(&cat)
 	if cat.IsSystem {
@@ -227,17 +233,20 @@ func CreateTag(c *gin.Context) {
 
 func UpdateTag(c *gin.Context) {
 	uid := middleware.GetUID(c)
-	var reqUri dto.IDRequest
-	c.ShouldBindUri(&reqUri)
+	var reqURI dto.IDRequest
+	if err := c.ShouldBindUri(&reqURI); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	var t models.Tag
 	if err := c.ShouldBindJSON(&t); err != nil {
 		Bad(c, err.Error())
 		return
 	}
-	database.DB.Model(&models.Tag{}).Where("id = ? AND user_id = ?", reqUri.ID, uid).
+	database.DB.Model(&models.Tag{}).Where("id = ? AND user_id = ?", reqURI.ID, uid).
 		Updates(map[string]interface{}{"name": t.Name, "color": t.Color, "sort": t.Sort})
 	var nt models.Tag
-	database.DB.First(&nt, reqUri.ID)
+	database.DB.First(&nt, reqURI.ID)
 	Broadcast(c, "tags", "update", nt.ID)
 	OK(c, nt)
 }
@@ -245,7 +254,10 @@ func UpdateTag(c *gin.Context) {
 func DeleteTag(c *gin.Context) {
 	uid := middleware.GetUID(c)
 	var req dto.IDRequest
-	c.ShouldBindUri(&req)
+	if err := c.ShouldBindUri(&req); err != nil {
+		Fail(c, 400, "参数格式错误")
+		return
+	}
 	database.DB.Where("id = ? AND user_id = ?", req.ID, uid).Delete(&models.Tag{})
 	Broadcast(c, "tags", "delete", req.ID)
 	OK(c, nil)

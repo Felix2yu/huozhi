@@ -257,7 +257,7 @@ func iqColLetter(i int) string {
 	return s
 }
 
-func iqXmlEscape(s string) string {
+func iqXMLEscape(s string) string {
 	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;").Replace(s)
 }
 
@@ -270,7 +270,7 @@ func buildQianJiXLSXFull(t *testing.T, rows [][]string) []byte {
 	for ri, row := range rows {
 		sb.WriteString(fmt.Sprintf(`<row r="%d">`, ri+1))
 		for ci, cell := range row {
-			sb.WriteString(fmt.Sprintf(`<c r="%s%d" t="inlineStr"><is><t>%s</t></is></c>`, iqColLetter(ci), ri+1, iqXmlEscape(cell)))
+			sb.WriteString(fmt.Sprintf(`<c r="%s%d" t="inlineStr"><is><t>%s</t></is></c>`, iqColLetter(ci), ri+1, iqXMLEscape(cell)))
 		}
 		sb.WriteString(`</row>`)
 	}
