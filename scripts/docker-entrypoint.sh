@@ -31,5 +31,7 @@ echo "  - STATIC_DIR: ${HZ_STATIC_DIR:-未设置（仅 API 模式）}"
 # ===== 前台启动 Go 后端（前端静态文件由其直接托管，容器内无 nginx） =====
 export HZ_PORT=8080
 export HZ_SERVER_MODE=release
-# 交给基镜的降权入口：它按 PUID/PGID 把 APP_DATA_DIR(/app/data) chown 后 exec 本命令
-exec /usr/local/bin/docker-entrypoint.sh /app/huozhi-server -c "$CONFIG_FILE"
+# 交给基镜的降权入口：它按 PUID/PGID 把 APP_DATA_DIR(/app/data) chown 后 exec 本命令。
+# 二进制在 /usr/local/bin（PATH 上）所以写裸名——外部备份工具经 `docker exec <c> sh -c`
+# 执行 `huozhi-server backup`，同样只有裸名才解析得到。
+exec /usr/local/bin/docker-entrypoint.sh huozhi-server -c "$CONFIG_FILE"
