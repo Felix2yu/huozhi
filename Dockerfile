@@ -3,27 +3,25 @@
 #
 # 编译期依赖（node_modules、Go 工具链）全部留在 CI，不进镜像。
 #
+# 基镜 ghcr.io/felix2yu/base:alpine-3.24 提供 ca-certificates、tzdata、su-exec。
+# 本仓库仍保留自己的 entrypoint.sh（要生成并持久化 JWT secret），它在最后调用
+# 基镜的降权入口完成 PUID/PGID 切换。
+#
 # 容器内布局：
 #   /app/huozhi-server   服务二进制（含内嵌前端）
 #   /app/config.yaml     配置文件（镜像内置，可用环境变量覆盖各项）
 #   /app/data/           唯一数据卷：SQLite 数据库、上传附件、JWT 密钥
-#
-# 需要「不重新编译就换前端」时，把产物目录挂进容器并用 HZ_STATIC_DIR 指过去，
-# 该目录存在即优先于内嵌产物。
-FROM alpine:3.24 AS runtime
+FROM ghcr.io/felix2yu/base:alpine-3.24
 
 LABEL org.opencontainers.image.authors="huozhi"
 LABEL description="Huozhi Personal Finance App (Go + SvelteKit 单进程)"
 
 ENV TZ=Asia/Shanghai \
     GIN_MODE=release \
-    HZ_UPLOAD_PATH=/app/data/uploads
+    HZ_UPLOAD_PATH=/app/data/uploads \
+    APP_DATA_DIR=/app/data
 
-# 单进程 Go 服务，前端静态文件由后端直接托管，无需 nginx
-RUN apk add --no-cache ca-certificates tzdata \
-    && cp /usr/share/zoneinfo/${TZ} /etc/localtime \
-    && echo ${TZ} > /etc/timezone \
-    && mkdir -p /app/data
+RUN mkdir -p /app/data
 
 WORKDIR /app
 
