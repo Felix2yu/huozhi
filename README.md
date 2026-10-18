@@ -194,6 +194,43 @@ POST|GET|DELETE /api/mcp               # MCP 端点（Streamable HTTP，供 AI �
 
 ---
 
+## 数据备份与恢复
+
+除了界面里的「全量导出 / 自动备份」（按**单个用户**导 `backup.json` + `images/`，可经
+`POST /api/io/restore` 读回来），进程还提供一个**整库**快照子命令，用于冷备份，
+也是外部备份工具（docker-db-auto-backup）经 `docker exec` 采集的那条流：
+
+```bash
+# 容器内（二进制在 PATH 上，命令是 `huozhi-server backup`；子命令在前，参数在后）
+docker exec huozhi huozhi-server backup              > huozhi-$(date +%F).db
+docker exec huozhi huozhi-server backup --format zip > huozhi-$(date +%F).zip
+
+# 裸机（-c 与服务同款配置口径，缺省 ./config.yaml；注意 backup 必须在 -c 之前）
+./bin/huozhi-server backup -c ./config.yaml --format zip > huozhi-$(date +%F).zip
+```
+
+| 形态 | 内容 | 是否完整备份 | 恢复 |
+|---|---|---|---|
+| `db`（默认） | 仅 `huozhi.db` | **不完整**：账单图片存在 `upload.path`（容器内 `/app/data/uploads`），不在库内 | 停机 → 文件放回数据卷的 `huozhi.db` → 修属主（PUID/PGID）→ 起容器 |
+| `zip` | `huozhi.db` + `uploads/<原相对路径>` | 完整：库与库外图片一次带走 | 解包后 `huozhi.db` 放回 `/app/data/`、`uploads/` 放回 `/app/data/uploads` → 修属主 → 起容器 |
+
+- 快照由 SQLite 的 `VACUUM INTO` 在事务里生成，热拷贝 `db`/`-wal`/`-shm` 那种「拷出损坏副本或漏掉最近记录」的风险不存在；
+  导出进程**不跑迁移、不建目录、不改库头**，在应用运行时调用是安全的。
+- 默认是 `db`，因为备份工具的 SQLite 产物默认按 `.db` 与 SQLite 魔数校验；
+  改用 `zip` 必须同时声明 `BACKUP_SQLITE_EXT=zip`，否则该轮备份判失败（不静默存坏备份）。
+- `VACUUM INTO` 出来的产物是 delete 日志模式，应用启动后按自身逻辑继续读写，无需额外处理。
+- **这两条通道不互换**：整库快照的 zip 里没有 `backup.json`，界面导入会报「ZIP中未找到backup.json」；
+  它是冷备份，恢复走上表的「放回数据卷」。
+- S3 后端（`s3.enabled`）下账单图片在对象存储里，本地目录没有文件可带，此时 `--format zip`
+  的包里只有库快照（stderr 会说明这一点），图片需由 S3 侧单独备份。
+- **Postgres 部署不适用**：`HZ_DB_DRIVER=postgres` 时 `backup` 直接拒绝并非零退出（stdout 零字节），
+  这类部署请交给备份工具的 postgres provider 对着 Postgres 容器执行 `pg_dump`。
+- 日志一律走 stderr，stdout 只有产物字节，所以上面的重定向不需要额外处理。
+- 接入外部备份工具：`docker-compose.yml` 里已声明 `BACKUP_SQLITE_CMD: "huozhi-server backup"`
+  （必须显式声明——镜像名是 `huozhi` 而二进制叫 `huozhi-server`，按镜像名猜出来的命令在容器里不存在）。
+
+---
+
 ## 数据安全
 
 - 密码使用 bcrypt（`golang.org/x/crypto`）

@@ -24,6 +24,20 @@ import (
 )
 
 func main() {
+	// 外部备份工具（docker-db-auto-backup）经 docker exec 调用 `huozhi-server backup`，
+	// 把一致性快照写到 stdout。必须拦在最前面——早于 flag 解析、配置加载、存储初始化、
+	// AutoMigrate、后台调度器与 HTTP 服务：导出进程只做导出这一件事。
+	// 尤其不能复用下面那条服务启动路径，它会 MkdirAll 上传目录并跑迁移：库不存在时
+	// 导出要报错，而不是先建目录、改表结构，再产出一份空备份。
+	// stdout 只承载产物字节，日志一律留在 stderr（gin/gorm 的默认 logger 写 stdout，
+	// 这条路径全程不碰它们）。
+	if len(os.Args) > 1 && os.Args[1] == "backup" {
+		if err := runBackup(os.Args[2:], os.Stdout); err != nil {
+			log.Fatalf("备份导出失败: %v", err)
+		}
+		return
+	}
+
 	var cfgPath string
 	var showVersion bool
 	flag.StringVar(&cfgPath, "c", "./config.yaml", "配置文件路径")
