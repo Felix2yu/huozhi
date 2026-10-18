@@ -20,7 +20,7 @@ ENV TZ=Asia/Shanghai \
     HZ_UPLOAD_PATH=/app/data/uploads
 
 # 单进程 Go 服务，前端静态文件由后端直接托管，无需 nginx
-RUN apk add --no-cache ca-certificates tzdata curl \
+RUN apk add --no-cache ca-certificates tzdata \
     && cp /usr/share/zoneinfo/${TZ} /etc/localtime \
     && echo ${TZ} > /etc/timezone \
     && mkdir -p /app/data
@@ -35,7 +35,7 @@ COPY config.example.yaml /app/config.yaml
 COPY --chmod=755 scripts/docker-entrypoint.sh /app/entrypoint.sh
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -fsS http://127.0.0.1:8080/api/health || exit 1
+  CMD wget -qO- http://127.0.0.1:8080/api/health >/dev/null || exit 1
 
 EXPOSE 8080
 VOLUME ["/app/data"]

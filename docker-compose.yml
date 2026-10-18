@@ -20,7 +20,7 @@ services:
       # 唯一数据卷：数据库、上传附件、JWT 密钥均在 /app/data 下
       - huozhi_data:/app/data
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/health"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3
