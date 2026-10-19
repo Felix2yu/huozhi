@@ -18,7 +18,9 @@ build:
 	go build -trimpath -ldflags "-s -w" -o $(BIN) $(MAIN)
 
 ## 前端热更新另开终端：cd web && pnpm run dev
+## 本地起服务。config.yaml 不入库，缺失时先从样例复制，省掉第一次跑的手动准备
 dev:
+	@test -f config.yaml || cp config.example.yaml config.yaml
 	go run $(MAIN)
 
 test:

@@ -103,17 +103,15 @@ func runBackup(args []string, w io.Writer) error {
 // loadExportConfig 按服务同样的口径解析配置（-c 指向的 config.yaml + 环境变量覆盖），
 // 但**不做 main 里那几步目录副作用**（MkdirAll 上传目录）。
 //
-// 与服务路径的差别只有一处，而且是刻意的：配置文件读不到时这里直接失败，不退回
-// config.Default()。因为环境变量覆盖（HZ_DB_DSN / HZ_UPLOAD_PATH）是 config.Load 在
-// 读到文件之后才应用的——配置文件缺失时退回默认值，等于绕过运维配的 HZ_DB_DSN，
-// 去快照一个没人要求的 ./huozhi.db。备份读错库是「静默交出一份没用的产物」，
-// 比直接报错糟糕得多；服务路径可以带着默认配置起跑，导出路径不行。
+// 配置口径与启动路径完全一致：配置文件读不到就失败，不退回 config.Default()。环境变量覆盖
+// （HZ_DB_DSN / HZ_UPLOAD_PATH）是 config.Load 读到文件之后才应用的——缺配置时退回默认值，
+// 等于绕过运维配的 HZ_DB_DSN 去快照一个没人要求的 ./huozhi.db，那是一份「看起来合法但备错库」
+// 的产物。启动路径同样不接受默认值（见 main 里加载配置那段），两边一条规则。
 func loadExportConfig(cfgPath string) (*config.Config, error) {
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		// 用 errors.Is 而不是 os.IsNotExist：config.Load 把 os.ReadFile 的错误包了一层
-		// （fmt.Errorf("read config file: %w")），而 os.IsNotExist 不认包装过的错误——
-		// main 里那句判断其实恒为 false，配置文件缺失时是直接 fatal 而不是退回默认值。
+		// （fmt.Errorf("read config file: %w")），os.IsNotExist 不认包装过的错误。
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("%s 不存在；导出用与启动相同的配置口径（-c / 缺省 ./config.yaml），"+
 				"库路径取 database.file（可被 HZ_DB_DSN 覆盖），不接受缺省配置的猜测值", cfgPath)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"huozhi/internal/config"
@@ -49,15 +50,17 @@ func main() {
 		return
 	}
 
-	// 加载配置
+	// 加载配置。配置文件读不到就直接退出：默认配置里的库路径（./huozhi.db）、JWT secret
+	// 与上传目录都是猜出来的，账务应用带着猜测起跑比不启动更危险——部署时 -c 指错路径就会
+	// 悄悄往另一个库里写数据。导出子命令用同一口径，见 loadExportConfig。
+	// 此前这里是 `if !os.IsNotExist(err)` 想退回 config.Default()，但 config.Load 把
+	// os.ReadFile 的错误用 %w 包了一层，os.IsNotExist 不认包装错误，那条分支恒不成立。
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			log.Fatalf("加载配置文件失败: %v", err)
+		if errors.Is(err, os.ErrNotExist) {
+			log.Fatalf("配置文件不存在: %s（本地开发可先 `cp config.example.yaml config.yaml`，`make dev` 会自动复制）", cfgPath)
 		}
-		log.Printf("加载配置文件失败 (%v), 使用默认配置", err)
-		cfg = config.Default()
-		_ = os.MkdirAll(cfg.Upload.Path, 0755)
+		log.Fatalf("加载配置文件失败: %v", err)
 	}
 	// 无论配置来自文件还是默认值，都必须挂到全局（jwt.GenerateToken、存储层等读取 config.AppConfig）
 	config.AppConfig = cfg
