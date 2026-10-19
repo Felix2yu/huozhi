@@ -13,12 +13,12 @@ services:
       # 上传的账单图片等附件持久化到数据卷（覆盖 config 中的相对路径）
       HZ_UPLOAD_PATH: "/app/data/uploads"
       # 外部备份工具（docker-db-auto-backup）经 docker exec 调用的自导出命令：
-      # `huozhi-server backup` 把 VACUUM INTO 的 SQLite 一致性快照写到 stdout，只读、不跑迁移。
+      # `/app/huozhi-server backup` 把 VACUUM INTO 的 SQLite 一致性快照写到 stdout，只读、不跑迁移。
       # (a) 这一条必须显式声明，别「简化」掉：工具在不设该变量时按「镜像名 basename + backup」
       #     猜命令，本镜像是 ghcr.io/felix2yu/huozhi → 猜出来是 `huozhi backup`，而二进制叫
       #     huozhi-server，猜的命令在容器里根本不存在，这轮备份直接失败。
-      #     （二进制装在 /usr/local/bin，在 PATH 上，所以裸名可被容器内 sh -c 解析。）
-      # (b) 想连带账单图片一起备份，把命令改成 "huozhi-server backup --format zip"，
+      #     （二进制装在 /app 而 /app 不在 PATH 上，所以命令必须写成绝对路径。）
+      # (b) 想连带账单图片一起备份，把命令改成 "/app/huozhi-server backup --format zip"，
       #     并同步声明 BACKUP_SQLITE_EXT: "zip"，否则工具会按 SQLite 魔数校验 zip 产物，
       #     本轮备份直接判失败（不静默存坏备份）。
       # BACKUP_SQLITE_EXT: "zip"
@@ -26,7 +26,7 @@ services:
       #     （backup 子命令会直接拒绝并非零退出），备份要交给工具的 postgres provider
       #     直接对着 Postgres 容器执行 pg_dump，与本应用无关。
       # 导出身份沿用基镜烘入的 PUID/PGID（与数据属主一致），无需 BACKUP_SQLITE_USER。
-      BACKUP_SQLITE_CMD: "huozhi-server backup"
+      BACKUP_SQLITE_CMD: "/app/huozhi-server backup"
       # 如不设置，首次启动将自动生成持久化的随机密钥
       # HZ_JWT_SECRET: "please-change-this-strong-string"
     ports:

@@ -201,9 +201,9 @@ POST|GET|DELETE /api/mcp               # MCP 端点（Streamable HTTP，供 AI �
 也是外部备份工具（docker-db-auto-backup）经 `docker exec` 采集的那条流：
 
 ```bash
-# 容器内（二进制在 PATH 上，命令是 `huozhi-server backup`；子命令在前，参数在后）
-docker exec huozhi huozhi-server backup              > huozhi-$(date +%F).db
-docker exec huozhi huozhi-server backup --format zip > huozhi-$(date +%F).zip
+# 容器内（二进制在 /app，而 /app 不在 PATH 上，故写绝对路径；子命令在前，参数在后）
+docker exec huozhi /app/huozhi-server backup              > huozhi-$(date +%F).db
+docker exec huozhi /app/huozhi-server backup --format zip > huozhi-$(date +%F).zip
 
 # 裸机（-c 与服务同款配置口径，缺省 ./config.yaml；注意 backup 必须在 -c 之前）
 ./bin/huozhi-server backup -c ./config.yaml --format zip > huozhi-$(date +%F).zip
@@ -226,8 +226,9 @@ docker exec huozhi huozhi-server backup --format zip > huozhi-$(date +%F).zip
 - **Postgres 部署不适用**：`HZ_DB_DRIVER=postgres` 时 `backup` 直接拒绝并非零退出（stdout 零字节），
   这类部署请交给备份工具的 postgres provider 对着 Postgres 容器执行 `pg_dump`。
 - 日志一律走 stderr，stdout 只有产物字节，所以上面的重定向不需要额外处理。
-- 接入外部备份工具：`docker-compose.yml` 里已声明 `BACKUP_SQLITE_CMD: "huozhi-server backup"`
-  （必须显式声明——镜像名是 `huozhi` 而二进制叫 `huozhi-server`，按镜像名猜出来的命令在容器里不存在）。
+- 接入外部备份工具：`docker-compose.yml` 里已声明 `BACKUP_SQLITE_CMD: "/app/huozhi-server backup"`
+  （必须显式声明——镜像名是 `huozhi` 而二进制叫 `huozhi-server`，按镜像名猜出来的命令在容器里不存在；
+  且二进制在 `/app` 而 `/app` 不在 PATH 上，裸名连自己名字都解析不到，只能写绝对路径）。
 
 ---
 

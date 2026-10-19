@@ -8,7 +8,7 @@
 # 基镜的降权入口完成 PUID/PGID 切换。
 #
 # 容器内布局：
-#   /usr/local/bin/huozhi-server  服务二进制（含内嵌前端），装在 PATH 上
+#   /app/huozhi-server            服务二进制（含内嵌前端）
 #   /app/config.yaml              配置文件（镜像内置，可用环境变量覆盖各项）
 #   /app/data/                    唯一数据卷：SQLite 数据库、上传附件、JWT 密钥
 FROM ghcr.io/felix2yu/base:alpine-3.24
@@ -25,9 +25,10 @@ RUN mkdir -p /app/data
 
 WORKDIR /app
 
-# 基镜契约：二进制装 /usr/local/bin（PATH 上），不随数据放在 /app。装在 /app 时它不在
-# PATH 上，`docker exec <c> huozhi-server backup` 与「按镜像名推导导出命令」都解析不到。
-COPY --chmod=755 bin/huozhi-server /usr/local/bin/huozhi-server
+# 本仓库的容器布局：二进制在 /app，数据在 /app/data。
+# /app 不在基镜的 PATH 上，所以入口脚本与外部备份工具都用绝对路径
+# （`/app/huozhi-server backup`）；裸名与工具按镜像名推导出的 `huozhi backup` 都解析不到。
+COPY --chmod=755 bin/huozhi-server /app/huozhi-server
 
 # 后端配置（默认 sqlite，可通过环境变量切 postgres）
 COPY config.example.yaml /app/config.yaml
