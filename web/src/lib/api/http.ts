@@ -259,11 +259,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 		// HTTP 4xx/5xx 错误是服务端正常返回的业务/状态错误，不入队
 		const isOffline = !isOnline();
 		const isNetworkError = !(err instanceof ApiError);
-		if (
-			(isOffline || isNetworkError) &&
-			isMutating(options.method || 'GET') &&
-			isQueueable(url)
-		) {
+		if ((isOffline || isNetworkError) && isMutating(options.method || 'GET') && isQueueable(url)) {
 			// 原始错误只进控制台，便于用 DevTools 区分「真断网」与「代理/证书/跨域」等伪离线
 			console.warn('[http] 请求失败，已暂存到离线队列：', url, err);
 			enqueueOffline({

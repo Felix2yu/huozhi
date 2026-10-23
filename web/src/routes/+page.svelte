@@ -18,6 +18,6 @@
 	});
 </script>
 
-<div class="min-h-screen grid place-items-center text-muted-foreground text-sm">
+<div class="grid min-h-screen place-items-center text-sm text-muted-foreground">
 	<div class="animate-pulse">正在加载货殖...</div>
 </div>

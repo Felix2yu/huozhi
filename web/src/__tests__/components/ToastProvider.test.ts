@@ -23,16 +23,16 @@ function toastEl(): HTMLElement {
 describe('ToastProvider - 全局 style 以 CSS 字符串下发', () => {
 	it('挂载后渲染 sonner 容器（Toaster 真的挂上了）', async () => {
 		render(ToastProvider);
-		await waitFor(() =>
-			expect(document.querySelector('section[aria-live="polite"]')).toBeTruthy()
-		);
+		await waitFor(() => expect(document.querySelector('section[aria-live="polite"]')).toBeTruthy());
 	});
 
 	it('toast 的 style 属性含 --color-card 引用，且不含 [object Object]', async () => {
 		render(ToastProvider);
 		hzToast.info('颜色检查');
 
-		await waitFor(() => expect(document.querySelectorAll('[data-sonner-toast]').length).toBeGreaterThan(0));
+		await waitFor(() =>
+			expect(document.querySelectorAll('[data-sonner-toast]').length).toBeGreaterThan(0)
+		);
 
 		const style = toastEl().getAttribute('style') || '';
 		expect(style).toContain('var(--color-card)');
@@ -44,7 +44,9 @@ describe('ToastProvider - 全局 style 以 CSS 字符串下发', () => {
 		render(ToastProvider);
 		hzToast.offline('离线');
 
-		await waitFor(() => expect(document.querySelectorAll('[data-sonner-toast]').length).toBeGreaterThan(0));
+		await waitFor(() =>
+			expect(document.querySelectorAll('[data-sonner-toast]').length).toBeGreaterThan(0)
+		);
 
 		const el = toastEl();
 		const style = el.getAttribute('style') || '';

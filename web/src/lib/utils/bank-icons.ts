@@ -21,7 +21,11 @@ const rawIcons = import.meta.glob<string>('#lib/assets/bank-icons/*.svg', {
 /** id（文件名去扩展名）→ 打包后的 URL */
 export const bankIconUrls: Record<string, string> = {};
 for (const [key, url] of Object.entries(rawIcons)) {
-	const id = key.split('/').pop()?.replace(/\.svg$/, '') ?? '';
+	const id =
+		key
+			.split('/')
+			.pop()
+			?.replace(/\.svg$/, '') ?? '';
 	if (id) bankIconUrls[id] = url;
 }
 
@@ -43,9 +47,7 @@ export interface IconInput {
 }
 
 export type ResolvedIcon =
-	| { kind: 'svg'; id: string; url: string }
-	| { kind: 'glyph'; text: string }
-	| null;
+	{ kind: 'svg'; id: string; url: string } | { kind: 'glyph'; text: string } | null;
 
 /** 按账户类型给的通用图标，避免「自动」完全无结果时退化成首字 */
 const TYPE_FALLBACK: Record<string, string> = {

@@ -74,7 +74,11 @@ describe('CategoryPie - {#if mounted() && items.length > 0}', () => {
 	});
 
 	it('超出 limit 的条目合并为「其他」，仍走 mounted 为真的分支', async () => {
-		const items = Array.from({ length: 10 }, (_, i) => ({ id: i + 1, name: `C${i + 1}`, amount: 1000 }));
+		const items = Array.from({ length: 10 }, (_, i) => ({
+			id: i + 1,
+			name: `C${i + 1}`,
+			amount: 1000
+		}));
 		render(CategoryPie, { props: { items, limit: 2 } });
 
 		await waitFor(() => expect(screen.queryAllByTestId('chart-stub').length).toBeGreaterThan(0));

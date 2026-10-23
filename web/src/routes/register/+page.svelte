@@ -3,11 +3,11 @@
 	import Button from '#lib/components/ui/Button.svelte';
 	import Input from '#lib/components/ui/Input.svelte';
 	import Label from '#lib/components/ui/Label.svelte';
-	import Card from '#lib/components/ui/Card.svelte'
-import CardContent from '#lib/components/ui/CardContent.svelte'
-import CardDescription from '#lib/components/ui/CardDescription.svelte'
-import CardHeader from '#lib/components/ui/CardHeader.svelte'
-import CardTitle from '#lib/components/ui/CardTitle.svelte';
+	import Card from '#lib/components/ui/Card.svelte';
+	import CardContent from '#lib/components/ui/CardContent.svelte';
+	import CardDescription from '#lib/components/ui/CardDescription.svelte';
+	import CardHeader from '#lib/components/ui/CardHeader.svelte';
+	import CardTitle from '#lib/components/ui/CardTitle.svelte';
 	import { authApi } from '#lib/api/modules/auth';
 	import { hzToast } from '#lib/components/ui/toast';
 
@@ -65,17 +65,25 @@ import CardTitle from '#lib/components/ui/CardTitle.svelte';
 	<title>注册 · 货殖</title>
 </svelte:head>
 
-<div class="min-h-screen flex items-center justify-center bg-background p-4">
+<div class="flex min-h-screen items-center justify-center bg-background p-4">
 	<Card class="w-full max-w-md">
 		<CardHeader class="text-center">
-			<div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-lg">
+			<div
+				class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-lg font-bold text-primary-foreground"
+			>
 				账
 			</div>
 			<CardTitle class="text-2xl">创建账号</CardTitle>
 			<CardDescription>开始你的记账之旅</CardDescription>
 		</CardHeader>
 		<CardContent>
-			<form class="space-y-4" onsubmit={(e) => { e.preventDefault(); handleRegister(); }}>
+			<form
+				class="space-y-4"
+				onsubmit={(e) => {
+					e.preventDefault();
+					handleRegister();
+				}}
+			>
 				<div class="space-y-2">
 					<Label for="username">用户名 *</Label>
 					<Input id="username" placeholder="2-20 个字符" bind:value={username} />

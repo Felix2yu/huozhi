@@ -39,7 +39,12 @@ vi.mock('#lib/api/modules/tags', () => ({
 
 const toastSuccess = vi.fn();
 vi.mock('#lib/components/ui/toast', () => ({
-	hzToast: { success: (...a: any[]) => toastSuccess(...a), error: vi.fn(), warning: vi.fn(), info: vi.fn() }
+	hzToast: {
+		success: (...a: any[]) => toastSuccess(...a),
+		error: vi.fn(),
+		warning: vi.fn(),
+		info: vi.fn()
+	}
 }));
 
 let Page: any;

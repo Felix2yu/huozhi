@@ -33,7 +33,15 @@
 	import { CURRENCIES } from '#lib/types';
 	import { onMount } from 'svelte';
 	import {
-		Sparkles, Save, X, ChevronDown, ChevronUp, ImagePlus, Trash2, Wand2, RefreshCw
+		Sparkles,
+		Save,
+		X,
+		ChevronDown,
+		ChevronUp,
+		ImagePlus,
+		Trash2,
+		Wand2,
+		RefreshCw
 	} from '@lucide/svelte';
 
 	interface Props {
@@ -407,7 +415,7 @@
 	}
 </script>
 
-<div class="max-w-xl mx-auto">
+<div class="mx-auto max-w-xl">
 	<Card>
 		<CardHeader>
 			<CardTitle>{isEdit ? '编辑交易' : '记一笔'}</CardTitle>
@@ -418,7 +426,7 @@
 				<div class="rounded-lg border border-dashed p-3">
 					<button
 						type="button"
-						class="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground w-full"
+						class="flex w-full items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
 						onclick={() => (showSmartInput = !showSmartInput)}
 					>
 						<Wand2 size={14} />
@@ -452,11 +460,11 @@
 			<div class="space-y-2">
 				<Label>金额</Label>
 				<div class="relative">
-					<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+					<span class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
 						>{currencySymbol(currency)}</span
 					>
 					<Input
-						class="text-xl h-12 pl-8 font-semibold tabular-nums"
+						class="h-12 pl-8 text-xl font-semibold tabular-nums"
 						type="number"
 						step="0.01"
 						placeholder="0.00"
@@ -470,7 +478,7 @@
 				<div class="space-y-2">
 					<Label>币种</Label>
 					<select
-						class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+						class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 						value={currency}
 						onchange={(e) => onCurrencyChange((e.currentTarget as HTMLSelectElement).value)}
 					>
@@ -506,11 +514,12 @@
 			</div>
 
 			{#if isForeign}
-				<div class="rounded-lg border bg-muted/40 px-3 py-2 text-sm space-y-1">
+				<div class="space-y-1 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
 					{#if rateNum > 0}
 						<div class="tabular-nums">
 							<span class="text-muted-foreground">当前汇率</span>
-							1 {currency} = {rateNum} {baseCurrency}
+							1 {currency} = {rateNum}
+							{baseCurrency}
 						</div>
 						<div class="font-medium tabular-nums">
 							{currencySymbol(currency)}{amountNum.toFixed(2)} ≈
@@ -524,7 +533,8 @@
 					{#if fxMeta}
 						<div class="text-[11px] text-muted-foreground">
 							{fxMeta}
-							{#if ratesStore.stale}<span class="text-amber-600 dark:text-amber-400">· 已过期</span>{/if}
+							{#if ratesStore.stale}<span class="text-amber-600 dark:text-amber-400">· 已过期</span
+								>{/if}
 						</div>
 					{/if}
 				</div>
@@ -534,10 +544,10 @@
 				<div class="space-y-2">
 					<Label>分类</Label>
 					<CategoryPicker
-					bind:value={categoryId}
-					kind={type === 'income' ? 'income' : 'expense'}
-					onchange={onCategoryChange}
-				/>
+						bind:value={categoryId}
+						kind={type === 'income' ? 'income' : 'expense'}
+						onchange={onCategoryChange}
+					/>
 				</div>
 			{/if}
 
@@ -596,25 +606,25 @@
 						{#if appStore.tags.length === 0}
 							<p class="text-xs text-muted-foreground">还没有标签，可在「标签中心」创建</p>
 						{:else}
-						<div class="flex flex-wrap gap-2">
-							{#each appStore.tags as tag (tag.id)}
-								<Badge
-									variant={tagIds.includes(tag.id) ? 'default' : 'outline'}
-									class="cursor-pointer select-none"
-									role="button"
-									tabindex={0}
-									onclick={() => toggleTag(tag.id)}
-									onkeydown={(e: KeyboardEvent) => {
-										if (e.key === 'Enter' || e.key === ' ') {
-											e.preventDefault();
-											toggleTag(tag.id);
-										}
-									}}
-								>
-									{tag.name}
-								</Badge>
-							{/each}
-						</div>
+							<div class="flex flex-wrap gap-2">
+								{#each appStore.tags as tag (tag.id)}
+									<Badge
+										variant={tagIds.includes(tag.id) ? 'default' : 'outline'}
+										class="cursor-pointer select-none"
+										role="button"
+										tabindex={0}
+										onclick={() => toggleTag(tag.id)}
+										onkeydown={(e: KeyboardEvent) => {
+											if (e.key === 'Enter' || e.key === ' ') {
+												e.preventDefault();
+												toggleTag(tag.id);
+											}
+										}}
+									>
+										{tag.name}
+									</Badge>
+								{/each}
+							</div>
 						{/if}
 					</div>
 
@@ -623,10 +633,10 @@
 						<div class="flex flex-wrap items-center gap-2">
 							{#each images as url, i (url)}
 								<div class="relative">
-									<img src={url} alt="凭证" class="w-16 h-16 object-cover rounded border" />
+									<img src={url} alt="凭证" class="h-16 w-16 rounded border object-cover" />
 									<button
 										type="button"
-										class="absolute -top-2 -right-2 bg-background rounded-full p-0.5 border"
+										class="absolute -top-2 -right-2 rounded-full border bg-background p-0.5"
 										onclick={() => (images = images.filter((_, idx) => idx !== i))}
 									>
 										<Trash2 size={12} class="text-destructive" />
@@ -634,7 +644,7 @@
 								</div>
 							{/each}
 							<label
-								class="w-16 h-16 grid place-items-center rounded border border-dashed cursor-pointer hover:bg-accent"
+								class="grid h-16 w-16 cursor-pointer place-items-center rounded border border-dashed hover:bg-accent"
 							>
 								<ImagePlus size={18} class="text-muted-foreground" />
 								<input

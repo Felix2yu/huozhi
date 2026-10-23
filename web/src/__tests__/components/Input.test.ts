@@ -43,7 +43,7 @@ describe('Input component - Bug #3 $bindable value', () => {
 
 	it('Input 支持所有标准 input 属性透传 (type/class/placeholder)', () => {
 		// 验证 props 解构里包含 class 和 type
-		expect(inputSource).toContain("class: className");
+		expect(inputSource).toContain('class: className');
 		expect(inputSource).toContain("type = 'text'");
 		// 验证用了 ...rest 透传
 		expect(inputSource).toContain('...rest');

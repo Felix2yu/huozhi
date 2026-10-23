@@ -20,9 +20,7 @@
 	// 可用于「资金账户 / 收款账户」的账户：排除负债类与借贷联动的系统账户
 	const sysAccountNames = ['借出·应收', '借款·应付'];
 	let fundAccounts = $derived(
-		appStore.accounts.filter(
-			(a) => a.type !== 'liability' && !sysAccountNames.includes(a.name)
-		)
+		appStore.accounts.filter((a) => a.type !== 'liability' && !sysAccountNames.includes(a.name))
 	);
 	const todayStr = () => formatDate(new Date(), 'YYYY-MM-DD');
 
@@ -237,7 +235,7 @@
 		<Card>
 			<CardContent class="p-3">
 				<div class="text-xs text-muted-foreground">别人欠我（未收回）</div>
-				<div class="font-semibold tabular-nums text-rose-600">
+				<div class="font-semibold text-rose-600 tabular-nums">
 					{formatMoney(summary.lendOut)}
 				</div>
 			</CardContent>
@@ -245,7 +243,7 @@
 		<Card>
 			<CardContent class="p-3">
 				<div class="text-xs text-muted-foreground">我欠别人（未偿还）</div>
-				<div class="font-semibold tabular-nums text-emerald-600">
+				<div class="font-semibold text-emerald-600 tabular-nums">
 					{formatMoney(summary.borrowOut)}
 				</div>
 			</CardContent>
@@ -263,29 +261,29 @@
 	{#if loading}
 		<div class="space-y-2">
 			{#each [1, 2, 3] as i}
-				<div class="h-16 rounded-lg animate-pulse bg-muted"></div>
+				<div class="h-16 animate-pulse rounded-lg bg-muted"></div>
 			{/each}
 		</div>
 	{:else if list.length === 0}
 		<Card>
 			<div class="py-16 text-center">
 				<HandCoins size={32} class="mx-auto mb-3 text-muted-foreground opacity-50" />
-				<p class="text-muted-foreground text-sm">暂无借贷记录</p>
+				<p class="text-sm text-muted-foreground">暂无借贷记录</p>
 			</div>
 		</Card>
 	{:else}
 		<Card>
-			<CardContent class="p-0 divide-y">
+			<CardContent class="divide-y p-0">
 				{#each list as item (item.id)}
-					<div class="flex items-center gap-3 p-4 group">
-						<div class="flex-1 min-w-0">
+					<div class="group flex items-center gap-3 p-4">
+						<div class="min-w-0 flex-1">
 							<div class="flex items-center gap-2">
-								<span class="font-medium truncate">{item.counterparty}</span>
+								<span class="truncate font-medium">{item.counterparty}</span>
 								<Badge variant={item.direction === 'lend' ? 'default' : 'secondary'}>
 									{dirLabel(item.direction)}
 								</Badge>
 							</div>
-							<div class="text-xs text-muted-foreground mt-0.5">
+							<div class="mt-0.5 text-xs text-muted-foreground">
 								已还 {formatMoney(item.repaid_principal)}
 								<span class="mx-1">/</span>
 								本金 {formatMoney(item.principal)}
@@ -298,7 +296,7 @@
 								{/if}
 							</div>
 						</div>
-						<div class="text-right flex items-center gap-1">
+						<div class="flex items-center gap-1 text-right">
 							<div>
 								<div
 									class="font-semibold tabular-nums {item.direction === 'lend'
@@ -306,7 +304,7 @@
 										: 'text-emerald-600'}"
 								>
 									{formatMoney(remaining(item))}
-									<span class="text-muted-foreground text-xs">未还</span>
+									<span class="text-xs text-muted-foreground">未还</span>
 								</div>
 								{#if item.status === 'completed'}
 									<Badge variant="outline" class="mt-1 flex items-center gap-1">
@@ -320,7 +318,7 @@
 							</div>
 							{#if item.status !== 'completed'}
 								<button
-									class="p-1 rounded hover:bg-accent opacity-0 group-hover:opacity-100 transition"
+									class="rounded p-1 opacity-0 transition group-hover:opacity-100 hover:bg-accent"
 									title="还款"
 									onclick={() => openRepay(item)}
 								>
@@ -328,14 +326,14 @@
 								</button>
 							{/if}
 							<button
-								class="p-1 rounded hover:bg-accent opacity-0 group-hover:opacity-100 transition"
+								class="rounded p-1 opacity-0 transition group-hover:opacity-100 hover:bg-accent"
 								title="编辑"
 								onclick={() => openEdit(item)}
 							>
 								<Pencil size={14} class="text-muted-foreground" />
 							</button>
 							<button
-								class="p-1 rounded hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition"
+								class="rounded p-1 opacity-0 transition group-hover:opacity-100 hover:bg-destructive/10"
 								title="删除"
 								onclick={() => handleDelete(item)}
 							>
@@ -348,7 +346,7 @@
 		</Card>
 	{/if}
 
-	<p class="text-[11px] text-muted-foreground leading-relaxed">
+	<p class="text-[11px] leading-relaxed text-muted-foreground">
 		借贷会联动真实账户：借出时现金转入「借出·应收」虚拟账户，借入时从「借款·应付」负债账户转入现金，净资产不变，且自动计入资产概览。删除会回滚全部关联交易流水。
 	</p>
 </div>
@@ -392,7 +390,7 @@
 		<div class="space-y-2">
 			<Label>{editingItem ? '本金（创建后不可修改）' : '本金'}</Label>
 			<div class="relative">
-				<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
+				<span class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">¥</span>
 				<Input
 					class="pl-8"
 					type="number"
@@ -408,7 +406,7 @@
 			<div class="space-y-2">
 				<Label>资金账户</Label>
 				<select
-					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 					bind:value={accountId}
 					disabled={!!editingItem}
 				>
@@ -434,7 +432,7 @@
 			<div class="space-y-2">
 				<Label>计息方式</Label>
 				<select
-					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 					bind:value={interestType}
 					disabled={!!editingItem}
 				>
@@ -463,7 +461,7 @@
 			<Input bind:value={note} placeholder="可选" />
 		</div>
 
-		<div class="flex gap-2 justify-end pt-2">
+		<div class="flex justify-end gap-2 pt-2">
 			<Button variant="outline" onclick={() => (showDialog = false)}>取消</Button>
 			<Button onclick={handleSave} disabled={saving}>
 				{saving ? '保存中...' : '保存'}
@@ -487,7 +485,7 @@
 		<div class="space-y-2">
 			<Label>还本金</Label>
 			<div class="relative">
-				<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
+				<span class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">¥</span>
 				<Input class="pl-8" type="number" step="0.01" bind:value={repayPrincipal} />
 			</div>
 		</div>
@@ -495,8 +493,14 @@
 		<div class="space-y-2">
 			<Label>利息（可选）</Label>
 			<div class="relative">
-				<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
-				<Input class="pl-8" type="number" step="0.01" placeholder="0.00" bind:value={repayInterest} />
+				<span class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">¥</span>
+				<Input
+					class="pl-8"
+					type="number"
+					step="0.01"
+					placeholder="0.00"
+					bind:value={repayInterest}
+				/>
 			</div>
 			<p class="text-[11px] text-muted-foreground">
 				借出利息记为收入、借入利息记为支出，进入所选账户。
@@ -507,7 +511,7 @@
 			<div class="space-y-2">
 				<Label>{repayItem?.direction === 'lend' ? '收款账户' : '还款账户'}</Label>
 				<select
-					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 					bind:value={repayAccountId}
 				>
 					{#each fundAccounts as a}
@@ -526,7 +530,7 @@
 			<Input bind:value={repayNote} placeholder="可选" />
 		</div>
 
-		<div class="flex gap-2 justify-end pt-2">
+		<div class="flex justify-end gap-2 pt-2">
 			<Button variant="outline" onclick={() => (showRepay = false)}>取消</Button>
 			<Button onclick={handleRepay} disabled={repaying}>
 				{repaying ? '提交中...' : '确认还款'}

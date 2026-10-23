@@ -1,13 +1,7 @@
 <script lang="ts">
 	/** 分类占比饼图（A2） */
 	import { Pie } from 'svelte-chartjs';
-	import {
-		Chart as ChartJS,
-		Title,
-		Tooltip,
-		Legend,
-		ArcElement
-	} from 'chart.js';
+	import { Chart as ChartJS, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 	import { baseOptions, PALETTE, useMounted, centsToYuan } from './chartSetup.svelte';
 	import { privacyStore } from '#lib/stores/privacy';
 
@@ -74,7 +68,7 @@
 			<Pie {data} {options} />
 		{/key}
 	{:else}
-		<div class="h-full grid place-items-center text-sm text-muted-foreground">
+		<div class="grid h-full place-items-center text-sm text-muted-foreground">
 			{items.length === 0 ? '暂无数据' : ''}
 		</div>
 	{/if}

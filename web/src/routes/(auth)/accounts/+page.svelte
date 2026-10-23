@@ -104,7 +104,7 @@
 			<Card>
 				<CardContent class="pt-4 text-center">
 					<div class="text-xs text-muted-foreground">总资产</div>
-					<div class="mt-2 text-lg md:text-2xl font-bold tabular-nums text-primary">
+					<div class="mt-2 text-lg font-bold text-primary tabular-nums md:text-2xl">
 						{formatMoney(summary.total_asset)}
 					</div>
 				</CardContent>
@@ -112,7 +112,7 @@
 			<Card>
 				<CardContent class="pt-4 text-center">
 					<div class="text-xs text-muted-foreground">总负债</div>
-					<div class="mt-2 text-lg md:text-2xl font-bold tabular-nums text-[var(--color-expense)]">
+					<div class="mt-2 text-lg font-bold text-[var(--color-expense)] tabular-nums md:text-2xl">
 						{formatMoney(summary.total_debt)}
 					</div>
 				</CardContent>
@@ -120,7 +120,7 @@
 			<Card>
 				<CardContent class="pt-4 text-center">
 					<div class="text-xs text-muted-foreground">净资产</div>
-					<div class="mt-2 text-lg md:text-2xl font-bold tabular-nums">
+					<div class="mt-2 text-lg font-bold tabular-nums md:text-2xl">
 						{formatMoney(summary.net_asset)}
 					</div>
 				</CardContent>
@@ -129,7 +129,7 @@
 	{/if}
 
 	<!-- 新增按钮 -->
-	<div class="flex justify-between items-center">
+	<div class="flex items-center justify-between">
 		<h2 class="text-sm font-medium">账户列表</h2>
 		<Button size="sm" onclick={() => goto('/accounts/new')}>
 			<Plus size={16} />
@@ -138,12 +138,12 @@
 	</div>
 
 	{#if loading}
-		<div class="py-16 text-center text-muted-foreground text-sm animate-pulse">加载中...</div>
+		<div class="animate-pulse py-16 text-center text-sm text-muted-foreground">加载中...</div>
 	{:else if active.length === 0 && archived.length === 0}
 		<Card>
 			<div class="py-16 text-center">
-				<div class="text-4xl mb-4 opacity-50">💳</div>
-				<p class="text-muted-foreground mb-4">还没有添加任何账户</p>
+				<div class="mb-4 text-4xl opacity-50">💳</div>
+				<p class="mb-4 text-muted-foreground">还没有添加任何账户</p>
 				<Button onclick={() => goto('/accounts/new')}>
 					<Plus size={16} />
 					立即添加
@@ -155,7 +155,7 @@
 		{#each Object.entries(byType) as [type, accs]}
 			{@const info = labels[type] || { label: type, icon: Wallet }}
 			<section>
-				<div class="flex items-center gap-2 mb-3">
+				<div class="mb-3 flex items-center gap-2">
 					<div class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
 						<info.icon size={16} />
 						{info.label}
@@ -166,23 +166,24 @@
 					{#each accs as acc (acc.id)}
 						<div class="relative">
 							<Card
-								class="cursor-pointer hover:border-primary/50 transition"
+								class="cursor-pointer transition hover:border-primary/50"
 								onclick={() => goto(`/accounts/${acc.id}`)}
 							>
 								<CardContent class="p-4">
 									<div class="flex items-start justify-between">
-										<div class="flex items-center gap-3 min-w-0">
+										<div class="flex min-w-0 items-center gap-3">
 											<AccountIcon account={acc} size={40} />
 											<div class="min-w-0">
-												<div class="font-medium truncate">{acc.name}</div>
-												<div class="text-xs text-muted-foreground truncate">
+												<div class="truncate font-medium">{acc.name}</div>
+												<div class="truncate text-xs text-muted-foreground">
 													{acc.bank_name || info.label}
-													{#if acc.card_no4} · •••• {acc.card_no4}{/if}
+													{#if acc.card_no4}
+														· •••• {acc.card_no4}{/if}
 												</div>
 											</div>
 										</div>
 										<button
-											class="p-1 rounded hover:bg-accent shrink-0"
+											class="shrink-0 rounded p-1 hover:bg-accent"
 											onclick={(e) => {
 												e.stopPropagation();
 												menuOpen = menuOpen === acc.id ? null : acc.id;
@@ -209,7 +210,7 @@
 									aria-hidden="true"
 								></div>
 								<div
-									class="absolute z-50 right-2 top-12 w-36 rounded-md border bg-card p-1 shadow-md"
+									class="absolute top-12 right-2 z-50 w-36 rounded-md border bg-card p-1 shadow-md"
 								>
 									<button
 										class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
@@ -253,11 +254,11 @@
 							<Card class="opacity-70">
 								<CardContent class="p-4">
 									<div class="flex items-start justify-between">
-										<div class="flex items-center gap-3 min-w-0">
+										<div class="flex min-w-0 items-center gap-3">
 											<AccountIcon account={acc} size={40} />
 											<div class="min-w-0">
-												<div class="font-medium truncate">{acc.name}</div>
-												<div class="text-xs text-muted-foreground truncate">
+												<div class="truncate font-medium">{acc.name}</div>
+												<div class="truncate text-xs text-muted-foreground">
 													{acc.bank_name || labels[acc.type]?.label || ''}
 												</div>
 											</div>

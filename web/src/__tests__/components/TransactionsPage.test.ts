@@ -121,8 +121,17 @@ vi.mock('#lib/utils/tx', () => ({
 			.filter((t: any) => t.type === 'expense')
 			.reduce((s: number, t: any) => s + t.amount / 100, 0);
 	},
-	toneClass: (tone: string) => (tone === 'income' ? 'text-income' : tone === 'expense' ? 'text-expense' : 'text-muted'),
-	typeLabel: (t: string) => ({ income: '收入', expense: '支出', transfer: '转账', refund: '退款', reimburse: '报销', adjust: '余额调整' }[t] || t)
+	toneClass: (tone: string) =>
+		tone === 'income' ? 'text-income' : tone === 'expense' ? 'text-expense' : 'text-muted',
+	typeLabel: (t: string) =>
+		({
+			income: '收入',
+			expense: '支出',
+			transfer: '转账',
+			refund: '退款',
+			reimburse: '报销',
+			adjust: '余额调整'
+		})[t] || t
 }));
 
 vi.mock('#lib/utils/format', () => ({
@@ -202,7 +211,8 @@ describe('交易列表页 - 有数据', () => {
 		await waitFor(() => expect(gotoFn).toHaveBeenCalledWith('/transactions/edit/3'));
 	});
 
-	it('预览弹窗显示标签信息', async () => {		render(Page);
+	it('预览弹窗显示标签信息', async () => {
+		render(Page);
 		await waitFor(() => screen.getByText('午餐'));
 		await fireEvent.click(screen.getByText('午餐'));
 		await waitFor(() => {

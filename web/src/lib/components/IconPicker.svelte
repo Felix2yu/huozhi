@@ -69,11 +69,11 @@
 		<button
 			type="button"
 			data-testid="icon-trigger"
-			class="flex items-center gap-2 px-3 py-2 border rounded-md hover:bg-accent transition text-sm"
+			class="flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition hover:bg-accent"
 			onclick={toggleOpen}
 		>
 			{#if preview?.kind === 'svg'}
-				<img src={preview.url} alt="" class="w-6 h-6" />
+				<img src={preview.url} alt="" class="h-6 w-6" />
 			{:else if preview?.kind === 'glyph'}
 				<span class="text-base leading-none">{preview.text}</span>
 			{:else}
@@ -93,21 +93,24 @@
 	</div>
 
 	{#if open}
-		<div class="border rounded-lg bg-card">
+		<div class="rounded-lg border bg-card">
 			<!-- 搜索框 -->
-			<div class="p-2 border-b">
+			<div class="border-b p-2">
 				<div class="relative">
-					<Search size={14} class="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+					<Search
+						size={14}
+						class="absolute top-1/2 left-2 -translate-y-1/2 text-muted-foreground"
+					/>
 					<input
 						type="text"
 						placeholder="搜索图标名称..."
-						class="w-full h-8 pl-7 pr-7 text-sm border rounded-md bg-transparent focus:outline-none focus:ring-1 focus:ring-ring"
+						class="h-8 w-full rounded-md border bg-transparent pr-7 pl-7 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
 						bind:value={search}
 					/>
 					{#if search}
 						<button
 							type="button"
-							class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+							class="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
 							onclick={() => (search = '')}
 						>
 							<X size={12} />
@@ -117,11 +120,11 @@
 			</div>
 
 			<!-- 图标列表 -->
-			<div class="p-3 max-h-64 overflow-y-auto">
+			<div class="max-h-64 overflow-y-auto p-3">
 				<div class="grid grid-cols-6 gap-2">
 					<button
 						type="button"
-						class="flex flex-col items-center gap-1 p-2 rounded hover:bg-accent transition"
+						class="flex flex-col items-center gap-1 rounded p-2 transition hover:bg-accent"
 						class:ring-2={selectedIcon === ''}
 						class:ring-primary={selectedIcon === ''}
 						onclick={() => selectIcon(autoIcon)}
@@ -132,21 +135,21 @@
 					{#each filteredIcons as icon}
 						<button
 							type="button"
-							class="flex flex-col items-center gap-1 p-2 rounded hover:bg-accent transition"
+							class="flex flex-col items-center gap-1 rounded p-2 transition hover:bg-accent"
 							class:ring-2={selectedIcon === icon.id}
 							class:ring-primary={selectedIcon === icon.id}
 							onclick={() => selectIcon(icon.id)}
 							title={icon.name}
 						>
-							<img src={icon.url} alt={icon.name} class="w-8 h-8" />
-							<span class="text-[10px] text-muted-foreground truncate w-full text-center">{icon.name}</span>
+							<img src={icon.url} alt={icon.name} class="h-8 w-8" />
+							<span class="w-full truncate text-center text-[10px] text-muted-foreground"
+								>{icon.name}</span
+							>
 						</button>
 					{/each}
 				</div>
 				{#if filteredIcons.length === 0}
-					<div class="text-center text-sm text-muted-foreground py-4">
-						未找到匹配的图标
-					</div>
+					<div class="py-4 text-center text-sm text-muted-foreground">未找到匹配的图标</div>
 				{/if}
 			</div>
 		</div>

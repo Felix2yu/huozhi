@@ -144,13 +144,9 @@
 		return allCategories.find((x) => x.id === c.parent_id)?.name ?? null;
 	};
 
-	let allExpanded = $derived(
-		rootsView.length > 0 && rootsView.every((r) => !!expanded[r.id])
-	);
+	let allExpanded = $derived(rootsView.length > 0 && rootsView.every((r) => !!expanded[r.id]));
 
-	let totalSubCount = $derived(
-		model.roots.reduce((sum, r) => sum + childrenOf(r.id).length, 0)
-	);
+	let totalSubCount = $derived(model.roots.reduce((sum, r) => sum + childrenOf(r.id).length, 0));
 
 	let overview = $derived([
 		{
@@ -193,8 +189,7 @@
 		catName = cat.name;
 		catIcon = cat.icon || '📁';
 		catColor = cat.color || '';
-		catParentId =
-			cat.parent_id && !isOrphan(cat.parent_id) ? cat.parent_id : '';
+		catParentId = cat.parent_id && !isOrphan(cat.parent_id) ? cat.parent_id : '';
 		iconTab = groupKeyOfIcon(catIcon);
 		showDialog = true;
 	}
@@ -203,9 +198,7 @@
 		deleteTarget = cat;
 	}
 
-	let deleteChildCount = $derived(
-		deleteTarget ? childrenOf(deleteTarget.id).length : 0
-	);
+	let deleteChildCount = $derived(deleteTarget ? childrenOf(deleteTarget.id).length : 0);
 
 	async function handleSave() {
 		const name = catName.trim();
@@ -267,70 +260,294 @@
 			key: 'common',
 			label: '常用',
 			icons: [
-				'🍚', '🍔', '🍜', '☕', '🚌', '🚗', '🚕', '🛒', '🏠', '💡',
-				'🎮', '📱', '👕', '💼', '📚', '🏥', '🎁', '💳', '💰', '💵',
-				'🏦', '📈', '🎓', '✈️', '🏋️', '🐶', '💄', '🎬', '🍳', '📦',
-				'🔧', '💊', '📞', '⚽', '🧧', '🎊', '💻', '↩️', '🔄', '⚙️',
-				'🎫', '🏨', '🚇', '🚄', '🚲', '🍲', '🥡', '🧾', '💧', '⚡',
-				'🌿', '🎒', '🧺', '♻️', '👶', '🖥️', '🥇', '🅿️', '🎉'
+				'🍚',
+				'🍔',
+				'🍜',
+				'☕',
+				'🚌',
+				'🚗',
+				'🚕',
+				'🛒',
+				'🏠',
+				'💡',
+				'🎮',
+				'📱',
+				'👕',
+				'💼',
+				'📚',
+				'🏥',
+				'🎁',
+				'💳',
+				'💰',
+				'💵',
+				'🏦',
+				'📈',
+				'🎓',
+				'✈️',
+				'🏋️',
+				'🐶',
+				'💄',
+				'🎬',
+				'🍳',
+				'📦',
+				'🔧',
+				'💊',
+				'📞',
+				'⚽',
+				'🧧',
+				'🎊',
+				'💻',
+				'↩️',
+				'🔄',
+				'⚙️',
+				'🎫',
+				'🏨',
+				'🚇',
+				'🚄',
+				'🚲',
+				'🍲',
+				'🥡',
+				'🧾',
+				'💧',
+				'⚡',
+				'🌿',
+				'🎒',
+				'🧺',
+				'♻️',
+				'👶',
+				'🖥️',
+				'🥇',
+				'🅿️',
+				'🎉'
 			]
 		},
 		{
 			key: 'food',
 			label: '饮食',
 			icons: [
-				'🍚', '🍔', '🍜', '☕', '🍲', '🍱', '🍛', '🍣', '🍝', '🍕',
-				'🌭', '🍟', '🥗', '🍎', '🍊', '🍇', '🍉', '🍓', '🥑', '🥦',
-				'🥕', '🥩', '🍗', '🥓', '🦐', '🐟', '🥚', '🧀', '🥛', '🍵',
-				'🧋', '🍺', '🍷', '🍰', '🍩', '🍪', '🍫', '🍭', '🍽️', '🥡',
-				'🍳', '🥢'
+				'🍚',
+				'🍔',
+				'🍜',
+				'☕',
+				'🍲',
+				'🍱',
+				'🍛',
+				'🍣',
+				'🍝',
+				'🍕',
+				'🌭',
+				'🍟',
+				'🥗',
+				'🍎',
+				'🍊',
+				'🍇',
+				'🍉',
+				'🍓',
+				'🥑',
+				'🥦',
+				'🥕',
+				'🥩',
+				'🍗',
+				'🥓',
+				'🦐',
+				'🐟',
+				'🥚',
+				'🧀',
+				'🥛',
+				'🍵',
+				'🧋',
+				'🍺',
+				'🍷',
+				'🍰',
+				'🍩',
+				'🍪',
+				'🍫',
+				'🍭',
+				'🍽️',
+				'🥡',
+				'🍳',
+				'🥢'
 			]
 		},
 		{
 			key: 'transport',
 			label: '出行',
 			icons: [
-				'🚌', '🚗', '🚕', '🚙', '🏍️', '🚲', '🛵', '🚆', '🚄', '🚂',
-				'🚇', '🛫', '✈️', '🚀', '⛴️', '🚢', '⛽', '🅿️', '🚐', '🚏',
-				'🧳', '🗺️', '🏝️', '🏖️', '🏔️', '🏕️', '⛺', '🏨', '🎡', '🎢',
-				'🎠', '🛤️'
+				'🚌',
+				'🚗',
+				'🚕',
+				'🚙',
+				'🏍️',
+				'🚲',
+				'🛵',
+				'🚆',
+				'🚄',
+				'🚂',
+				'🚇',
+				'🛫',
+				'✈️',
+				'🚀',
+				'⛴️',
+				'🚢',
+				'⛽',
+				'🅿️',
+				'🚐',
+				'🚏',
+				'🧳',
+				'🗺️',
+				'🏝️',
+				'🏖️',
+				'🏔️',
+				'🏕️',
+				'⛺',
+				'🏨',
+				'🎡',
+				'🎢',
+				'🎠',
+				'🛤️'
 			]
 		},
 		{
 			key: 'shopping',
 			label: '购物',
 			icons: [
-				'🛒', '🛍️', '👗', '👕', '👚', '👖', '👜', '👟', '👠', '🧥',
-				'🧣', '🧤', '💍', '💄', '👓', '🕶️', '🎀', '🧸'
+				'🛒',
+				'🛍️',
+				'👗',
+				'👕',
+				'👚',
+				'👖',
+				'👜',
+				'👟',
+				'👠',
+				'🧥',
+				'🧣',
+				'🧤',
+				'💍',
+				'💄',
+				'👓',
+				'🕶️',
+				'🎀',
+				'🧸'
 			]
 		},
 		{
 			key: 'life',
 			label: '生活健康',
 			icons: [
-				'🏠', '🏡', '🛋️', '🛏️', '🚿', '🧺', '🧹', '💡', '🔌', '🔧',
-				'🔨', '🪛', '🧰', '🪟', '🪴', '🌿', '🌱', '🌳', '💐', '🌸',
-				'🌻', '💊', '💉', '🩺', '🏥', '🦷', '🧠', '🤒'
+				'🏠',
+				'🏡',
+				'🛋️',
+				'🛏️',
+				'🚿',
+				'🧺',
+				'🧹',
+				'💡',
+				'🔌',
+				'🔧',
+				'🔨',
+				'🪛',
+				'🧰',
+				'🪟',
+				'🪴',
+				'🌿',
+				'🌱',
+				'🌳',
+				'💐',
+				'🌸',
+				'🌻',
+				'💊',
+				'💉',
+				'🩺',
+				'🏥',
+				'🦷',
+				'🧠',
+				'🤒'
 			]
 		},
 		{
 			key: 'learn',
 			label: '学习教育',
 			icons: [
-				'📚', '📖', '✏️', '📝', '🎓', '🏫', '📐', '🧮', '📞', '📱',
-				'📡', '💬', '📧', '✉️', '📻', '📺', '🎙️'
+				'📚',
+				'📖',
+				'✏️',
+				'📝',
+				'🎓',
+				'🏫',
+				'📐',
+				'🧮',
+				'📞',
+				'📱',
+				'📡',
+				'💬',
+				'📧',
+				'✉️',
+				'📻',
+				'📺',
+				'🎙️'
 			]
 		},
 		{
 			key: 'fun',
 			label: '休闲运动',
 			icons: [
-				'🎮', '🕹️', '🎬', '🎭', '🎨', '🎯', '🎲', '🎸', '🎹', '🎺',
-				'🎻', '🥁', '🎤', '🎧', '📷', '⚽', '🏀', '🏈', '⚾', '🎾',
-				'🏐', '🏓', '🏸', '🏒', '🏏', '⛳', '🏊', '🏄', '🏂', '🏋️',
-				'🥊', '🥋', '🎿', '🛹', '🚴', '🐶', '🐱', '🐰', '🐹', '🦊',
-				'🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔',
-				'🐧', '🦄', '🐢', '🐍', '🦋', '🐝'
+				'🎮',
+				'🕹️',
+				'🎬',
+				'🎭',
+				'🎨',
+				'🎯',
+				'🎲',
+				'🎸',
+				'🎹',
+				'🎺',
+				'🎻',
+				'🥁',
+				'🎤',
+				'🎧',
+				'📷',
+				'⚽',
+				'🏀',
+				'🏈',
+				'⚾',
+				'🎾',
+				'🏐',
+				'🏓',
+				'🏸',
+				'🏒',
+				'🏏',
+				'⛳',
+				'🏊',
+				'🏄',
+				'🏂',
+				'🏋️',
+				'🥊',
+				'🥋',
+				'🎿',
+				'🛹',
+				'🚴',
+				'🐶',
+				'🐱',
+				'🐰',
+				'🐹',
+				'🦊',
+				'🐻',
+				'🐼',
+				'🐨',
+				'🐯',
+				'🦁',
+				'🐮',
+				'🐷',
+				'🐸',
+				'🐵',
+				'🐔',
+				'🐧',
+				'🦄',
+				'🐢',
+				'🐍',
+				'🦋',
+				'🐝'
 			]
 		},
 		{
@@ -342,9 +559,36 @@
 			key: 'money',
 			label: '财务工作',
 			icons: [
-				'💰', '💵', '💴', '💶', '💷', '💳', '💎', '🏦', '📈', '📉',
-				'📊', '💼', '💻', '🖥️', '🧾', '🪙', '🤑', '💸', '💱', '🏧',
-				'💹', '🛠️', '⚙️', '🔔', '⏰', '⌚', '🔋', '⌨️', '🖱️', '🖨️'
+				'💰',
+				'💵',
+				'💴',
+				'💶',
+				'💷',
+				'💳',
+				'💎',
+				'🏦',
+				'📈',
+				'📉',
+				'📊',
+				'💼',
+				'💻',
+				'🖥️',
+				'🧾',
+				'🪙',
+				'🤑',
+				'💸',
+				'💱',
+				'🏧',
+				'💹',
+				'🛠️',
+				'⚙️',
+				'🔔',
+				'⏰',
+				'⌚',
+				'🔋',
+				'⌨️',
+				'🖱️',
+				'🖨️'
 			]
 		},
 		{
@@ -356,9 +600,7 @@
 
 	/** 图标分组筛选：默认「常用」，编辑既有分类时自动跳到其图标所在分组。 */
 	let iconTab = $state('common');
-	const iconOptions = $derived(
-		(iconGroups.find((g) => g.key === iconTab) ?? iconGroups[0]).icons
-	);
+	const iconOptions = $derived((iconGroups.find((g) => g.key === iconTab) ?? iconGroups[0]).icons);
 
 	/** 定位某图标所属分组（用于编辑时自动切换分组）。 */
 	function groupKeyOfIcon(icon: string): string {
@@ -395,7 +637,7 @@
 		}}
 		class={cn(
 			'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors',
-			'hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+			'hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
 			danger && 'hover:bg-destructive/10 hover:text-destructive'
 		)}
 	>
@@ -439,14 +681,12 @@
 		{#each overview as item (item.label)}
 			{@const Icon = item.icon}
 			<div class="flex items-center gap-3 rounded-xl border bg-card px-4 py-3">
-				<div
-					class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"
-				>
+				<div class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
 					<Icon size={17} />
 				</div>
 				<div class="min-w-0">
 					<div class="text-xs text-muted-foreground">{item.label}</div>
-					<div class="text-lg font-semibold leading-tight tabular-nums">{item.value}</div>
+					<div class="text-lg leading-tight font-semibold tabular-nums">{item.value}</div>
 				</div>
 			</div>
 		{/each}
@@ -457,15 +697,15 @@
 		<Tabs bind:value={kind}>
 			<TabsTrigger value="expense">
 				支出
-				<span class="ml-1.5 text-xs opacity-70 tabular-nums">{counts.expense}</span>
+				<span class="ml-1.5 text-xs tabular-nums opacity-70">{counts.expense}</span>
 			</TabsTrigger>
 			<TabsTrigger value="income">
 				收入
-				<span class="ml-1.5 text-xs opacity-70 tabular-nums">{counts.income}</span>
+				<span class="ml-1.5 text-xs tabular-nums opacity-70">{counts.income}</span>
 			</TabsTrigger>
 			<TabsTrigger value="system">
 				系统
-				<span class="ml-1.5 text-xs opacity-70 tabular-nums">{counts.system}</span>
+				<span class="ml-1.5 text-xs tabular-nums opacity-70">{counts.system}</span>
 			</TabsTrigger>
 		</Tabs>
 
@@ -494,7 +734,9 @@
 		{#if searchResults.length === 0}
 			<Card>
 				<div class="flex flex-col items-center justify-center py-16 text-center">
-					<div class="mb-3 grid h-12 w-12 place-items-center rounded-xl bg-muted text-muted-foreground">
+					<div
+						class="mb-3 grid h-12 w-12 place-items-center rounded-xl bg-muted text-muted-foreground"
+					>
 						<Search size={22} />
 					</div>
 					<p class="text-sm font-medium">没有匹配「{keyword.trim()}」的分类</p>
@@ -545,7 +787,9 @@
 	{:else if rootsView.length === 0}
 		<Card>
 			<div class="flex flex-col items-center justify-center py-16 text-center">
-				<div class="mb-3 grid h-12 w-12 place-items-center rounded-xl bg-muted text-muted-foreground">
+				<div
+					class="mb-3 grid h-12 w-12 place-items-center rounded-xl bg-muted text-muted-foreground"
+				>
 					<FolderTree size={22} />
 				</div>
 				<p class="text-sm font-medium">还没有任何分类</p>
@@ -584,7 +828,7 @@
 					>
 						{r.icon || '📁'}
 					</span>
-					<span class="w-full truncate text-center text-xs font-medium leading-tight">
+					<span class="w-full truncate text-center text-xs leading-tight font-medium">
 						{r.name}
 					</span>
 					<span class="text-[10px] leading-tight text-muted-foreground">
@@ -857,7 +1101,9 @@
 	{#if deleteTarget}
 		<div class="space-y-5">
 			<div class="flex items-start gap-3">
-				<div class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-destructive/10 text-destructive">
+				<div
+					class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-destructive/10 text-destructive"
+				>
 					<Trash2 size={18} />
 				</div>
 				<div class="min-w-0 flex-1">
@@ -867,7 +1113,9 @@
 						{deleteTarget.name}」吗？删除后该分类不再出现在记账与统计的选择列表中。
 					</p>
 					{#if deleteChildCount > 0}
-						<p class="mt-3 flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+						<p
+							class="mt-3 flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400"
+						>
 							<AlertTriangle size={14} class="mt-0.5 shrink-0" />
 							<span>
 								该分类下还有 {deleteChildCount} 个二级分类，删除后它们会变为「未归类」，可编辑后重新指定归属。

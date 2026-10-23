@@ -98,7 +98,7 @@
 	<title>新增账户 · 货殖</title>
 </svelte:head>
 
-<div class="max-w-xl mx-auto">
+<div class="mx-auto max-w-xl">
 	<Card>
 		<CardHeader>
 			<CardTitle>新增账户</CardTitle>
@@ -112,7 +112,9 @@
 					bind:value={name}
 					oninput={onNameInput}
 				/>
-				<p class="text-xs text-muted-foreground">输入名称后会自动识别银行/机构（如「招商银行信用卡」→ 招商银行）</p>
+				<p class="text-xs text-muted-foreground">
+					输入名称后会自动识别银行/机构（如「招商银行信用卡」→ 招商银行）
+				</p>
 			</div>
 
 			<!-- 图标 -->
@@ -125,7 +127,7 @@
 			<div class="space-y-2">
 				<Label>账户类型</Label>
 				<select
-					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 					bind:value={type}
 					onchange={() => (typeTouched = true)}
 				>
@@ -139,14 +141,8 @@
 			<div class="space-y-2">
 				<Label>当前余额</Label>
 				<div class="relative">
-					<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
-					<Input
-						class="pl-8"
-						type="number"
-						step="0.01"
-						placeholder="0.00"
-						bind:value={balance}
-					/>
+					<span class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">¥</span>
+					<Input class="pl-8" type="number" step="0.01" placeholder="0.00" bind:value={balance} />
 				</div>
 			</div>
 
@@ -154,7 +150,7 @@
 			<div class="space-y-2">
 				<Label>初始金额（用于统计）</Label>
 				<div class="relative">
-					<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
+					<span class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">¥</span>
 					<Input
 						class="pl-8"
 						type="number"
@@ -168,7 +164,11 @@
 			<!-- 银行名称 -->
 			<div class="space-y-2">
 				<Label>银行/机构名称</Label>
-				<Input placeholder="例如: 工商银行、支付宝" bind:value={bankName} oninput={() => (bankNameTouched = true)} />
+				<Input
+					placeholder="例如: 工商银行、支付宝"
+					bind:value={bankName}
+					oninput={() => (bankNameTouched = true)}
+				/>
 			</div>
 
 			<!-- 银行卡号 -->
@@ -184,13 +184,13 @@
 
 			<!-- 信用卡专属字段 -->
 			{#if isCredit}
-				<div class="space-y-4 p-4 rounded-lg border border-dashed">
+				<div class="space-y-4 rounded-lg border border-dashed p-4">
 					<p class="text-sm font-medium text-muted-foreground">信用卡信息</p>
 
 					<div class="space-y-2">
 						<Label>信用额度</Label>
 						<div class="relative">
-							<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
+							<span class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">¥</span>
 							<Input
 								class="pl-8"
 								type="number"
@@ -216,11 +216,11 @@
 
 			<!-- 开关选项 -->
 			<div class="space-y-3">
-				<label class="flex items-center gap-3 cursor-pointer">
+				<label class="flex cursor-pointer items-center gap-3">
 					<input type="checkbox" bind:checked={includeInTotal} class="rounded border-input" />
 					<span class="text-sm">纳入总资产统计</span>
 				</label>
-				<label class="flex items-center gap-3 cursor-pointer">
+				<label class="flex cursor-pointer items-center gap-3">
 					<input type="checkbox" bind:checked={includeInBudget} class="rounded border-input" />
 					<span class="text-sm">纳入预算统计</span>
 				</label>

@@ -212,9 +212,7 @@ describe('分类管理页 - 图标选择器', () => {
 
 	it('图标库按主题分组，标签齐备（大量图标也可快速定位）', async () => {
 		await openFirstChildDialog();
-		const labels = screen
-			.getAllByTestId('icon-group-tab')
-			.map((t) => t.textContent?.trim());
+		const labels = screen.getAllByTestId('icon-group-tab').map((t) => t.textContent?.trim());
 		expect(labels.length).toBeGreaterThanOrEqual(8);
 		expect(labels).toContain('常用');
 		expect(labels).toContain('饮食');
@@ -224,8 +222,7 @@ describe('分类管理页 - 图标选择器', () => {
 	it('切换分组后，图标网格切换为该分组的图标集合', async () => {
 		await openFirstChildDialog();
 
-		const countOf = () =>
-			within(screen.getByTestId('icon-grid')).getAllByRole('button').length;
+		const countOf = () => within(screen.getByTestId('icon-grid')).getAllByRole('button').length;
 
 		// 默认「常用」组：数量较多
 		const commonCount = countOf();

@@ -139,10 +139,7 @@
 		const below = window.innerHeight - r.bottom - 12;
 		const above = r.top - 12;
 		const openUp = below < 300 && above > below;
-		const maxH = Math.max(
-			Math.min(window.innerHeight * 0.72, openUp ? above : below),
-			200
-		);
+		const maxH = Math.max(Math.min(window.innerHeight * 0.72, openUp ? above : below), 200);
 		panelStyle = openUp
 			? `bottom: calc(100% + ${PANEL_GAP}px); max-height: ${Math.round(maxH)}px;`
 			: `top: calc(100% + ${PANEL_GAP}px); max-height: ${Math.round(maxH)}px;`;
@@ -169,7 +166,7 @@
 		bind:this={triggerEl}
 		aria-expanded={open}
 		aria-haspopup="listbox"
-		class="flex h-10 w-full items-center gap-2 rounded-md border border-input bg-transparent px-3 text-left text-sm shadow-sm transition hover:bg-accent/50 focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+		class="flex h-10 w-full items-center gap-2 rounded-md border border-input bg-transparent px-3 text-left text-sm shadow-sm transition hover:bg-accent/50 focus:ring-1 focus:ring-ring focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
 		{disabled}
 		onclick={toggle}
 	>
@@ -209,9 +206,12 @@
 			style={panelStyle}
 		>
 			<div class="relative shrink-0">
-				<Search size={14} class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+				<Search
+					size={14}
+					class="absolute top-1/2 left-2.5 -translate-y-1/2 text-muted-foreground"
+				/>
 				<input
-					class="h-8 w-full rounded-md border bg-transparent pl-8 pr-2 text-xs outline-none focus:ring-1 focus:ring-ring"
+					class="h-8 w-full rounded-md border bg-transparent pr-2 pl-8 text-xs outline-none focus:ring-1 focus:ring-ring"
 					placeholder="搜索分类…"
 					bind:value={query}
 				/>
@@ -231,7 +231,7 @@
 						{c.icon || '📁'}
 						{#if value === c.id}
 							<span
-								class="absolute -bottom-0.5 -right-0.5 grid h-4 w-4 place-items-center rounded-full bg-primary text-primary-foreground ring-2 ring-card"
+								class="absolute -right-0.5 -bottom-0.5 grid h-4 w-4 place-items-center rounded-full bg-primary text-primary-foreground ring-2 ring-card"
 							>
 								<Check size={10} strokeWidth={3} />
 							</span>
@@ -244,7 +244,9 @@
 						{c.name}
 					</span>
 					{#if hint}
-						<span class="w-full truncate text-center text-[10px] leading-tight text-muted-foreground">
+						<span
+							class="w-full truncate text-center text-[10px] leading-tight text-muted-foreground"
+						>
 							{hint}
 						</span>
 					{/if}
@@ -292,13 +294,15 @@
 									{r.icon || '📁'}
 									{#if value === r.id}
 										<span
-											class="absolute -bottom-0.5 -right-0.5 grid h-4 w-4 place-items-center rounded-full bg-primary text-primary-foreground ring-2 ring-card"
+											class="absolute -right-0.5 -bottom-0.5 grid h-4 w-4 place-items-center rounded-full bg-primary text-primary-foreground ring-2 ring-card"
 										>
 											<Check size={10} strokeWidth={3} />
 										</span>
 									{:else if hasChildren}
 										<!-- 有下级的角标提示，可展开 -->
-										<span class="absolute -bottom-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-primary/70">
+										<span
+											class="absolute -right-0.5 -bottom-0.5 h-1.5 w-1.5 rounded-full bg-primary/70"
+										>
 										</span>
 									{/if}
 								</span>

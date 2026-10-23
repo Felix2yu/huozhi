@@ -151,7 +151,8 @@
 	}
 
 	async function handleDelete(budget: BudgetView) {
-		const catName = appStore.categories.expense.find((c) => c.id === budget.category_id)?.name || '全部分类';
+		const catName =
+			appStore.categories.expense.find((c) => c.id === budget.category_id)?.name || '全部分类';
 		if (!confirm(`确定删除「${catName}」的预算？`)) return;
 		try {
 			await budgetApi.remove(budget.id);
@@ -171,7 +172,7 @@
 	<!-- 汇总 -->
 	{#if overBudgetCount > 0}
 		<Card class="border-destructive/50 bg-destructive/5">
-			<CardContent class="py-3 px-4 flex items-center gap-3">
+			<CardContent class="flex items-center gap-3 px-4 py-3">
 				<AlertTriangle class="text-destructive" size={20} />
 				<div class="flex-1 text-sm">
 					{overBudgetCount} 个预算已超额，注意控制支出！
@@ -181,9 +182,7 @@
 	{/if}
 
 	<div class="flex items-center justify-between">
-		<h2 class="text-sm font-medium">
-			预算（周期到期后系统会自动生成下一期）
-		</h2>
+		<h2 class="text-sm font-medium">预算（周期到期后系统会自动生成下一期）</h2>
 		<div class="flex items-center gap-2">
 			<Button
 				size="sm"
@@ -204,26 +203,27 @@
 	{#if loading}
 		<div class="grid gap-3 md:grid-cols-2">
 			{#each [1, 2] as i}
-				<div class="h-32 rounded-xl animate-pulse bg-muted"></div>
+				<div class="h-32 animate-pulse rounded-xl bg-muted"></div>
 			{/each}
 		</div>
 	{:else if budgets.length === 0}
 		<Card>
 			<div class="py-16 text-center">
 				<Target size={32} class="mx-auto mb-3 text-muted-foreground opacity-50" />
-				<p class="text-muted-foreground text-sm">还没有设置任何预算</p>
-				<p class="text-xs text-muted-foreground mt-1">设置预算帮助你控制支出</p>
+				<p class="text-sm text-muted-foreground">还没有设置任何预算</p>
+				<p class="mt-1 text-xs text-muted-foreground">设置预算帮助你控制支出</p>
 			</div>
 		</Card>
 	{:else}
 		<div class="grid gap-3 md:grid-cols-2">
 			{#each budgets as budget (budget.id)}
-				<Card class="transition group">
+				<Card class="group transition">
 					<CardContent class="p-4">
-						<div class="flex items-start justify-between mb-2">
+						<div class="mb-2 flex items-start justify-between">
 							<div class="min-w-0">
-								<div class="font-medium truncate">
-									{appStore.categories.expense.find((c) => c.id === budget.category_id)?.name || '全部分类'}
+								<div class="truncate font-medium">
+									{appStore.categories.expense.find((c) => c.id === budget.category_id)?.name ||
+										'全部分类'}
 								</div>
 								<div class="text-xs text-muted-foreground">
 									{periodLabel(budget.period_type)}预算
@@ -241,13 +241,13 @@
 									<Badge variant="secondary">接近超限</Badge>
 								{/if}
 								<button
-									class="p-1 rounded hover:bg-accent opacity-0 group-hover:opacity-100 transition"
+									class="rounded p-1 opacity-0 transition group-hover:opacity-100 hover:bg-accent"
 									onclick={() => openEdit(budget)}
 								>
 									<Pencil size={14} class="text-muted-foreground" />
 								</button>
 								<button
-									class="p-1 rounded hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition"
+									class="rounded p-1 opacity-0 transition group-hover:opacity-100 hover:bg-destructive/10"
 									onclick={() => handleDelete(budget)}
 								>
 									<Trash2 size={14} class="text-destructive" />
@@ -259,7 +259,7 @@
 						     进度条几乎永远贴着 0 -->
 						<Progress value={Math.min((budget.usage_rate ?? 0) * 100, 100)} />
 
-						<div class="flex items-end justify-between mt-3">
+						<div class="mt-3 flex items-end justify-between">
 							<div class="text-sm">
 								<span class="font-semibold tabular-nums">
 									{formatMoney(budget.used_amount)}
@@ -271,7 +271,9 @@
 							</div>
 						</div>
 
-						<div class="flex items-center justify-between mt-2 pt-2 border-t text-xs text-muted-foreground">
+						<div
+							class="mt-2 flex items-center justify-between border-t pt-2 text-xs text-muted-foreground"
+						>
 							<span>
 								{(budget.start_date || '').slice(0, 10)} ~ {(budget.end_date || '').slice(0, 10)}
 							</span>
@@ -300,7 +302,7 @@
 		<div class="space-y-2">
 			<Label>分类</Label>
 			<select
-				class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+				class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 				bind:value={categoryId}
 			>
 				<option value={0}>全部分类</option>
@@ -313,7 +315,7 @@
 		<div class="space-y-2">
 			<Label>预算金额</Label>
 			<div class="relative">
-				<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
+				<span class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">¥</span>
 				<Input class="pl-8" type="number" step="0.01" placeholder="0.00" bind:value={amount} />
 			</div>
 		</div>
@@ -328,7 +330,7 @@
 				<Input type="date" bind:value={endDate} />
 			</div>
 		</div>
-		<p class="text-xs text-muted-foreground -mt-2">
+		<p class="-mt-2 text-xs text-muted-foreground">
 			留空时按所选周期自动填充（月度按账期起始日、年度按 1 月 1 日）
 		</p>
 
@@ -336,7 +338,7 @@
 			<div class="space-y-2">
 				<Label>周期</Label>
 				<select
-					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 					bind:value={periodType}
 				>
 					<option value="monthly">月度</option>
@@ -354,7 +356,7 @@
 			结余滚入下一期
 		</label>
 
-		<div class="flex gap-2 justify-end pt-2">
+		<div class="flex justify-end gap-2 pt-2">
 			<Button variant="outline" onclick={() => (showDialog = false)}>取消</Button>
 			<Button onclick={handleSave} disabled={saving}>
 				{saving ? '保存中...' : '保存'}

@@ -20,11 +20,7 @@ export function currencyLabel(code?: string): string {
 }
 
 /** 金额格式化: 1234.56 → "¥1,234.56"（隐私模式下统一遮蔽为 ••••） */
-export function formatMoney(
-	amount: number,
-	currency = '¥',
-	showSign = false
-): string {
+export function formatMoney(amount: number, currency = '¥', showSign = false): string {
 	if (privacyStore.masked) return MONEY_MASK;
 	if (!isFinite(amount)) return '—';
 	const sign = showSign && amount > 0 ? '+' : '';

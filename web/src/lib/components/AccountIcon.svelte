@@ -53,7 +53,9 @@
 {:else}
 	<div
 		class="grid shrink-0 place-items-center rounded-lg font-semibold text-white {className}"
-		style="width:{size}px;height:{size}px;background:{brand.color};font-size:{Math.round(size * 0.42)}px"
+		style="width:{size}px;height:{size}px;background:{brand.color};font-size:{Math.round(
+			size * 0.42
+		)}px"
 		{title}
 	>
 		{resolved?.kind === 'glyph' ? resolved.text : brand.short}

@@ -12,7 +12,13 @@
 		CategoryScale,
 		Filler
 	} from 'chart.js';
-	import { baseOptions, INCOME_COLOR, EXPENSE_COLOR, useMounted, centsToYuan } from './chartSetup.svelte';
+	import {
+		baseOptions,
+		INCOME_COLOR,
+		EXPENSE_COLOR,
+		useMounted,
+		centsToYuan
+	} from './chartSetup.svelte';
 	import { privacyStore } from '#lib/stores/privacy';
 
 	interface Point {
@@ -28,16 +34,49 @@
 	}
 	let { points = [], height = 280, showNet = true }: Props = $props();
 
-	ChartJS.register(Title, Tooltip, Legend, LineElement, LinearScale, PointElement, CategoryScale, Filler);
+	ChartJS.register(
+		Title,
+		Tooltip,
+		Legend,
+		LineElement,
+		LinearScale,
+		PointElement,
+		CategoryScale,
+		Filler
+	);
 	const mounted = useMounted();
 
 	const data = $derived({
 		labels: points.map((p) => p.date),
 		datasets: [
-			{ label: '收入', data: points.map((p) => centsToYuan(p.income)), borderColor: INCOME_COLOR, backgroundColor: INCOME_COLOR + '22', tension: 0.3, fill: false },
-			{ label: '支出', data: points.map((p) => centsToYuan(p.expense)), borderColor: EXPENSE_COLOR, backgroundColor: EXPENSE_COLOR + '22', tension: 0.3, fill: false },
+			{
+				label: '收入',
+				data: points.map((p) => centsToYuan(p.income)),
+				borderColor: INCOME_COLOR,
+				backgroundColor: INCOME_COLOR + '22',
+				tension: 0.3,
+				fill: false
+			},
+			{
+				label: '支出',
+				data: points.map((p) => centsToYuan(p.expense)),
+				borderColor: EXPENSE_COLOR,
+				backgroundColor: EXPENSE_COLOR + '22',
+				tension: 0.3,
+				fill: false
+			},
 			...(showNet
-				? [{ label: '结余', data: points.map((p) => centsToYuan(p.net ?? p.income - p.expense)), borderColor: '#6366f1', backgroundColor: '#6366f122', tension: 0.3, fill: false, borderDash: [4, 4] }]
+				? [
+						{
+							label: '结余',
+							data: points.map((p) => centsToYuan(p.net ?? p.income - p.expense)),
+							borderColor: '#6366f1',
+							backgroundColor: '#6366f122',
+							tension: 0.3,
+							fill: false,
+							borderDash: [4, 4]
+						}
+					]
 				: [])
 		]
 	});
@@ -53,9 +92,7 @@
 				enabled: true,
 				callbacks: {
 					label: (ctx: any) =>
-						masked
-							? `${ctx.dataset.label}: ••••`
-							: `${ctx.dataset.label}: ${ctx.parsed.y} 元`
+						masked ? `${ctx.dataset.label}: ••••` : `${ctx.dataset.label}: ${ctx.parsed.y} 元`
 				}
 			}
 		},
@@ -75,7 +112,7 @@
 			<Line {data} {options} />
 		{/key}
 	{:else}
-		<div class="h-full grid place-items-center text-sm text-muted-foreground">
+		<div class="grid h-full place-items-center text-sm text-muted-foreground">
 			{points.length === 0 ? '暂无数据' : ''}
 		</div>
 	{/if}

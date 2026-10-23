@@ -108,7 +108,9 @@ describe('CategoryPicker 一级平铺 + 二级展开', () => {
 		await fireEvent.click(screen.getByTestId('category-trigger'));
 
 		// 默认在「餐饮」，直接点二级「早餐」
-		await fireEvent.click(within(screen.getByTestId('category-children')).getByRole('button', { name: /早餐/ }));
+		await fireEvent.click(
+			within(screen.getByTestId('category-children')).getByRole('button', { name: /早餐/ })
+		);
 
 		const trigger = screen.getByTestId('category-trigger');
 		expect(trigger.textContent).toContain('餐饮');

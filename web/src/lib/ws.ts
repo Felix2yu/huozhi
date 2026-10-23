@@ -3,8 +3,8 @@
 
 export interface WsMessage {
 	type: 'sync' | 'ping' | 'alert' | 'error';
-	table?: string;     // transactions / accounts / categories / tags / budgets / books / recurring
-	action?: string;    // create / update / delete / over_budget
+	table?: string; // transactions / accounts / categories / tags / budgets / books / recurring
+	action?: string; // create / update / delete / over_budget
 	id?: number;
 	data?: Record<string, any>;
 	version?: number;
@@ -47,7 +47,9 @@ export function connectWs() {
 				if (msg.type === 'ping') return; // 忽略心跳
 				// 派发给所有监听器
 				for (const fn of listeners) {
-					try { fn(msg); } catch {}
+					try {
+						fn(msg);
+					} catch {}
 				}
 				// 同时派发 DOM event（方便其他代码监听）
 				window.dispatchEvent(new CustomEvent('hz:sync', { detail: msg }));

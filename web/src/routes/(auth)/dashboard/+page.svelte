@@ -1,15 +1,20 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import Button from '#lib/components/ui/Button.svelte';
-	import Card from '#lib/components/ui/Card.svelte'
-import CardContent from '#lib/components/ui/CardContent.svelte'
-import CardHeader from '#lib/components/ui/CardHeader.svelte'
-import CardTitle from '#lib/components/ui/CardTitle.svelte';
+	import Card from '#lib/components/ui/Card.svelte';
+	import CardContent from '#lib/components/ui/CardContent.svelte';
+	import CardHeader from '#lib/components/ui/CardHeader.svelte';
+	import CardTitle from '#lib/components/ui/CardTitle.svelte';
 	import { appStore } from '#lib/stores/app';
 	import AccountIcon from '#lib/components/AccountIcon.svelte';
 	import { accountApi, txApi, statsApi } from '#lib/api/modules';
 	import { formatMoney, getMonthRange, formatRelativeDate } from '#lib/utils/format';
-	import type { CreditRepayItem, Transaction, AssetOverview, TransactionListData } from '#lib/types';
+	import type {
+		CreditRepayItem,
+		Transaction,
+		AssetOverview,
+		TransactionListData
+	} from '#lib/types';
 	import {
 		Wallet,
 		ArrowUpRight,
@@ -82,7 +87,7 @@ import CardTitle from '#lib/components/ui/CardTitle.svelte';
 {#if loading}
 	<div class="space-y-4">
 		{#each [1, 2, 3] as i}
-			<div class="h-28 rounded-xl animate-pulse bg-muted" ></div>
+			<div class="h-28 animate-pulse rounded-xl bg-muted"></div>
 		{/each}
 	</div>
 {:else}
@@ -94,7 +99,7 @@ import CardTitle from '#lib/components/ui/CardTitle.svelte';
 					<Wallet size={14} />
 					<span>总资产</span>
 				</div>
-				<div class="mt-2 text-lg md:text-2xl font-bold tabular-nums text-primary">
+				<div class="mt-2 text-lg font-bold text-primary tabular-nums md:text-2xl">
 					{formatMoney(assetOverview?.total_asset || 0)}
 				</div>
 			</CardContent>
@@ -105,7 +110,7 @@ import CardTitle from '#lib/components/ui/CardTitle.svelte';
 					<ArrowDownRight size={14} />
 					<span>总负债</span>
 				</div>
-				<div class="mt-2 text-lg md:text-2xl font-bold tabular-nums text-[var(--color-expense)]">
+				<div class="mt-2 text-lg font-bold text-[var(--color-expense)] tabular-nums md:text-2xl">
 					{formatMoney(assetOverview?.total_debt || 0)}
 				</div>
 			</CardContent>
@@ -116,7 +121,7 @@ import CardTitle from '#lib/components/ui/CardTitle.svelte';
 					<TrendingUp size={14} />
 					<span>净资产</span>
 				</div>
-				<div class="mt-2 text-lg md:text-2xl font-bold tabular-nums">
+				<div class="mt-2 text-lg font-bold tabular-nums md:text-2xl">
 					{formatMoney(assetOverview?.net_asset || 0)}
 				</div>
 			</CardContent>
@@ -127,27 +132,27 @@ import CardTitle from '#lib/components/ui/CardTitle.svelte';
 	{#if assetOverview}
 		<section class="mt-4 grid grid-cols-2 gap-3 md:gap-4">
 			<Card>
-				<CardContent class="pt-4 flex items-center justify-between">
+				<CardContent class="flex items-center justify-between pt-4">
 					<div>
 						<div class="text-xs text-muted-foreground">本月收入</div>
 						<div class="mt-1 text-xl font-bold text-[var(--color-income)] tabular-nums">
 							{formatMoney(assetOverview.month_income)}
 						</div>
 					</div>
-					<div class="w-10 h-10 rounded-full bg-[var(--color-income)]/10 grid place-items-center">
+					<div class="grid h-10 w-10 place-items-center rounded-full bg-[var(--color-income)]/10">
 						<ArrowUpRight class="text-[var(--color-income)]" size={20} />
 					</div>
 				</CardContent>
 			</Card>
 			<Card>
-				<CardContent class="pt-4 flex items-center justify-between">
+				<CardContent class="flex items-center justify-between pt-4">
 					<div>
 						<div class="text-xs text-muted-foreground">本月支出</div>
 						<div class="mt-1 text-xl font-bold text-[var(--color-expense)] tabular-nums">
 							{formatMoney(assetOverview.month_expense)}
 						</div>
 					</div>
-					<div class="w-10 h-10 rounded-full bg-[var(--color-expense)]/10 grid place-items-center">
+					<div class="grid h-10 w-10 place-items-center rounded-full bg-[var(--color-expense)]/10">
 						<ArrowDownRight class="text-[var(--color-expense)]" size={20} />
 					</div>
 				</CardContent>
@@ -157,49 +162,51 @@ import CardTitle from '#lib/components/ui/CardTitle.svelte';
 
 	<!-- ============ 快捷操作 ============ -->
 	<section class="mt-6">
-		<h2 class="text-sm font-medium text-muted-foreground mb-3">快捷操作</h2>
-		<div class="grid grid-cols-4 md:grid-cols-5 gap-2 md:gap-3">
+		<h2 class="mb-3 text-sm font-medium text-muted-foreground">快捷操作</h2>
+		<div class="grid grid-cols-4 gap-2 md:grid-cols-5 md:gap-3">
 			<button
-				class="flex flex-col items-center gap-2 p-3 rounded-xl border hover:bg-accent transition"
+				class="flex flex-col items-center gap-2 rounded-xl border p-3 transition hover:bg-accent"
 				onclick={() => goto('/transactions/add')}
 			>
-				<div class="w-10 h-10 rounded-xl bg-primary grid place-items-center text-primary-foreground">
+				<div
+					class="grid h-10 w-10 place-items-center rounded-xl bg-primary text-primary-foreground"
+				>
 					<Plus size={20} />
 				</div>
 				<span class="text-xs">记一笔</span>
 			</button>
 			<button
-				class="flex flex-col items-center gap-2 p-3 rounded-xl border hover:bg-accent transition"
+				class="flex flex-col items-center gap-2 rounded-xl border p-3 transition hover:bg-accent"
 				onclick={() => goto('/budgets')}
 			>
-				<div class="w-10 h-10 rounded-xl bg-muted grid place-items-center">
+				<div class="grid h-10 w-10 place-items-center rounded-xl bg-muted">
 					<Target size={20} />
 				</div>
 				<span class="text-xs">预算</span>
 			</button>
 			<button
-				class="flex flex-col items-center gap-2 p-3 rounded-xl border hover:bg-accent transition"
+				class="flex flex-col items-center gap-2 rounded-xl border p-3 transition hover:bg-accent"
 				onclick={() => goto('/statistics')}
 			>
-				<div class="w-10 h-10 rounded-xl bg-muted grid place-items-center">
+				<div class="grid h-10 w-10 place-items-center rounded-xl bg-muted">
 					<BarChart3 size={20} />
 				</div>
 				<span class="text-xs">统计</span>
 			</button>
 			<button
-				class="flex flex-col items-center gap-2 p-3 rounded-xl border hover:bg-accent transition"
+				class="flex flex-col items-center gap-2 rounded-xl border p-3 transition hover:bg-accent"
 				onclick={() => goto('/accounts')}
 			>
-				<div class="w-10 h-10 rounded-xl bg-muted grid place-items-center">
+				<div class="grid h-10 w-10 place-items-center rounded-xl bg-muted">
 					<Wallet size={20} />
 				</div>
 				<span class="text-xs">账户</span>
 			</button>
 			<button
-				class="hidden md:flex flex-col items-center gap-2 p-3 rounded-xl border hover:bg-accent transition"
+				class="hidden flex-col items-center gap-2 rounded-xl border p-3 transition hover:bg-accent md:flex"
 				onclick={() => goto('/cards')}
 			>
-				<div class="w-10 h-10 rounded-xl bg-muted grid place-items-center">
+				<div class="grid h-10 w-10 place-items-center rounded-xl bg-muted">
 					<CreditCard size={20} />
 				</div>
 				<span class="text-xs">银行卡</span>
@@ -210,9 +217,9 @@ import CardTitle from '#lib/components/ui/CardTitle.svelte';
 	<!-- ============ 信用卡还款 ============ -->
 	{#if creditItems.length > 0}
 		<section class="mt-6">
-			<div class="flex items-center justify-between mb-3">
+			<div class="mb-3 flex items-center justify-between">
 				<h2 class="text-sm font-medium">信用卡还款</h2>
-				<a href="/cards" class="text-xs text-primary hover:underline flex items-center">
+				<a href="/cards" class="flex items-center text-xs text-primary hover:underline">
 					查看全部
 					<ChevronRight size={14} />
 				</a>
@@ -220,10 +227,10 @@ import CardTitle from '#lib/components/ui/CardTitle.svelte';
 			<div class="space-y-2">
 				{#each creditItems.slice(0, 3) as item (item.id)}
 					<Card class={item.overdue ? 'border-destructive/50' : ''}>
-						<CardContent class="py-3 px-4 flex items-center gap-3">
-						<AccountIcon bankName={item.bank_name} size={40} />
-							<div class="flex-1 min-w-0">
-								<div class="text-sm font-medium truncate">
+						<CardContent class="flex items-center gap-3 px-4 py-3">
+							<AccountIcon bankName={item.bank_name} size={40} />
+							<div class="min-w-0 flex-1">
+								<div class="truncate text-sm font-medium">
 									{item.bank_name} · •••• {item.card_no4}
 								</div>
 								<div class="text-xs text-muted-foreground">
@@ -231,7 +238,9 @@ import CardTitle from '#lib/components/ui/CardTitle.svelte';
 								</div>
 							</div>
 							<div
-								class={item.overdue ? 'text-destructive text-xs font-medium' : 'text-muted-foreground text-xs'}
+								class={item.overdue
+									? 'text-xs font-medium text-destructive'
+									: 'text-xs text-muted-foreground'}
 							>
 								{item.repay_date}
 							</div>
@@ -244,15 +253,15 @@ import CardTitle from '#lib/components/ui/CardTitle.svelte';
 
 	<!-- ============ 最近交易 ============ -->
 	<section class="mt-6">
-		<div class="flex items-center justify-between mb-3">
+		<div class="mb-3 flex items-center justify-between">
 			<h2 class="text-sm font-medium">最近交易</h2>
-			<a href="/transactions" class="text-xs text-primary hover:underline flex items-center">
+			<a href="/transactions" class="flex items-center text-xs text-primary hover:underline">
 				查看全部
 				<ChevronRight size={14} />
 			</a>
 		</div>
 		<Card>
-			<CardContent class="p-0 divide-y">
+			<CardContent class="divide-y p-0">
 				{#if recentTxs.length === 0}
 					<div class="py-12 text-center text-muted-foreground">
 						<Receipt size={32} class="mx-auto mb-3 opacity-50" />
@@ -270,31 +279,28 @@ import CardTitle from '#lib/components/ui/CardTitle.svelte';
 						{@const cat = categoryOf(tx)}
 						<button
 							type="button"
-							class="flex items-center gap-3 py-2.5 px-3 hover:bg-accent/50 transition cursor-pointer text-left w-full"
+							class="flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition hover:bg-accent/50"
 							onclick={() => goto(`/transactions/edit/${tx.id}`)}
 						>
 							<!-- C19：class 属性为空（重构残留），图标没有底色 -->
 							<div
-								class="w-9 h-9 rounded-lg grid place-items-center text-sm font-semibold bg-muted"
+								class="grid h-9 w-9 place-items-center rounded-lg bg-muted text-sm font-semibold"
 								style={cat?.color ? `background:${cat.color}22;color:${cat.color}` : ''}
 							>
 								{cat?.icon || tx.description?.[0] || tx.merchant?.[0] || '¥'}
 							</div>
-							<div class="flex-1 min-w-0">
-								<div class="text-sm font-medium truncate">
+							<div class="min-w-0 flex-1">
+								<div class="truncate text-sm font-medium">
 									{tx.description || tx.merchant || cat?.name || '未分类'}
 								</div>
 								<!-- C20：副标题补上「分类 · 账户」，与分类管理/账户资产的数据资产对齐 -->
-								<div class="text-xs text-muted-foreground truncate">
-									{cat?.name || '未分类'} · {accountOf(tx)?.name || '—'} · {formatRelativeDate(tx.tx_date)}
+								<div class="truncate text-xs text-muted-foreground">
+									{cat?.name || '未分类'} · {accountOf(tx)?.name || '—'} · {formatRelativeDate(
+										tx.tx_date
+									)}
 								</div>
 							</div>
-							<div
-								class="font-semibold tabular-nums text-sm"
-
-
-
-							>
+							<div class="text-sm font-semibold tabular-nums">
 								{tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}
 								{formatMoney(tx.amount).replace('¥', '')}
 							</div>

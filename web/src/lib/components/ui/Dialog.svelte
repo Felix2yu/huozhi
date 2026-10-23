@@ -1,38 +1,38 @@
 <script lang="ts">
-import { cn } from '#lib/utils/cn';
+	import { cn } from '#lib/utils/cn';
 
-let {
-	open = $bindable(false),
-	onOpenChange,
-	children,
-	class: className = '',
-	...rest
-}: {
-	open?: boolean;
-	onOpenChange?: (open: boolean) => void;
-	children?: any;
-	class?: string;
-} = $props();
+	let {
+		open = $bindable(false),
+		onOpenChange,
+		children,
+		class: className = '',
+		...rest
+	}: {
+		open?: boolean;
+		onOpenChange?: (open: boolean) => void;
+		children?: any;
+		class?: string;
+	} = $props();
 
-function close() {
-	open = false;
-	onOpenChange?.(false);
-}
-
-function onKeydown(e: KeyboardEvent) {
-	if (e.key === 'Escape') close();
-}
-
-$effect(() => {
-	if (open) {
-		document.body.style.overflow = 'hidden';
-	} else {
-		document.body.style.overflow = '';
+	function close() {
+		open = false;
+		onOpenChange?.(false);
 	}
-	return () => {
-		document.body.style.overflow = '';
-	};
-});
+
+	function onKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape') close();
+	}
+
+	$effect(() => {
+		if (open) {
+			document.body.style.overflow = 'hidden';
+		} else {
+			document.body.style.overflow = '';
+		}
+		return () => {
+			document.body.style.overflow = '';
+		};
+	});
 </script>
 
 <svelte:window on:keydown={onKeydown} />
@@ -51,16 +51,13 @@ $effect(() => {
 
 		<!-- Content -->
 		<div
-			class={cn(
-				'relative z-10 w-full max-w-lg rounded-xl border bg-card p-6 shadow-lg',
-				className
-			)}
+			class={cn('relative z-10 w-full max-w-lg rounded-xl border bg-card p-6 shadow-lg', className)}
 			role="dialog"
 			aria-modal="true"
 			{...rest}
 		>
 			<button
-				class="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+				class="absolute top-4 right-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-none"
 				onclick={close}
 			>
 				<svg

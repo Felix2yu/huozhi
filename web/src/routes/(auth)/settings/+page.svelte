@@ -68,7 +68,11 @@
 	let pwdLoading = $state(false);
 
 	// API Key 状态
-	let apiKeyInfo = $state<{ api_key: string; api_key_enabled: boolean; has_api_key: boolean } | null>(null);
+	let apiKeyInfo = $state<{
+		api_key: string;
+		api_key_enabled: boolean;
+		has_api_key: boolean;
+	} | null>(null);
 	let apiKeyLoading = $state(true);
 	let showApiKey = $state(false);
 	let toggleLoading = $state(false);
@@ -317,7 +321,9 @@
 
 	async function handleGenerateApiKey() {
 		try {
-			const res = await http.post<{ api_key: string; api_key_enabled: boolean }>('/api-key/generate');
+			const res = await http.post<{ api_key: string; api_key_enabled: boolean }>(
+				'/api-key/generate'
+			);
 			apiKeyInfo = { ...apiKeyInfo, ...res, has_api_key: true };
 			showApiKey = true;
 			hzToast.success('API密钥已生成');
@@ -381,13 +387,7 @@
 						mcpServers: {
 							huozhi: {
 								command: 'npx',
-								args: [
-									'-y',
-									'mcp-remote',
-									mcpEndpoint,
-									'--header',
-									`X-API-Key:${maskedKey}`
-								]
+								args: ['-y', 'mcp-remote', mcpEndpoint, '--header', `X-API-Key:${maskedKey}`]
 							}
 						}
 					},
@@ -509,7 +509,9 @@
 	}
 
 	async function handleLogout() {
-		try { await http.post<void>('/auth/logout'); } catch {}
+		try {
+			await http.post<void>('/auth/logout');
+		} catch {}
 		appStore.logout();
 		goto('/login');
 	}
@@ -519,84 +521,84 @@
 	<title>系统设置 · 货殖</title>
 </svelte:head>
 
-<div class="space-y-6 max-w-2xl">
+<div class="max-w-2xl space-y-6">
 	<!-- 个人信息 -->
 	<section>
-		<div class="flex items-center gap-2 mb-3">
+		<div class="mb-3 flex items-center gap-2">
 			<User size={16} />
 			<h2 class="text-sm font-medium">个人信息</h2>
 		</div>
 		<Card>
-			<CardContent class="p-4 space-y-4">
-					<div class="flex items-center gap-3">
-						<button
-							type="button"
-							class="relative group w-16 h-16 rounded-full bg-primary/10 text-primary grid place-items-center text-xl font-bold overflow-hidden shrink-0"
-							onclick={() => avatarInput?.click()}
-							disabled={avatarUploading}
-							title="点击更换头像"
+			<CardContent class="space-y-4 p-4">
+				<div class="flex items-center gap-3">
+					<button
+						type="button"
+						class="group relative grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 text-xl font-bold text-primary"
+						onclick={() => avatarInput?.click()}
+						disabled={avatarUploading}
+						title="点击更换头像"
+					>
+						{#if appStore.user?.avatar}
+							<img
+								src={appStore.user.avatar}
+								alt="头像"
+								class="absolute inset-0 h-full w-full object-cover"
+							/>
+						{:else}
+							{appStore.user?.nickname?.[0] || 'U'}
+						{/if}
+						<span
+							class="absolute inset-0 grid place-items-center bg-black/45 text-white opacity-0 transition group-hover:opacity-100"
 						>
-							{#if appStore.user?.avatar}
-								<img
-									src={appStore.user.avatar}
-									alt="头像"
-									class="absolute inset-0 w-full h-full object-cover"
-								/>
+							{#if avatarUploading}
+								<Loader2 size={20} class="animate-spin" />
 							{:else}
-								{appStore.user?.nickname?.[0] || 'U'}
+								<Camera size={20} />
 							{/if}
-							<span
-								class="absolute inset-0 bg-black/45 text-white opacity-0 group-hover:opacity-100 transition grid place-items-center"
+						</span>
+					</button>
+					<div class="min-w-0 flex-1">
+						<div class="font-medium">{appStore.user?.username}</div>
+						<div class="text-xs text-muted-foreground">{appStore.user?.email || '未设置邮箱'}</div>
+						<div class="mt-1.5 flex gap-3">
+							<button
+								type="button"
+								class="text-xs text-primary hover:underline disabled:opacity-50"
+								disabled={avatarUploading}
+								onclick={() => avatarInput?.click()}
 							>
-								{#if avatarUploading}
-									<Loader2 size={20} class="animate-spin" />
-								{:else}
-									<Camera size={20} />
-								{/if}
-							</span>
-						</button>
-						<div class="flex-1 min-w-0">
-							<div class="font-medium">{appStore.user?.username}</div>
-							<div class="text-xs text-muted-foreground">{appStore.user?.email || '未设置邮箱'}</div>
-							<div class="flex gap-3 mt-1.5">
+								{avatarUploading ? '上传中…' : '更换头像'}
+							</button>
+							{#if appStore.user?.avatar}
 								<button
 									type="button"
-									class="text-xs text-primary hover:underline disabled:opacity-50"
+									class="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive disabled:opacity-50"
 									disabled={avatarUploading}
-									onclick={() => avatarInput?.click()}
+									onclick={handleRemoveAvatar}
 								>
-									{avatarUploading ? '上传中…' : '更换头像'}
+									<Trash2 size={12} />
+									移除
 								</button>
-								{#if appStore.user?.avatar}
-									<button
-										type="button"
-										class="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive disabled:opacity-50"
-										disabled={avatarUploading}
-										onclick={handleRemoveAvatar}
-									>
-										<Trash2 size={12} />
-										移除
-									</button>
-								{/if}
-							</div>
+							{/if}
 						</div>
 					</div>
-					<!-- 隐藏的文件选择器：头像圆盘与「更换头像」都调它 click() -->
-					<input
-						bind:this={avatarInput}
-						type="file"
-						accept="image/*"
-						class="hidden"
-						onchange={handleAvatarFile}
-					/>
-					<div class="space-y-2">
-						<Label>昵称</Label>
-						<Input bind:value={nickname} />
-					</div>
-					<div class="space-y-2">
-						<Label>邮箱</Label>
-						<Input type="email" bind:value={email} />
-					</div>
+				</div>
+				<!-- 隐藏的文件选择器：头像圆盘与「更换头像」都调它 click() -->
+				<input
+					bind:this={avatarInput}
+					type="file"
+					accept="image/*"
+					class="hidden"
+					onchange={handleAvatarFile}
+				/>
+				<div class="space-y-2">
+					<Label>昵称</Label>
+					<Input bind:value={nickname} />
+				</div>
+				<div class="space-y-2">
+					<Label>邮箱</Label>
+					<Input type="email" bind:value={email} />
+				</div>
 
 				<!-- B9：账期起始日 —— 后端模型早已支持，此前无处配置。
 				     基准货币已移到下方「基准货币与汇率」专区（同一个 currency 字段，
@@ -604,7 +606,7 @@
 				<div class="space-y-2">
 					<Label>账期起始日</Label>
 					<select
-						class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+						class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 						bind:value={monthStart}
 					>
 						{#each Array.from({ length: 28 }, (_, i) => i + 1) as d}
@@ -620,7 +622,7 @@
 						<!-- 可搜索下拉：直接绑 timezone 本身，既能点选也能继续手输自定义值 -->
 						<div class="relative">
 							<input
-								class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+								class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 								bind:value={timezone}
 								onfocus={() => (tzOpen = true)}
 								onblur={() => (tzOpen = false)}
@@ -628,7 +630,7 @@
 							/>
 							{#if tzOpen && tzOptions.length}
 								<ul
-									class="absolute left-0 right-0 top-full z-20 mt-1 max-h-52 overflow-y-auto rounded-md border bg-popover text-sm shadow-md"
+									class="absolute top-full right-0 left-0 z-20 mt-1 max-h-52 overflow-y-auto rounded-md border bg-popover text-sm shadow-md"
 								>
 									{#each tzOptions as tz (tz)}
 										<li>
@@ -652,7 +654,7 @@
 					<div class="space-y-2">
 						<Label>语言</Label>
 						<select
-							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 							bind:value={locale}
 						>
 							<option value="zh-CN">简体中文</option>
@@ -666,7 +668,7 @@
 
 	<!-- 默认账本 -->
 	<section>
-		<div class="flex items-center gap-2 mb-3">
+		<div class="mb-3 flex items-center gap-2">
 			<BookOpen size={16} />
 			<h2 class="text-sm font-medium">账本</h2>
 		</div>
@@ -675,7 +677,7 @@
 				<div class="space-y-2">
 					<Label>默认账本</Label>
 					<select
-						class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+						class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 						bind:value={defaultBookId}
 					>
 						<option value={0}>跟随账本默认（不指定偏好）</option>
@@ -693,46 +695,46 @@
 
 	<!-- 基准货币与汇率 -->
 	<section>
-		<div class="flex items-center gap-2 mb-3">
+		<div class="mb-3 flex items-center gap-2">
 			<Coins size={16} />
 			<h2 class="text-sm font-medium">基准货币与汇率</h2>
 		</div>
 		<Card>
-			<CardContent class="p-4 space-y-4">
+			<CardContent class="space-y-4 p-4">
 				<div class="grid grid-cols-2 gap-3">
 					<div class="space-y-2">
 						<Label>基准货币</Label>
 						<select
-							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 							bind:value={currency}
 						>
 							{#each CURRENCIES as c}
 								<option value={c.code}>{c.code} {c.label}</option>
 							{/each}
 						</select>
-						<p class="text-[11px] text-muted-foreground">
-							外币账单按汇率折算为基准货币后参与统计
-						</p>
+						<p class="text-[11px] text-muted-foreground">外币账单按汇率折算为基准货币后参与统计</p>
 					</div>
 					<div class="space-y-2">
 						<Label>刷新间隔</Label>
 						<select
-							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 							bind:value={fxRefreshHours}
 						>
 							<option value={6}>每 6 小时</option>
 							<option value={12}>每 12 小时</option>
 							<option value={24}>每 24 小时</option>
 						</select>
-						<label class="flex items-center gap-2 text-[11px] text-muted-foreground pt-2">
+						<label class="flex items-center gap-2 pt-2 text-[11px] text-muted-foreground">
 							<input type="checkbox" bind:checked={fxAutoRefresh} class="rounded border-input" />
 							自动刷新汇率
 						</label>
 					</div>
 				</div>
 
-				<div class="flex items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2">
-					<div class="text-xs text-muted-foreground space-y-0.5">
+				<div
+					class="flex items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2"
+				>
+					<div class="space-y-0.5 text-xs text-muted-foreground">
 						{#if ratesStore.error}
 							<div class="text-amber-600 dark:text-amber-400">{ratesStore.error}</div>
 						{:else if fxUpdatedAt}
@@ -781,7 +783,7 @@
 						</button>
 						{#if showFxRows}
 							<div
-								class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs tabular-nums max-h-48 overflow-y-auto"
+								class="grid max-h-48 grid-cols-2 gap-x-4 gap-y-1 overflow-y-auto text-xs tabular-nums"
 							>
 								{#each fxRows as row (row.code)}
 									<div class="flex justify-between border-b border-border/40 py-1">
@@ -799,15 +801,15 @@
 
 	<!-- 主题设置 -->
 	<section>
-		<div class="flex items-center gap-2 mb-3">
+		<div class="mb-3 flex items-center gap-2">
 			<Palette size={16} />
 			<h2 class="text-sm font-medium">外观与字体</h2>
 		</div>
 		<Card>
-			<CardContent class="p-4 space-y-4">
+			<CardContent class="space-y-4 p-4">
 				<div class="grid grid-cols-3 gap-2">
 					<button
-						class="flex flex-col items-center gap-2 p-4 rounded-lg border transition"
+						class="flex flex-col items-center gap-2 rounded-lg border p-4 transition"
 						class:border-primary={theme === 'light'}
 						onclick={() => handleThemeChange('light')}
 					>
@@ -815,7 +817,7 @@
 						<span class="text-xs">浅色</span>
 					</button>
 					<button
-						class="flex flex-col items-center gap-2 p-4 rounded-lg border transition"
+						class="flex flex-col items-center gap-2 rounded-lg border p-4 transition"
 						class:border-primary={theme === 'dark'}
 						onclick={() => handleThemeChange('dark')}
 					>
@@ -823,7 +825,7 @@
 						<span class="text-xs">深色</span>
 					</button>
 					<button
-						class="flex flex-col items-center gap-2 p-4 rounded-lg border transition"
+						class="flex flex-col items-center gap-2 rounded-lg border p-4 transition"
 						class:border-primary={theme === 'system'}
 						onclick={() => handleThemeChange('system')}
 					>
@@ -837,21 +839,28 @@
 					<div class="grid grid-cols-4 gap-2">
 						{#each Object.entries({ sm: '小', md: '标准', lg: '大', xl: '特大' }) as [key, label]}
 							<button
-								class="flex flex-col items-center gap-1.5 p-3 rounded-lg border transition"
+								class="flex flex-col items-center gap-1.5 rounded-lg border p-3 transition"
 								class:border-primary={fontSize === key}
 								onclick={() => handleFontSizeChange(key as FontSize)}
 							>
 								<!-- 用各自档位的绝对像素预览，所见即所得 -->
 								<span
-									class="font-medium leading-none"
-									style="font-size: {key === 'sm' ? 13 : key === 'md' ? 15 : key === 'lg' ? 17 : 19}px"
-									>Aa</span
+									class="leading-none font-medium"
+									style="font-size: {key === 'sm'
+										? 13
+										: key === 'md'
+											? 15
+											: key === 'lg'
+												? 17
+												: 19}px">Aa</span
 								>
 								<span class="text-xs">{label}</span>
 							</button>
 						{/each}
 					</div>
-					<p class="text-[11px] text-muted-foreground">调整整个界面的文字与控件大小，仅影响当前设备</p>
+					<p class="text-[11px] text-muted-foreground">
+						调整整个界面的文字与控件大小，仅影响当前设备
+					</p>
 				</div>
 			</CardContent>
 		</Card>
@@ -859,7 +868,7 @@
 
 	<!-- 安全 -->
 	<section>
-		<div class="flex items-center gap-2 mb-3">
+		<div class="mb-3 flex items-center gap-2">
 			<Lock size={16} />
 			<h2 class="text-sm font-medium">安全</h2>
 		</div>
@@ -883,24 +892,26 @@
 							<Button size="sm" onclick={handleChangePassword} disabled={pwdLoading}>
 								{pwdLoading ? '保存中...' : '保存'}
 							</Button>
-							<Button size="sm" variant="outline" onclick={() => (showChangePwd = false)}>取消</Button>
+							<Button size="sm" variant="outline" onclick={() => (showChangePwd = false)}
+								>取消</Button
+							>
 						</div>
 					</div>
 				{:else}
 					<button
-						class="w-full flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition"
+						class="flex w-full items-center justify-between rounded-lg border p-3 transition hover:bg-accent"
 						onclick={() => (showChangePwd = true)}
 					>
 						<span>修改密码</span>
-						<span class="text-muted-foreground text-sm">→</span>
+						<span class="text-sm text-muted-foreground">→</span>
 					</button>
-					<p class="text-[11px] text-muted-foreground mt-2">
+					<p class="mt-2 text-[11px] text-muted-foreground">
 						修改密码后，其它已登录设备会立即退出登录，需要重新输入新密码
 					</p>
 				{/if}
 
 				<!-- 隐私模式：即时生效的显示偏好，与主题/字号同级，不进「未保存」条 -->
-				<div class="flex items-center justify-between gap-3 border-t mt-4 pt-4">
+				<div class="mt-4 flex items-center justify-between gap-3 border-t pt-4">
 					<div class="min-w-0">
 						<div class="text-sm font-medium">隐藏金额（隐私模式）</div>
 						<div class="text-xs text-muted-foreground">
@@ -918,7 +929,7 @@
 						onclick={() => privacyStore.set(!privacyStore.hidden)}
 					>
 						<span
-							class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-background shadow transition-transform {privacyStore.hidden
+							class="absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-background shadow transition-transform {privacyStore.hidden
 								? 'translate-x-5'
 								: ''}"
 						></span>
@@ -930,7 +941,7 @@
 
 	<!-- 离线数据 -->
 	<section>
-		<div class="flex items-center gap-2 mb-3">
+		<div class="mb-3 flex items-center gap-2">
 			<CloudOff size={16} />
 			<h2 class="text-sm font-medium">离线</h2>
 		</div>
@@ -957,7 +968,7 @@
 						<Button
 							size="sm"
 							variant="ghost"
-							class="text-destructive hover:text-destructive hover:bg-destructive/10"
+							class="text-destructive hover:bg-destructive/10 hover:text-destructive"
 							onclick={() => {
 								http.clearQueue();
 								hzToast.success('已清空');
@@ -973,16 +984,18 @@
 
 	<!-- API密钥 -->
 	<section>
-		<div class="flex items-center gap-2 mb-3">
+		<div class="mb-3 flex items-center gap-2">
 			<Key size={16} />
 			<h2 class="text-sm font-medium">API密钥</h2>
 		</div>
 		<Card>
-			<CardContent class="p-4 space-y-4">
+			<CardContent class="space-y-4 p-4">
 				{#if apiKeyLoading}
-					<div class="text-sm text-muted-foreground animate-pulse">加载中...</div>
+					<div class="animate-pulse text-sm text-muted-foreground">加载中...</div>
 				{:else if !apiKeyInfo?.has_api_key}
-					<p class="text-sm text-muted-foreground">尚未生成API密钥，生成后可通过密钥访问公开账单接口。</p>
+					<p class="text-sm text-muted-foreground">
+						尚未生成API密钥，生成后可通过密钥访问公开账单接口。
+					</p>
 					<Button size="sm" onclick={handleGenerateApiKey}>
 						<Key size={14} />
 						生成API密钥
@@ -1000,7 +1013,7 @@
 							<div class="flex items-center gap-2">
 								<Input
 									readonly
-									value={showApiKey ? (apiKeyInfo.api_key || '') : '••••••••••••••••'}
+									value={showApiKey ? apiKeyInfo.api_key || '' : '••••••••••••••••'}
 									class="font-mono text-xs"
 								/>
 								<Button size="icon" variant="outline" onclick={() => (showApiKey = !showApiKey)}>
@@ -1012,15 +1025,24 @@
 							</div>
 						</div>
 						<div class="flex gap-2">
-							<Button size="sm" variant="outline" onclick={handleToggleApiKey} disabled={toggleLoading}>
+							<Button
+								size="sm"
+								variant="outline"
+								onclick={handleToggleApiKey}
+								disabled={toggleLoading}
+							>
 								{apiKeyInfo.api_key_enabled ? '禁用' : '启用'}
 							</Button>
-							<Button size="sm" variant="outline" onclick={handleGenerateApiKey}>
-								重新生成
-							</Button>
+							<Button size="sm" variant="outline" onclick={handleGenerateApiKey}>重新生成</Button>
 						</div>
 						<div class="text-xs text-muted-foreground">
-							<p>使用方式: <code class="bg-muted px-1 py-0.5 rounded">Authorization: Bearer {apiKeyInfo.api_key_enabled ? '[API_KEY]' : '[已禁用]'}</code></p>
+							<p>
+								使用方式: <code class="rounded bg-muted px-1 py-0.5"
+									>Authorization: Bearer {apiKeyInfo.api_key_enabled
+										? '[API_KEY]'
+										: '[已禁用]'}</code
+								>
+							</p>
 						</div>
 					</div>
 				{/if}
@@ -1030,15 +1052,16 @@
 
 	<!-- AI 助手（MCP） -->
 	<section>
-		<div class="flex items-center gap-2 mb-3">
+		<div class="mb-3 flex items-center gap-2">
 			<Bot size={16} />
 			<h2 class="text-sm font-medium">AI 助手（MCP）</h2>
 		</div>
 		<Card>
-			<CardContent class="p-4 space-y-3">
+			<CardContent class="space-y-3 p-4">
 				<p class="text-sm text-muted-foreground">
-					接入 MCP 后，AI 助手可以用自然语言查询、分析和修改你的账单（搜索流水、统计消费趋势与分类占比、
-					记账 / 改账 / 删账）。数据只在你自己的服务器上流转。
+					接入 MCP 后，AI
+					助手可以用自然语言查询、分析和修改你的账单（搜索流水、统计消费趋势与分类占比、 记账 / 改账
+					/ 删账）。数据只在你自己的服务器上流转。
 				</p>
 
 				<div class="space-y-2">
@@ -1056,7 +1079,9 @@
 						请先在上方「API密钥」处生成并启用密钥，MCP 使用它作为鉴权凭据。
 					</p>
 				{:else if !apiKeyInfo.api_key_enabled}
-					<p class="text-xs text-amber-600 dark:text-amber-400">API密钥当前已禁用，MCP 将无法连接。</p>
+					<p class="text-xs text-amber-600 dark:text-amber-400">
+						API密钥当前已禁用，MCP 将无法连接。
+					</p>
 				{/if}
 
 				<div class="space-y-2">
@@ -1073,7 +1098,7 @@
 						{/each}
 					</div>
 					<pre
-						class="bg-muted rounded-lg p-3 text-xs overflow-x-auto font-mono leading-relaxed">{mcpSnippet}</pre>
+						class="overflow-x-auto rounded-lg bg-muted p-3 font-mono text-xs leading-relaxed">{mcpSnippet}</pre>
 					<div class="flex gap-2">
 						<Button size="sm" variant="outline" onclick={() => copyText(mcpSnippet, '配置')}>
 							<Copy size={14} />
@@ -1083,7 +1108,7 @@
 					<p class="text-xs text-muted-foreground">{currentMcpClient.hint}</p>
 				</div>
 
-				<div class="text-xs text-muted-foreground space-y-1">
+				<div class="space-y-1 text-xs text-muted-foreground">
 					<div class="font-medium text-foreground">可以这样对 AI 说：</div>
 					<div>· 「上个月我在餐饮上花了多少？比前一个月涨了还是降了？」</div>
 					<div>· 「查一下最近 30 天超过 200 元的支出」</div>
@@ -1095,23 +1120,19 @@
 	</section>
 
 	<!-- 退出登录 -->
-	<Button
-		class="w-full"
-		variant="destructive"
-		onclick={handleLogout}
-	>
+	<Button class="w-full" variant="destructive" onclick={handleLogout}>
 		<LogOut size={16} />
 		退出登录
 	</Button>
 
 	<!-- 危险操作 -->
 	<section>
-		<div class="flex items-center gap-2 mb-3 text-destructive">
+		<div class="mb-3 flex items-center gap-2 text-destructive">
 			<AlertTriangle size={16} />
 			<h2 class="text-sm font-medium">危险操作</h2>
 		</div>
 		<Card class="border-destructive/40">
-			<CardContent class="p-4 space-y-4">
+			<CardContent class="space-y-4 p-4">
 				<div class="flex items-start justify-between gap-3">
 					<div class="min-w-0">
 						<div class="text-sm font-medium">清空全部数据</div>
@@ -1122,7 +1143,7 @@
 					<Button
 						size="sm"
 						variant="outline"
-						class="shrink-0 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+						class="shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
 						disabled={clearing}
 						onclick={handleClearData}
 					>
@@ -1136,7 +1157,12 @@
 							连同账号本身一并永久删除，删除前服务端会保存快照。不可恢复
 						</div>
 					</div>
-					<Button size="sm" variant="destructive" class="shrink-0" onclick={() => (showDeleteAcct = true)}>
+					<Button
+						size="sm"
+						variant="destructive"
+						class="shrink-0"
+						onclick={() => (showDeleteAcct = true)}
+					>
 						注销账号
 					</Button>
 				</div>
@@ -1175,28 +1201,34 @@
 
 	<!-- 致谢 -->
 	<section>
-		<div class="flex items-center gap-2 mb-3 text-sm font-medium text-muted-foreground">
+		<div class="mb-3 flex items-center gap-2 text-sm font-medium text-muted-foreground">
 			<Heart size={16} />
 			致谢
 		</div>
 		<Card>
-			<CardContent class="p-4 space-y-4 text-sm">
+			<CardContent class="space-y-4 p-4 text-sm">
 				<div>
-					<div class="font-medium mb-2">前端技术</div>
-					<div class="text-muted-foreground space-y-1">
+					<div class="mb-2 font-medium">前端技术</div>
+					<div class="space-y-1 text-muted-foreground">
 						<div><span class="font-medium text-foreground">SvelteKit</span> — 新一代全栈框架</div>
-						<div><span class="font-medium text-foreground">TailwindCSS</span> — 原子化 CSS 框架</div>
+						<div>
+							<span class="font-medium text-foreground">TailwindCSS</span> — 原子化 CSS 框架
+						</div>
 						<div><span class="font-medium text-foreground">Lucide</span> — 精美 SVG 图标库</div>
 						<div><span class="font-medium text-foreground">Chart.js</span> — 数据可视化图表</div>
 						<div><span class="font-medium text-foreground">Vaul Svelte</span> — 抽屉组件</div>
-						<div><span class="font-medium text-foreground">svelte-sonner</span> — Toast 通知组件</div>
+						<div>
+							<span class="font-medium text-foreground">svelte-sonner</span> — Toast 通知组件
+						</div>
 						<div><span class="font-medium text-foreground">Day.js</span> — 轻量日期处理库</div>
-						<div><span class="font-medium text-foreground">Bank Logos</span> — 银行图标库 (icongo)</div>
+						<div>
+							<span class="font-medium text-foreground">Bank Logos</span> — 银行图标库 (icongo)
+						</div>
 					</div>
 				</div>
 				<div>
-					<div class="font-medium mb-2">后端技术</div>
-					<div class="text-muted-foreground space-y-1">
+					<div class="mb-2 font-medium">后端技术</div>
+					<div class="space-y-1 text-muted-foreground">
 						<div><span class="font-medium text-foreground">Go</span> — 高性能编程语言</div>
 						<div><span class="font-medium text-foreground">Gin</span> — HTTP Web 框架</div>
 						<div><span class="font-medium text-foreground">GORM</span> — ORM 框架</div>
@@ -1206,8 +1238,8 @@
 					</div>
 				</div>
 				<div>
-					<div class="font-medium mb-2">特别感谢</div>
-					<div class="text-muted-foreground space-y-1">
+					<div class="mb-2 font-medium">特别感谢</div>
+					<div class="space-y-1 text-muted-foreground">
 						<div>所有开源项目的贡献者</div>
 						<div>每一位用户的反馈与支持</div>
 					</div>
@@ -1217,9 +1249,7 @@
 	</section>
 
 	<!-- 关于 -->
-	<div class="text-center text-xs text-muted-foreground pt-4">
-		货殖 v0.1.0 · 简洁纯粹的记账本
-	</div>
+	<div class="pt-4 text-center text-xs text-muted-foreground">货殖 v0.1.0 · 简洁纯粹的记账本</div>
 
 	<!-- 未保存提示：整页脏字段合并成一个保存条（替代原先分散的两个保存按钮） -->
 	{#if dirty}

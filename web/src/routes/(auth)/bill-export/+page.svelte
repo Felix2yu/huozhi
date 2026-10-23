@@ -58,14 +58,14 @@
 	<title>账单导出 · 货殖</title>
 </svelte:head>
 
-<div class="max-w-3xl mx-auto space-y-4">
+<div class="mx-auto max-w-3xl space-y-4">
 	<Card class="print:hidden">
 		<CardHeader>
 			<CardTitle>导出账单</CardTitle>
 		</CardHeader>
 		<CardContent class="space-y-4">
 			<div class="flex items-end gap-2">
-				<div class="space-y-2 flex-1">
+				<div class="flex-1 space-y-2">
 					<label for="export-month" class="text-sm font-medium">选择月份</label>
 					<Input id="export-month" type="month" bind:value={selectedMonth} />
 				</div>
@@ -91,11 +91,11 @@
 
 	{#if bill}
 		<Card id="bill-print">
-			<CardContent class="p-8 space-y-6">
+			<CardContent class="space-y-6 p-8">
 				<!-- 账单抬头 -->
-				<div class="text-center border-b pb-4">
+				<div class="border-b pb-4 text-center">
 					<div class="text-xl font-bold">{bill.meta?.month} 月度账单</div>
-					<div class="text-xs text-muted-foreground mt-1">
+					<div class="mt-1 text-xs text-muted-foreground">
 						{bill.meta?.book_name || '全部账本'} · {bill.meta?.range_start} ~ {bill.meta?.range_end}
 					</div>
 					<div class="text-xs text-muted-foreground">
@@ -105,27 +105,27 @@
 
 				<!-- 收支汇总 -->
 				<section>
-					<h3 class="text-sm font-medium mb-2">收支汇总</h3>
+					<h3 class="mb-2 text-sm font-medium">收支汇总</h3>
 					<div class="grid grid-cols-4 gap-3 text-center">
-						<div class="p-3 rounded-lg bg-muted/50">
+						<div class="rounded-lg bg-muted/50 p-3">
 							<div class="text-[11px] text-muted-foreground">收入</div>
-							<div class="font-semibold tabular-nums text-[var(--color-income)]">
+							<div class="font-semibold text-[var(--color-income)] tabular-nums">
 								{formatMoney(bill.summary?.total_income)}
 							</div>
 							<div class="text-[10px] text-muted-foreground">{bill.summary?.income_count} 笔</div>
 						</div>
-						<div class="p-3 rounded-lg bg-muted/50">
+						<div class="rounded-lg bg-muted/50 p-3">
 							<div class="text-[11px] text-muted-foreground">支出</div>
-							<div class="font-semibold tabular-nums text-[var(--color-expense)]">
+							<div class="font-semibold text-[var(--color-expense)] tabular-nums">
 								{formatMoney(bill.summary?.total_expense)}
 							</div>
 							<div class="text-[10px] text-muted-foreground">{bill.summary?.expense_count} 笔</div>
 						</div>
-						<div class="p-3 rounded-lg bg-muted/50">
+						<div class="rounded-lg bg-muted/50 p-3">
 							<div class="text-[11px] text-muted-foreground">结余</div>
 							<div class="font-semibold tabular-nums">{formatMoney(bill.summary?.net)}</div>
 						</div>
-						<div class="p-3 rounded-lg bg-muted/50">
+						<div class="rounded-lg bg-muted/50 p-3">
 							<div class="text-[11px] text-muted-foreground">日均支出</div>
 							<div class="font-semibold tabular-nums">
 								¥{(bill.summary?.avg_daily_expense ?? 0).toFixed(2)}
@@ -137,14 +137,14 @@
 				<!-- 支出分类 -->
 				{#if (bill.category_expense || []).length > 0}
 					<section>
-						<h3 class="text-sm font-medium mb-2">支出分类</h3>
+						<h3 class="mb-2 text-sm font-medium">支出分类</h3>
 						<table class="w-full text-sm">
-							<thead class="text-xs text-muted-foreground border-b">
+							<thead class="border-b text-xs text-muted-foreground">
 								<tr>
-									<th class="text-left py-1">分类</th>
-									<th class="text-right py-1">金额</th>
-									<th class="text-right py-1">笔数</th>
-									<th class="text-right py-1">占比</th>
+									<th class="py-1 text-left">分类</th>
+									<th class="py-1 text-right">金额</th>
+									<th class="py-1 text-right">笔数</th>
+									<th class="py-1 text-right">占比</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -164,18 +164,18 @@
 				<!-- 预算执行 -->
 				{#if (bill.budgets || []).length > 0}
 					<section>
-						<h3 class="text-sm font-medium mb-2">预算执行</h3>
+						<h3 class="mb-2 text-sm font-medium">预算执行</h3>
 						<div class="space-y-2">
 							{#each bill.budgets as b (b.id)}
 								<div class="flex items-center gap-3 text-sm">
 									<span class="flex-1 truncate">{b.name}</span>
-									<span class="tabular-nums text-muted-foreground">
+									<span class="text-muted-foreground tabular-nums">
 										{formatMoney(b.used_amount)} / {formatMoney(b.amount)}
 									</span>
 									{#if b.is_over_budget}
 										<Badge variant="destructive">超支</Badge>
 									{:else}
-										<span class="tabular-nums text-xs w-12 text-right">{b.usage_rate}%</span>
+										<span class="w-12 text-right text-xs tabular-nums">{b.usage_rate}%</span>
 									{/if}
 								</div>
 							{/each}
@@ -185,24 +185,24 @@
 
 				<!-- 资产 -->
 				<section>
-					<h3 class="text-sm font-medium mb-2">期末资产</h3>
+					<h3 class="mb-2 text-sm font-medium">期末资产</h3>
 					<div class="grid grid-cols-3 gap-3 text-center text-sm">
-						<div class="p-3 rounded-lg bg-muted/50">
+						<div class="rounded-lg bg-muted/50 p-3">
 							<div class="text-[11px] text-muted-foreground">总资产</div>
 							<div class="font-semibold tabular-nums">{formatMoney(bill.assets?.total_asset)}</div>
 						</div>
-						<div class="p-3 rounded-lg bg-muted/50">
+						<div class="rounded-lg bg-muted/50 p-3">
 							<div class="text-[11px] text-muted-foreground">总负债</div>
 							<div class="font-semibold tabular-nums">{formatMoney(bill.assets?.total_debt)}</div>
 						</div>
-						<div class="p-3 rounded-lg bg-muted/50">
+						<div class="rounded-lg bg-muted/50 p-3">
 							<div class="text-[11px] text-muted-foreground">净资产</div>
 							<div class="font-semibold tabular-nums">{formatMoney(bill.assets?.net_asset)}</div>
 						</div>
 					</div>
 				</section>
 
-				<div class="text-center text-[11px] text-muted-foreground pt-4 border-t">
+				<div class="border-t pt-4 text-center text-[11px] text-muted-foreground">
 					由「货殖」生成 · {bill.meta?.generated_at}
 				</div>
 			</CardContent>

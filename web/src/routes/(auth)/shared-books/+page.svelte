@@ -10,12 +10,26 @@
 	import { bookApi } from '#lib/api/modules/books';
 	import { appStore } from '#lib/stores/app';
 	import { hzToast } from '#lib/components/ui/toast';
-	import { BookMarked, Plus, Users, Pencil, Trash2, UserPlus, Archive, ArchiveRestore } from '@lucide/svelte';
+	import {
+		BookMarked,
+		Plus,
+		Users,
+		Pencil,
+		Trash2,
+		UserPlus,
+		Archive,
+		ArchiveRestore
+	} from '@lucide/svelte';
 
 	// Dialog state
 	let showBookDialog = $state(false);
 	let showMemberDialog = $state(false);
-	let editingBook = $state<{ id: number; name: string; icon?: string; description?: string } | null>(null);
+	let editingBook = $state<{
+		id: number;
+		name: string;
+		icon?: string;
+		description?: string;
+	} | null>(null);
 	let bookName = $state('');
 	let bookIcon = $state('📘');
 	let bookDesc = $state('');
@@ -29,7 +43,28 @@
 	let members = $state<any[]>([]);
 	let loadingMembers = $state(false);
 
-	const iconOptions = ['📘', '📕', '📗', '📙', '📓', '📒', '📔', '💰', '💵', '🏦', '📊', '📈', '💎', '🎯', '🏆', '💼', '🏠', '🚗', '✈️', '🎓'];
+	const iconOptions = [
+		'📘',
+		'📕',
+		'📗',
+		'📙',
+		'📓',
+		'📒',
+		'📔',
+		'💰',
+		'💵',
+		'🏦',
+		'📊',
+		'📈',
+		'💎',
+		'🎯',
+		'🏆',
+		'💼',
+		'🏠',
+		'🚗',
+		'✈️',
+		'🎓'
+	];
 
 	function openNewBook() {
 		editingBook = null;
@@ -99,7 +134,8 @@
 
 	async function handleRemoveMember(member: any) {
 		if (!memberBook) return;
-		if (!confirm(`确定移除成员「${member.nickname || member.username || member.user_id}」？`)) return;
+		if (!confirm(`确定移除成员「${member.nickname || member.username || member.user_id}」？`))
+			return;
 		try {
 			await bookApi.removeMember(memberBook.id, member.id);
 			hzToast.success('已移除');
@@ -149,53 +185,58 @@
 		</Button>
 	</div>
 	<Card>
-		<CardContent class="p-0 divide-y">
+		<CardContent class="divide-y p-0">
 			{#if appStore.books.length === 0}
 				<div class="py-16 text-center">
 					<BookMarked size={32} class="mx-auto mb-3 text-muted-foreground opacity-50" />
-					<p class="text-muted-foreground text-sm">暂无账本</p>
+					<p class="text-sm text-muted-foreground">暂无账本</p>
 				</div>
 			{:else}
 				{#each appStore.books as book (book.id)}
-					<div class="flex items-center gap-3 p-4 group">
+					<div class="group flex items-center gap-3 p-4">
 						<button
-							class="flex-1 flex items-center gap-3 text-left hover:bg-accent/50 transition"
+							class="flex flex-1 items-center gap-3 text-left transition hover:bg-accent/50"
 							onclick={() => {
 								appStore.setCurrentBook(book.id);
 								goto('/dashboard');
 							}}
 						>
-							<span class="w-10 h-10 rounded-lg bg-muted grid place-items-center text-xl">
+							<span class="grid h-10 w-10 place-items-center rounded-lg bg-muted text-xl">
 								{book.icon || '📘'}
 							</span>
-							<div class="flex-1 min-w-0">
-								<div class="font-medium truncate">
+							<div class="min-w-0 flex-1">
+								<div class="truncate font-medium">
 									{book.name}
 									{#if book.is_default}
-										<span class="ml-1 text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">默认</span>
+										<span
+											class="ml-1 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+											>默认</span
+										>
 									{/if}
 								</div>
-								<div class="text-xs text-muted-foreground truncate">
+								<div class="truncate text-xs text-muted-foreground">
 									{book.description || '个人账本'}
 								</div>
 							</div>
 							{#if book.id === appStore.currentBookId}
-								<span class="text-xs text-primary font-medium">当前</span>
+								<span class="text-xs font-medium text-primary">当前</span>
 							{/if}
 							{#if book.is_shared}
-								<Badge variant="secondary">共享 · {book.role === 'editor' ? '可记账' : '只读'}</Badge>
+								<Badge variant="secondary"
+									>共享 · {book.role === 'editor' ? '可记账' : '只读'}</Badge
+								>
 							{/if}
 						</button>
-						<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+						<div class="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
 							<button
-								class="p-1.5 rounded hover:bg-accent"
+								class="rounded p-1.5 hover:bg-accent"
 								title="成员管理"
 								onclick={() => openMembers(book)}
 							>
 								<UserPlus size={14} class="text-muted-foreground" />
 							</button>
 							<button
-								class="p-1.5 rounded hover:bg-accent"
+								class="rounded p-1.5 hover:bg-accent"
 								title={book.is_archived ? '取消归档' : '归档'}
 								onclick={() => handleArchive(book, !book.is_archived)}
 							>
@@ -206,7 +247,7 @@
 								{/if}
 							</button>
 							<button
-								class="p-1.5 rounded hover:bg-accent"
+								class="rounded p-1.5 hover:bg-accent"
 								title="编辑"
 								onclick={() => openEditBook(book)}
 							>
@@ -214,7 +255,7 @@
 							</button>
 							{#if !book.is_default}
 								<button
-									class="p-1.5 rounded hover:bg-destructive/10"
+									class="rounded p-1.5 hover:bg-destructive/10"
 									title="删除"
 									onclick={() => handleDeleteBook(book)}
 								>
@@ -241,7 +282,9 @@
 			<div class="flex flex-wrap gap-1">
 				{#each iconOptions as icon}
 					<button
-						class="w-8 h-8 text-lg rounded hover:bg-accent transition {bookIcon === icon ? 'bg-primary/10' : ''}"
+						class="h-8 w-8 rounded text-lg transition hover:bg-accent {bookIcon === icon
+							? 'bg-primary/10'
+							: ''}"
 						onclick={() => (bookIcon = icon)}
 					>
 						{icon}
@@ -260,7 +303,7 @@
 			<Input bind:value={bookDesc} placeholder="可选" />
 		</div>
 
-		<div class="flex gap-2 justify-end pt-2">
+		<div class="flex justify-end gap-2 pt-2">
 			<Button variant="outline" onclick={() => (showBookDialog = false)}>取消</Button>
 			<Button onclick={handleSaveBook} disabled={saving}>
 				{saving ? '保存中...' : '保存'}
@@ -295,15 +338,15 @@
 		<div class="space-y-2">
 			<Label>当前成员</Label>
 			{#if loadingMembers}
-				<div class="text-sm text-muted-foreground animate-pulse">加载中...</div>
+				<div class="animate-pulse text-sm text-muted-foreground">加载中...</div>
 			{:else if members.length === 0}
 				<div class="text-sm text-muted-foreground">暂无成员</div>
 			{:else}
 				<div class="space-y-2">
 					{#each members as member}
-						<div class="flex items-center justify-between p-2 rounded-lg border">
+						<div class="flex items-center justify-between rounded-lg border p-2">
 							<div class="flex items-center gap-2">
-								<div class="w-8 h-8 rounded-full bg-muted grid place-items-center text-xs">
+								<div class="grid h-8 w-8 place-items-center rounded-full bg-muted text-xs">
 									{member.nickname?.[0] || member.username?.[0] || '?'}
 								</div>
 								<div>
@@ -315,7 +358,7 @@
 								<Badge variant="secondary">{member.role || '成员'}</Badge>
 								{#if member.role !== 'owner'}
 									<button
-										class="p-1 rounded hover:bg-destructive/10"
+										class="rounded p-1 hover:bg-destructive/10"
 										title="移除成员"
 										onclick={() => handleRemoveMember(member)}
 									>

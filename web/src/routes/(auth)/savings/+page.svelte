@@ -173,14 +173,14 @@
 	{#if loading}
 		<div class="grid gap-3 md:grid-cols-2">
 			{#each [1, 2] as i}
-				<div class="h-32 rounded-xl animate-pulse bg-muted" ></div>
+				<div class="h-32 animate-pulse rounded-xl bg-muted"></div>
 			{/each}
 		</div>
 	{:else if plans.length === 0}
 		<Card>
 			<div class="py-16 text-center">
 				<PiggyBank size={32} class="mx-auto mb-3 text-muted-foreground opacity-50" />
-				<p class="text-muted-foreground text-sm">暂无存钱计划</p>
+				<p class="text-sm text-muted-foreground">暂无存钱计划</p>
 			</div>
 		</Card>
 	{:else}
@@ -188,27 +188,31 @@
 			{#each plans as plan (plan.id)}
 				<Card class="group">
 					<CardContent class="p-4">
-						<div class="flex items-center justify-between mb-2">
+						<div class="mb-2 flex items-center justify-between">
 							<div class="font-medium">{plan.name}</div>
 							<div class="flex items-center gap-1">
 								<span class="text-xs text-muted-foreground">
-									{plan.status === 'active' ? '进行中' : plan.status === 'done' ? '已完成' : '已暂停'}
+									{plan.status === 'active'
+										? '进行中'
+										: plan.status === 'done'
+											? '已完成'
+											: '已暂停'}
 								</span>
 								<button
-									class="p-1 rounded hover:bg-accent opacity-0 group-hover:opacity-100 transition"
+									class="rounded p-1 opacity-0 transition group-hover:opacity-100 hover:bg-accent"
 									onclick={() => openRecord(plan)}
 									title="存钱"
 								>
 									<Coins size={14} class="text-muted-foreground" />
 								</button>
 								<button
-									class="p-1 rounded hover:bg-accent opacity-0 group-hover:opacity-100 transition"
+									class="rounded p-1 opacity-0 transition group-hover:opacity-100 hover:bg-accent"
 									onclick={() => openEdit(plan)}
 								>
 									<Pencil size={14} class="text-muted-foreground" />
 								</button>
 								<button
-									class="p-1 rounded hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition"
+									class="rounded p-1 opacity-0 transition group-hover:opacity-100 hover:bg-destructive/10"
 									onclick={() => handleDelete(plan)}
 								>
 									<Trash2 size={14} class="text-destructive" />
@@ -221,7 +225,7 @@
 								? Math.min((plan.current_amount / plan.target_amount) * 100, 100)
 								: 0}
 						/>
-						<div class="flex items-center justify-between mt-2 text-sm">
+						<div class="mt-2 flex items-center justify-between text-sm">
 							<span class="font-semibold tabular-nums">
 								{formatMoney(plan.current_amount)}
 							</span>
@@ -229,7 +233,9 @@
 								/ {formatMoney(plan.target_amount)}
 							</span>
 						</div>
-						<div class="flex items-center justify-between mt-2 pt-2 border-t text-xs text-muted-foreground">
+						<div
+							class="mt-2 flex items-center justify-between border-t pt-2 text-xs text-muted-foreground"
+						>
 							<span>
 								还差 {formatMoney(Math.max(0, plan.target_amount - plan.current_amount))}
 							</span>
@@ -263,16 +269,28 @@
 		<div class="space-y-2">
 			<Label>目标金额</Label>
 			<div class="relative">
-				<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
-				<Input class="pl-8" type="number" step="0.01" placeholder="0.00" bind:value={targetAmount} />
+				<span class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">¥</span>
+				<Input
+					class="pl-8"
+					type="number"
+					step="0.01"
+					placeholder="0.00"
+					bind:value={targetAmount}
+				/>
 			</div>
 		</div>
 
 		<div class="space-y-2">
 			<Label>已有金额</Label>
 			<div class="relative">
-				<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
-				<Input class="pl-8" type="number" step="0.01" placeholder="0.00" bind:value={currentAmount} />
+				<span class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">¥</span>
+				<Input
+					class="pl-8"
+					type="number"
+					step="0.01"
+					placeholder="0.00"
+					bind:value={currentAmount}
+				/>
 			</div>
 		</div>
 
@@ -292,7 +310,7 @@
 			</div>
 		</div>
 
-		<div class="flex gap-2 justify-end pt-2">
+		<div class="flex justify-end gap-2 pt-2">
 			<Button variant="outline" onclick={() => (showDialog = false)}>取消</Button>
 			<Button onclick={handleSave} disabled={saving}>
 				{saving ? '保存中...' : '保存'}
@@ -308,8 +326,14 @@
 		<div class="space-y-2">
 			<Label>存入金额</Label>
 			<div class="relative">
-				<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
-				<Input class="pl-8" type="number" step="0.01" placeholder="0.00" bind:value={recordAmount} />
+				<span class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">¥</span>
+				<Input
+					class="pl-8"
+					type="number"
+					step="0.01"
+					placeholder="0.00"
+					bind:value={recordAmount}
+				/>
 			</div>
 		</div>
 		<!-- B6：来源账户 + 日期，存入会真实扣减该账户余额 -->
@@ -327,7 +351,7 @@
 			<Wallet size={12} class="mt-0.5 shrink-0" />
 			确认后将从所选账户扣减相应金额，并生成一笔转入存款的支出记录。
 		</p>
-		<div class="flex gap-2 justify-end pt-2">
+		<div class="flex justify-end gap-2 pt-2">
 			<Button variant="outline" onclick={() => (showRecordDialog = false)}>取消</Button>
 			<Button onclick={handleAddRecord} disabled={saving}>
 				{saving ? '保存中...' : '确认存入'}

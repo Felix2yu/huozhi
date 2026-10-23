@@ -19,9 +19,7 @@ if (typeof localStorage !== 'undefined') {
 
 let books = $state<BookView[]>([]);
 let currentBookId = $state<number>(
-	typeof localStorage !== 'undefined'
-		? Number(localStorage.getItem(BOOK_ID_KEY) || 0)
-		: 0
+	typeof localStorage !== 'undefined' ? Number(localStorage.getItem(BOOK_ID_KEY) || 0) : 0
 );
 
 let categories = $state<{
@@ -96,10 +94,7 @@ async function loadBooks(): Promise<void> {
 		}
 
 		// 验证 currentBookId
-		if (
-			currentBookId !== 0 &&
-			!list.some((b) => b.id === currentBookId)
-		) {
+		if (currentBookId !== 0 && !list.some((b) => b.id === currentBookId)) {
 			currentBookId = 0;
 		}
 		if (
@@ -135,10 +130,7 @@ function setCurrentBook(id: number) {
  */
 function effectiveBookId(): number {
 	if (currentBookId) return currentBookId;
-	const fallback =
-		books.find((b) => b.is_default) ||
-		books.find((b) => !b.is_archived) ||
-		books[0];
+	const fallback = books.find((b) => b.is_default) || books.find((b) => !b.is_archived) || books[0];
 	return fallback?.id ?? 0;
 }
 
@@ -146,10 +138,9 @@ async function loadDictionaries(bookId?: number): Promise<void> {
 	const bid = bookId !== undefined ? bookId : currentBookId;
 	try {
 		const [cats, tagsRes, accsRes] = await Promise.allSettled([
-			http.get<{ expense: Category[]; income: Category[]; system: Category[] }>(
-				'/categories',
-				{ params: { book_id: bid } }
-			),
+			http.get<{ expense: Category[]; income: Category[]; system: Category[] }>('/categories', {
+				params: { book_id: bid }
+			}),
 			http.get<Tag[]>('/tags'),
 			http.get<{ accounts: Account[] }>('/accounts', {
 				params: { book_id: bid, include_archived: 0 }
@@ -158,9 +149,7 @@ async function loadDictionaries(bookId?: number): Promise<void> {
 
 		if (cats.status === 'fulfilled') {
 			const flatten = (list?: Category[]): Category[] =>
-				(list || []).flatMap((c: any) =>
-					c.children?.length ? [c, ...c.children] : [c]
-				);
+				(list || []).flatMap((c: any) => (c.children?.length ? [c, ...c.children] : [c]));
 			const c = cats.value;
 			categories = {
 				expense: flatten(c.expense),

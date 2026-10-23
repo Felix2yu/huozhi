@@ -15,9 +15,18 @@
 
 	// 预设配色（与标签 dot / 卡片强调色一致）
 	const PALETTE = [
-		'#ef4444', '#f97316', '#eab308', '#22c55e',
-		'#14b8a6', '#06b6d4', '#3b82f6', '#6366f1',
-		'#8b5cf6', '#ec4899', '#f43f5e', '#64748b'
+		'#ef4444',
+		'#f97316',
+		'#eab308',
+		'#22c55e',
+		'#14b8a6',
+		'#06b6d4',
+		'#3b82f6',
+		'#6366f1',
+		'#8b5cf6',
+		'#ec4899',
+		'#f43f5e',
+		'#64748b'
 	];
 
 	let showDialog = $state(false);
@@ -26,9 +35,7 @@
 	let selectedColor = $state('');
 	let saving = $state(false);
 
-	const totalUsage = $derived(
-		appStore.tags.reduce((sum, t) => sum + (t.count || 0), 0)
-	);
+	const totalUsage = $derived(appStore.tags.reduce((sum, t) => sum + (t.count || 0), 0));
 
 	onMount(() => appStore.loadDictionaries());
 
@@ -145,7 +152,7 @@
 					</div>
 
 					<div
-						class="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+						class="absolute top-2 right-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
 					>
 						<button
 							type="button"
@@ -196,7 +203,7 @@
 				{#each PALETTE as c (c)}
 					<button
 						type="button"
-						class="h-7 w-7 rounded-full transition ring-offset-2
+						class="h-7 w-7 rounded-full ring-offset-2 transition
 							{selectedColor === c ? 'ring-2 ring-primary' : 'hover:scale-105'}"
 						style:background={c}
 						title={c}
@@ -206,7 +213,7 @@
 			</div>
 		</div>
 
-		<div class="flex gap-2 justify-end pt-1">
+		<div class="flex justify-end gap-2 pt-1">
 			<Button variant="outline" onclick={() => (showDialog = false)}>取消</Button>
 			<Button onclick={handleSave} disabled={saving}>
 				{saving ? '保存中…' : '保存'}

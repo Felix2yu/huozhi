@@ -123,48 +123,60 @@
 	{#if loading}
 		<div class="space-y-4">
 			{#each [1, 2, 3] as i}
-				<div class="h-32 rounded-xl animate-pulse bg-muted" ></div>
+				<div class="h-32 animate-pulse rounded-xl bg-muted"></div>
 			{/each}
 		</div>
 	{:else}
 		<!-- 汇总 -->
 		{#if data}
-			<section class="grid grid-cols-2 md:grid-cols-4 gap-3">
+			<section class="grid grid-cols-2 gap-3 md:grid-cols-4">
 				<Card>
 					<CardContent class="pt-4">
-						<div class="text-xs text-muted-foreground flex items-center gap-1">
+						<div class="flex items-center gap-1 text-xs text-muted-foreground">
 							<ArrowUpRight size={12} class="text-[var(--color-income)]" />
 							总收入
 						</div>
 						<div class="mt-1 text-lg font-bold text-[var(--color-income)] tabular-nums">
 							{formatMoney(data.summary.total_income)}
 						</div>
-						<div class="text-[11px] text-muted-foreground">{data.summary.income_count} 笔 · 日均 {formatMoney(data.summary.avg_daily_income || 0)}</div>
+						<div class="text-[11px] text-muted-foreground">
+							{data.summary.income_count} 笔 · 日均 {formatMoney(
+								data.summary.avg_daily_income || 0
+							)}
+						</div>
 					</CardContent>
 				</Card>
 				<Card>
 					<CardContent class="pt-4">
-						<div class="text-xs text-muted-foreground flex items-center gap-1">
+						<div class="flex items-center gap-1 text-xs text-muted-foreground">
 							<ArrowDownRight size={12} class="text-[var(--color-expense)]" />
 							总支出
 						</div>
 						<div class="mt-1 text-lg font-bold text-[var(--color-expense)] tabular-nums">
 							{formatMoney(data.summary.total_expense)}
 						</div>
-						<div class="text-[11px] text-muted-foreground">{data.summary.expense_count} 笔 · 日均 {formatMoney(data.summary.avg_daily_expense)}</div>
+						<div class="text-[11px] text-muted-foreground">
+							{data.summary.expense_count} 笔 · 日均 {formatMoney(data.summary.avg_daily_expense)}
+						</div>
 					</CardContent>
 				</Card>
 				<Card>
 					<CardContent class="pt-4">
-						<div class="text-xs text-muted-foreground flex items-center gap-1">
+						<div class="flex items-center gap-1 text-xs text-muted-foreground">
 							<TrendingUp size={12} class="text-primary" />
 							净结余
 						</div>
-						<div class="mt-1 text-lg font-bold tabular-nums {data.summary.net >= 0 ? 'text-[var(--color-income)]' : 'text-[var(--color-expense)]'}">
+						<div
+							class="mt-1 text-lg font-bold tabular-nums {data.summary.net >= 0
+								? 'text-[var(--color-income)]'
+								: 'text-[var(--color-expense)]'}"
+						>
 							{data.summary.net >= 0 ? '+' : ''}{formatMoney(data.summary.net)}
 						</div>
 						<div class="text-[11px] text-muted-foreground">
-							储蓄率 {data.summary.total_income > 0 ? ((data.summary.net / data.summary.total_income) * 100).toFixed(1) : 0}%
+							储蓄率 {data.summary.total_income > 0
+								? ((data.summary.net / data.summary.total_income) * 100).toFixed(1)
+								: 0}%
 						</div>
 					</CardContent>
 				</Card>
@@ -175,7 +187,9 @@
 							{data.summary.transaction_count}
 						</div>
 						<div class="text-[11px] text-muted-foreground">
-							日均 {data.range?.days ? (data.summary.transaction_count / data.range.days).toFixed(1) : 0} 笔
+							日均 {data.range?.days
+								? (data.summary.transaction_count / data.range.days).toFixed(1)
+								: 0} 笔
 						</div>
 					</CardContent>
 				</Card>
@@ -183,25 +197,25 @@
 
 			<!-- 分类占比（A2：改用饼图，右侧保留精确读数） -->
 			<section>
-				<div class="grid md:grid-cols-2 gap-4">
+				<div class="grid gap-4 md:grid-cols-2">
 					<!-- 支出分类占比 -->
 					<div>
-						<h2 class="text-sm font-medium mb-3">支出分类占比</h2>
+						<h2 class="mb-3 text-sm font-medium">支出分类占比</h2>
 						<Card>
 							<CardContent class="p-4">
 								{#if data.by_category_expense.length === 0}
-									<p class="text-center text-muted-foreground py-8 text-sm">暂无数据</p>
+									<p class="py-8 text-center text-sm text-muted-foreground">暂无数据</p>
 								{:else}
-									<div class="grid grid-cols-2 gap-4 items-center">
+									<div class="grid grid-cols-2 items-center gap-4">
 										<CategoryPie items={data.by_category_expense} limit={8} />
 										<div class="space-y-2">
 											{#each data.by_category_expense.slice(0, 8) as item (item.id)}
 												<div class="flex items-center gap-2 text-sm">
-													<span class="w-6 h-6 rounded bg-muted grid place-items-center text-xs">
+													<span class="grid h-6 w-6 place-items-center rounded bg-muted text-xs">
 														{item.icon || '📁'}
 													</span>
 													<span class="flex-1 truncate">{item.name}</span>
-													<span class="tabular-nums text-muted-foreground">
+													<span class="text-muted-foreground tabular-nums">
 														{formatMoney(item.amount)}
 														<span class="ml-1 text-[11px]">({item.percent.toFixed(1)}%)</span>
 													</span>
@@ -216,22 +230,22 @@
 
 					<!-- 收入分类占比 -->
 					<div>
-						<h2 class="text-sm font-medium mb-3">收入分类占比</h2>
+						<h2 class="mb-3 text-sm font-medium">收入分类占比</h2>
 						<Card>
 							<CardContent class="p-4">
 								{#if data.by_category_income.length === 0}
-									<p class="text-center text-muted-foreground py-8 text-sm">暂无数据</p>
+									<p class="py-8 text-center text-sm text-muted-foreground">暂无数据</p>
 								{:else}
-									<div class="grid grid-cols-2 gap-4 items-center">
+									<div class="grid grid-cols-2 items-center gap-4">
 										<CategoryPie items={data.by_category_income} limit={8} />
 										<div class="space-y-2">
 											{#each data.by_category_income.slice(0, 8) as item (item.id)}
 												<div class="flex items-center gap-2 text-sm">
-													<span class="w-6 h-6 rounded bg-muted grid place-items-center text-xs">
+													<span class="grid h-6 w-6 place-items-center rounded bg-muted text-xs">
 														{item.icon || '📁'}
 													</span>
 													<span class="flex-1 truncate">{item.name}</span>
-													<span class="tabular-nums text-muted-foreground">
+													<span class="text-muted-foreground tabular-nums">
 														{formatMoney(item.amount)}
 														<span class="ml-1 text-[11px]">({item.percent.toFixed(1)}%)</span>
 													</span>
@@ -249,16 +263,18 @@
 			<!-- 支出 TOP 5 -->
 			{#if data.top_expense.length > 0}
 				<section>
-					<h2 class="text-sm font-medium mb-3">支出 TOP 5</h2>
+					<h2 class="mb-3 text-sm font-medium">支出 TOP 5</h2>
 					<Card>
-						<CardContent class="p-0 divide-y">
+						<CardContent class="divide-y p-0">
 							{#each data.top_expense.slice(0, 5) as tx, i (tx.id)}
 								<div class="flex items-center gap-3 px-4 py-3">
-									<span class="text-xs font-bold text-muted-foreground w-5 text-center tabular-nums">
+									<span
+										class="w-5 text-center text-xs font-bold text-muted-foreground tabular-nums"
+									>
 										{i + 1}
 									</span>
-									<div class="flex-1 min-w-0">
-										<div class="text-sm font-medium truncate">
+									<div class="min-w-0 flex-1">
+										<div class="truncate text-sm font-medium">
 											{tx.description || tx.merchant || '未命名'}
 										</div>
 										<div class="text-[11px] text-muted-foreground">
@@ -277,7 +293,7 @@
 
 			<!-- 收支趋势（A2：默认折线图，可切回列表看逐日读数） -->
 			<section>
-				<div class="flex items-center justify-between mb-3">
+				<div class="mb-3 flex items-center justify-between">
 					<h2 class="text-sm font-medium">收支趋势</h2>
 					<Tabs bind:value={trendView}>
 						<TabsTrigger value="chart">图表</TabsTrigger>
@@ -287,23 +303,25 @@
 				<Card>
 					<CardContent class="p-4">
 						{#if data.trend.length === 0}
-							<p class="text-center text-muted-foreground py-8 text-sm">暂无数据</p>
+							<p class="py-8 text-center text-sm text-muted-foreground">暂无数据</p>
 						{:else if trendView === 'chart'}
 							<TrendLine points={data.trend} />
 						{:else}
-							<div class="space-y-1 max-h-80 overflow-auto">
+							<div class="max-h-80 space-y-1 overflow-auto">
 								{#each data.trend as point}
 									<div class="flex items-center gap-3 text-xs">
-										<span class="w-16 text-muted-foreground shrink-0">{point.date}</span>
-										<div class="flex-1 h-6 rounded bg-muted/50 flex gap-px items-center overflow-hidden">
+										<span class="w-16 shrink-0 text-muted-foreground">{point.date}</span>
+										<div
+											class="flex h-6 flex-1 items-center gap-px overflow-hidden rounded bg-muted/50"
+										>
 											<div
-												class="h-full bg-[var(--color-income)] flex items-center justify-end px-1 text-white text-[10px]"
+												class="flex h-full items-center justify-end bg-[var(--color-income)] px-1 text-[10px] text-white"
 												style={`width: ${Math.min(100, (point.income / Math.max(point.income, point.expense, 1)) * 100)}%`}
 											>
 												{#if point.income > 0}{formatMoney(point.income).replace('¥', '')}{/if}
 											</div>
 											<div
-												class="h-full bg-[var(--color-expense)] flex items-center px-1 text-white text-[10px]"
+												class="flex h-full items-center bg-[var(--color-expense)] px-1 text-[10px] text-white"
 												style={`width: ${Math.min(100, (point.expense / Math.max(point.income, point.expense, 1)) * 100)}%`}
 											>
 												{#if point.expense > 0}{formatMoney(point.expense).replace('¥', '')}{/if}
@@ -320,20 +338,20 @@
 			<!-- 账户维度分析 -->
 			{#if accountStats.length > 0}
 				<section>
-					<h2 class="text-sm font-medium mb-3">账户收支分布</h2>
+					<h2 class="mb-3 text-sm font-medium">账户收支分布</h2>
 					<Card>
-						<CardContent class="p-0 divide-y">
+						<CardContent class="divide-y p-0">
 							{#each accountStats as acc (acc.id)}
 								{@const total = Math.max(acc.income + acc.expense, 1)}
 								<div class="px-4 py-3">
-									<div class="flex items-center gap-3 mb-2">
+									<div class="mb-2 flex items-center gap-3">
 										<span class="text-lg">{acc.icon}</span>
-										<span class="text-sm font-medium flex-1 truncate">{acc.name}</span>
+										<span class="flex-1 truncate text-sm font-medium">{acc.name}</span>
 										<span class="text-xs text-muted-foreground tabular-nums">
 											收 {formatMoney(acc.income)} · 支 {formatMoney(acc.expense)}
 										</span>
 									</div>
-									<div class="h-2 rounded-full bg-muted/50 flex overflow-hidden">
+									<div class="flex h-2 overflow-hidden rounded-full bg-muted/50">
 										{#if acc.income > 0}
 											<div
 												class="h-full bg-[var(--color-income)]"
@@ -357,7 +375,7 @@
 			<!-- 资产走势（A2） -->
 			{#if timeline.length > 0}
 				<section>
-					<h2 class="text-sm font-medium mb-3">近 6 个月净资产走势</h2>
+					<h2 class="mb-3 text-sm font-medium">近 6 个月净资产走势</h2>
 					<Card>
 						<CardContent class="p-4">
 							<MonthlyBars points={timeline} />
@@ -370,28 +388,28 @@
 		<!-- 资产概览 -->
 		{#if assets}
 			<section>
-				<h2 class="text-sm font-medium mb-3">资产概览</h2>
+				<h2 class="mb-3 text-sm font-medium">资产概览</h2>
 				<Card>
-					<CardContent class="p-4 grid grid-cols-2 gap-4">
-						<div class="text-center p-3 rounded-lg bg-primary/5">
+					<CardContent class="grid grid-cols-2 gap-4 p-4">
+						<div class="rounded-lg bg-primary/5 p-3 text-center">
 							<div class="text-xs text-muted-foreground">总资产</div>
 							<div class="mt-1 font-bold text-primary tabular-nums">
 								{formatMoney(assets.total_asset)}
 							</div>
 						</div>
-						<div class="text-center p-3 rounded-lg bg-[var(--color-expense)]/5">
+						<div class="rounded-lg bg-[var(--color-expense)]/5 p-3 text-center">
 							<div class="text-xs text-muted-foreground">总负债</div>
 							<div class="mt-1 font-bold text-[var(--color-expense)] tabular-nums">
 								{formatMoney(assets.total_debt)}
 							</div>
 						</div>
-						<div class="text-center p-3 rounded-lg bg-muted/50">
+						<div class="rounded-lg bg-muted/50 p-3 text-center">
 							<div class="text-xs text-muted-foreground">现金</div>
 							<div class="mt-1 font-bold tabular-nums">
 								{formatMoney(assets.cash_on_hand)}
 							</div>
 						</div>
-						<div class="text-center p-3 rounded-lg bg-muted/50">
+						<div class="rounded-lg bg-muted/50 p-3 text-center">
 							<div class="text-xs text-muted-foreground">账户数</div>
 							<div class="mt-1 font-bold tabular-nums">
 								{assets.account_count}

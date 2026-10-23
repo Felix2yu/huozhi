@@ -2,8 +2,8 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import Button from '#lib/components/ui/Button.svelte';
-	import Card from '#lib/components/ui/Card.svelte'
-	import CardContent from '#lib/components/ui/CardContent.svelte'
+	import Card from '#lib/components/ui/Card.svelte';
+	import CardContent from '#lib/components/ui/CardContent.svelte';
 	import Badge from '#lib/components/ui/Badge.svelte';
 	import { accountApi } from '#lib/api/modules/accounts';
 	import { appStore } from '#lib/stores/app';
@@ -62,7 +62,7 @@
 	<!-- 信用卡列表 -->
 	{#if creditCards.length > 0}
 		<section>
-			<div class="flex justify-between items-center mb-4">
+			<div class="mb-4 flex items-center justify-between">
 				<h2 class="text-sm font-medium">我的信用卡</h2>
 				<Button size="sm" onclick={() => goto('/accounts/new')}>
 					<Plus size={16} />
@@ -76,29 +76,29 @@
 					{@const ic = resolveCardIcon(card)}
 					<button
 						type="button"
-						class="relative h-56 rounded-2xl p-5 text-white overflow-hidden cursor-pointer transition-transform hover:scale-[1.02] text-left"
+						class="relative h-56 cursor-pointer overflow-hidden rounded-2xl p-5 text-left text-white transition-transform hover:scale-[1.02]"
 						style="background: {getCardGradient(card.bank_name)};"
 						onclick={() => goto(`/accounts/${card.id}`)}
 					>
 						<!-- 装饰圆 -->
-						<div class="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-20"
-							style="background: rgba(255,255,255,0.3);"></div>
-						<div class="absolute -bottom-16 -left-16 w-48 h-48 rounded-full opacity-10"
-							style="background: rgba(255,255,255,0.4);"></div>
+						<div
+							class="absolute -top-10 -right-10 h-40 w-40 rounded-full opacity-20"
+							style="background: rgba(255,255,255,0.3);"
+						></div>
+						<div
+							class="absolute -bottom-16 -left-16 h-48 w-48 rounded-full opacity-10"
+							style="background: rgba(255,255,255,0.4);"
+						></div>
 
 						<!-- 银行名和Logo -->
 						<div class="relative flex items-center justify-between">
 							<div class="flex items-center gap-2">
 								{#if ic?.kind === 'svg'}
-									<img
-										src={ic.url}
-										alt={card.bank_name || card.name}
-										class="w-8 h-8"
-									/>
+									<img src={ic.url} alt={card.bank_name || card.name} class="h-8 w-8" />
 								{:else if ic?.kind === 'glyph'}
 									<span class="text-xl leading-none">{ic.text}</span>
 								{/if}
-								<span class="font-semibold text-lg">{card.bank_name || card.name}</span>
+								<span class="text-lg font-semibold">{card.bank_name || card.name}</span>
 							</div>
 						</div>
 
@@ -122,9 +122,9 @@
 						</div>
 
 						<!-- 余额角标 -->
-						<div class="absolute bottom-3 right-4 text-right text-[11px] opacity-75">
+						<div class="absolute right-4 bottom-3 text-right text-[11px] opacity-75">
 							<div>欠款</div>
-							<div class="font-medium text-sm">{formatMoney(card.balance)}</div>
+							<div class="text-sm font-medium">{formatMoney(card.balance)}</div>
 						</div>
 					</button>
 				{/each}
@@ -135,7 +135,7 @@
 	<!-- 储蓄卡列表 -->
 	{#if bankCards.length > 0}
 		<section>
-			<div class="flex justify-between items-center mb-4">
+			<div class="mb-4 flex items-center justify-between">
 				<h2 class="text-sm font-medium">我的储蓄卡</h2>
 				<Button size="sm" onclick={() => goto('/accounts/new')}>
 					<Plus size={16} />
@@ -149,29 +149,29 @@
 					{@const ic = resolveCardIcon(card)}
 					<button
 						type="button"
-						class="relative h-48 rounded-2xl p-5 text-white overflow-hidden cursor-pointer transition-transform hover:scale-[1.02] text-left"
+						class="relative h-48 cursor-pointer overflow-hidden rounded-2xl p-5 text-left text-white transition-transform hover:scale-[1.02]"
 						style="background: {getCardGradient(card.bank_name)};"
 						onclick={() => goto(`/accounts/${card.id}`)}
 					>
 						<!-- 装饰圆 -->
-						<div class="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-20"
-							style="background: rgba(255,255,255,0.3);"></div>
-						<div class="absolute -bottom-16 -left-16 w-48 h-48 rounded-full opacity-10"
-							style="background: rgba(255,255,255,0.4);"></div>
+						<div
+							class="absolute -top-10 -right-10 h-40 w-40 rounded-full opacity-20"
+							style="background: rgba(255,255,255,0.3);"
+						></div>
+						<div
+							class="absolute -bottom-16 -left-16 h-48 w-48 rounded-full opacity-10"
+							style="background: rgba(255,255,255,0.4);"
+						></div>
 
 						<!-- 银行名和Logo -->
 						<div class="relative flex items-center justify-between">
 							<div class="flex items-center gap-2">
 								{#if ic?.kind === 'svg'}
-									<img
-										src={ic.url}
-										alt={card.bank_name || card.name}
-										class="w-8 h-8"
-									/>
+									<img src={ic.url} alt={card.bank_name || card.name} class="h-8 w-8" />
 								{:else if ic?.kind === 'glyph'}
 									<span class="text-xl leading-none">{ic.text}</span>
 								{/if}
-								<span class="font-semibold text-lg">{card.bank_name || card.name}</span>
+								<span class="text-lg font-semibold">{card.bank_name || card.name}</span>
 							</div>
 						</div>
 
@@ -200,7 +200,7 @@
 	<!-- 空状态 -->
 	{#if !loading && creditCards.length === 0 && bankCards.length === 0}
 		<section>
-			<div class="flex justify-between items-center mb-4">
+			<div class="mb-4 flex items-center justify-between">
 				<h2 class="text-sm font-medium">我的银行卡</h2>
 				<Button size="sm" onclick={() => goto('/accounts/new')}>
 					<Plus size={16} />
@@ -210,8 +210,8 @@
 			<Card>
 				<div class="py-12 text-center">
 					<CreditCard size={32} class="mx-auto mb-3 text-muted-foreground" />
-					<p class="text-muted-foreground text-sm">还没有添加银行卡</p>
-					<p class="text-xs text-muted-foreground mt-1">添加信用卡或储蓄卡来管理你的账户</p>
+					<p class="text-sm text-muted-foreground">还没有添加银行卡</p>
+					<p class="mt-1 text-xs text-muted-foreground">添加信用卡或储蓄卡来管理你的账户</p>
 				</div>
 			</Card>
 		</section>
@@ -220,27 +220,25 @@
 	<!-- 还款提醒 -->
 	{#if repayItems.length > 0}
 		<section>
-			<h2 class="text-sm font-medium mb-3">还款倒计时</h2>
+			<h2 class="mb-3 text-sm font-medium">还款倒计时</h2>
 			<Card>
-				<CardContent class="p-0 divide-y">
+				<CardContent class="divide-y p-0">
 					{#each repayItems as item (item.id)}
 						{@const theme = getBankTheme(item.bank_name)}
 						{@const ic = resolveAccountIcon({ bankName: item.bank_name, name: item.name })}
 						<div class="flex items-center gap-4 p-4">
-						<div class="w-12 h-12 rounded-xl grid place-items-center font-bold text-lg overflow-hidden"
-							style="background: {theme.color};">
-							{#if ic?.kind === 'svg'}
-								<img
-									src={ic.url}
-									alt={item.bank_name}
-									class="w-10 h-10"
-								/>
-							{:else}
-								{(item.bank_name || item.name || '?')[0]}
-							{/if}
-						</div>
-							<div class="flex-1 min-w-0">
-								<div class="font-medium truncate">
+							<div
+								class="grid h-12 w-12 place-items-center overflow-hidden rounded-xl text-lg font-bold"
+								style="background: {theme.color};"
+							>
+								{#if ic?.kind === 'svg'}
+									<img src={ic.url} alt={item.bank_name} class="h-10 w-10" />
+								{:else}
+									{(item.bank_name || item.name || '?')[0]}
+								{/if}
+							</div>
+							<div class="min-w-0 flex-1">
+								<div class="truncate font-medium">
 									{item.bank_name} · {formatCardNumber({ card_no4: item.card_no4 })}
 								</div>
 								<div class="text-xs text-muted-foreground">

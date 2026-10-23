@@ -81,7 +81,9 @@ describe('账户选择器 Logo', () => {
 		await fireEvent.click(screen.getByRole('button', { name: /旧账户/ }));
 		await fireEvent.click(screen.getByRole('button', { name: '全部账户' }));
 		expect(onChange).toHaveBeenLastCalledWith(0);
-		expect(screen.getByRole('button', { name: '全部账户' }).getAttribute('aria-expanded')).toBe('false');
+		expect(screen.getByRole('button', { name: '全部账户' }).getAttribute('aria-expanded')).toBe(
+			'false'
+		);
 	});
 
 	it('没有账户时显示空状态', async () => {

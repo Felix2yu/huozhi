@@ -43,7 +43,15 @@ describe('AccountIcon 图标解析', () => {
 	});
 
 	it('id 形态但已下线的旧 icon 视为失效，回落到自动识别', () => {
-		render(Host, { account: { id: 6, name: '日常支付', bank_name: '支付宝', type: 'virtual', icon: 'legacy-icon' } });
+		render(Host, {
+			account: {
+				id: 6,
+				name: '日常支付',
+				bank_name: '支付宝',
+				type: 'virtual',
+				icon: 'legacy-icon'
+			}
+		});
 		expect(img()).not.toBeNull();
 		expect(glyph()).not.toBe('legacy-icon');
 	});

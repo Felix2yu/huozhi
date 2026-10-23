@@ -174,10 +174,10 @@
 			items: [
 				{ to: '/accounts', label: '账户资产', icon: Wallet },
 				{ to: '/cards', label: '我的银行卡', icon: CreditCard },
-			{ to: '/savings', label: '存钱计划', icon: TrendingUp },
-			{ to: '/installments', label: '分期管理', icon: CreditCard },
-			{ to: '/loans', label: '借贷管理', icon: HandCoins }
-		]
+				{ to: '/savings', label: '存钱计划', icon: TrendingUp },
+				{ to: '/installments', label: '分期管理', icon: CreditCard },
+				{ to: '/loans', label: '借贷管理', icon: HandCoins }
+			]
 		},
 		{
 			title: '规则',
@@ -196,13 +196,13 @@
 				{ to: '/shared-books', label: '共享账本', icon: Users }
 			]
 		},
-	{
-		title: '系统',
-		items: [
-			{ to: '/data', label: '数据管理', icon: Database },
-			{ to: '/settings', label: '系统设置', icon: Settings }
-		]
-	}
+		{
+			title: '系统',
+			items: [
+				{ to: '/data', label: '数据管理', icon: Database },
+				{ to: '/settings', label: '系统设置', icon: Settings }
+			]
+		}
 	];
 
 	// 兼容旧引用（pageTitle 等处使用）
@@ -298,42 +298,46 @@
 </script>
 
 {#if checking}
-	<div class="min-h-screen grid place-items-center text-muted-foreground text-sm">
+	<div class="grid min-h-screen place-items-center text-sm text-muted-foreground">
 		<div class="animate-pulse">正在加载货殖...</div>
 	</div>
 {:else}
-	<div class="min-h-screen bg-background text-foreground flex">
+	<div class="flex min-h-screen bg-background text-foreground">
 		<!-- ========== 桌面侧边栏 ========== -->
-		<aside class="hidden md:flex fixed md:sticky md:top-0 inset-y-0 left-0 z-40 w-64 h-screen border-r bg-card flex-col shrink-0">
+		<aside
+			class="fixed inset-y-0 left-0 z-40 hidden h-screen w-64 shrink-0 flex-col border-r bg-card md:sticky md:top-0 md:flex"
+		>
 			<!-- Logo -->
-			<div class="px-5 py-4 border-b flex items-center gap-2">
-				<div class="w-9 h-9 rounded-xl bg-primary grid place-items-center text-primary-foreground font-bold">
+			<div class="flex items-center gap-2 border-b px-5 py-4">
+				<div
+					class="grid h-9 w-9 place-items-center rounded-xl bg-primary font-bold text-primary-foreground"
+				>
 					账
 				</div>
-				<div class="flex-1 min-w-0">
-					<div class="font-semibold leading-tight">货殖</div>
+				<div class="min-w-0 flex-1">
+					<div class="leading-tight font-semibold">货殖</div>
 					<div class="text-xs text-muted-foreground">简洁纯粹的记账本</div>
 				</div>
 			</div>
 
 			<!-- 账本切换器 -->
-			<div class="px-3 py-3 border-b">
+			<div class="border-b px-3 py-3">
 				<button
-					class="w-full flex items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left hover:border-primary/50 hover:bg-accent transition"
+					class="flex w-full items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition hover:border-primary/50 hover:bg-accent"
 					onclick={() => (bookPickerOpen = !bookPickerOpen)}
 				>
-					<span class="w-8 h-8 rounded-lg bg-muted grid place-items-center text-base shrink-0">
+					<span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-muted text-base">
 						{appStore.currentBookId === 0
 							? '📚'
-							: (appStore.books.find((b) => b.id === appStore.currentBookId)?.icon || '📘')}
+							: appStore.books.find((b) => b.id === appStore.currentBookId)?.icon || '📘'}
 					</span>
-					<span class="flex-1 min-w-0">
-						<span class="block text-sm font-medium truncate">
+					<span class="min-w-0 flex-1">
+						<span class="block truncate text-sm font-medium">
 							{appStore.currentBookId === 0
 								? '全部账本'
-								: (appStore.books.find((b) => b.id === appStore.currentBookId)?.name || '选择账本')}
+								: appStore.books.find((b) => b.id === appStore.currentBookId)?.name || '选择账本'}
 						</span>
-						<span class="block text-[11px] text-muted-foreground truncate">
+						<span class="block truncate text-[11px] text-muted-foreground">
 							{appStore.currentBookId === 0
 								? '聚合所有账本收支'
 								: `共 ${appStore.books.length} 个账本`}
@@ -341,16 +345,21 @@
 					</span>
 					<ChevronDown
 						size={15}
-						class={cn('shrink-0 text-muted-foreground transition-transform', bookPickerOpen && 'rotate-180')}
+						class={cn(
+							'shrink-0 text-muted-foreground transition-transform',
+							bookPickerOpen && 'rotate-180'
+						)}
 					/>
 				</button>
 
 				{#if bookPickerOpen}
-					<div class="relative mt-2 w-full max-h-60 overflow-y-auto rounded-lg border bg-card shadow-lg z-50">
+					<div
+						class="relative z-50 mt-2 max-h-60 w-full overflow-y-auto rounded-lg border bg-card shadow-lg"
+					>
 						<button
 							class={cn(
-								'w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent transition',
-								appStore.currentBookId === 0 && 'bg-primary/10 text-primary font-medium'
+								'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-accent',
+								appStore.currentBookId === 0 && 'bg-primary/10 font-medium text-primary'
 							)}
 							onclick={() => {
 								appStore.setCurrentBook(0);
@@ -366,8 +375,8 @@
 						{#each appStore.books.filter((b) => !b.is_archived) as book (book.id)}
 							<button
 								class={cn(
-									'w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent transition',
-									appStore.currentBookId === book.id && 'bg-primary/10 text-primary font-medium'
+									'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-accent',
+									appStore.currentBookId === book.id && 'bg-primary/10 font-medium text-primary'
 								)}
 								onclick={() => {
 									appStore.setCurrentBook(book.id);
@@ -386,10 +395,12 @@
 			</div>
 
 			<!-- 导航菜单 -->
-			<nav class="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+			<nav class="flex-1 space-y-3 overflow-y-auto px-3 py-3">
 				{#each navGroups as group (group.title)}
 					<div>
-						<div class="px-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+						<div
+							class="px-3 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground/70 uppercase"
+						>
 							{group.title}
 						</div>
 						<div class="space-y-0.5">
@@ -397,9 +408,9 @@
 								<a
 									href={item.to}
 									class={cn(
-										'flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition',
+										'flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition',
 										isActive(item.to)
-											? 'bg-primary/10 text-primary font-medium'
+											? 'bg-primary/10 font-medium text-primary'
 											: 'text-muted-foreground hover:bg-accent hover:text-foreground'
 									)}
 								>
@@ -413,29 +424,24 @@
 			</nav>
 
 			<!-- 底部操作区 -->
-			<div class="px-3 py-3 border-t space-y-2">
-				<Button
-					class="w-full"
-					onclick={() => goto('/transactions/add')}
-				>
+			<div class="space-y-2 border-t px-3 py-3">
+				<Button class="w-full" onclick={() => goto('/transactions/add')}>
 					<Plus size={16} />
 					记一笔
 				</Button>
 				<div class="flex items-center justify-between text-xs text-muted-foreground">
-					<div class="flex items-center gap-2 min-w-0">
-						<div class="w-7 h-7 rounded-full bg-primary/10 text-primary grid place-items-center font-semibold truncate overflow-hidden shrink-0">
+					<div class="flex min-w-0 items-center gap-2">
+						<div
+							class="grid h-7 w-7 shrink-0 place-items-center truncate overflow-hidden rounded-full bg-primary/10 font-semibold text-primary"
+						>
 							{#if appStore.user?.avatar}
-								<img
-									src={appStore.user.avatar}
-									alt=""
-									class="w-full h-full object-cover"
-								/>
+								<img src={appStore.user.avatar} alt="" class="h-full w-full object-cover" />
 							{:else}
 								{appStore.user?.nickname?.[0] || 'U'}
 							{/if}
 						</div>
 						<div class="truncate">
-							<div class="text-foreground font-medium truncate text-sm">
+							<div class="truncate text-sm font-medium text-foreground">
 								{appStore.user?.nickname}
 							</div>
 							<div class="truncate text-[11px]">
@@ -446,7 +452,7 @@
 					<!-- 隐私模式快捷开关：未开启时点击进入遮蔽；已开启时点击临时显示/恢复 -->
 					<button
 						title={privacyStore.masked ? '显示金额' : '隐藏金额'}
-						class="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition"
+						class="rounded-lg p-2 text-muted-foreground transition hover:bg-accent hover:text-foreground"
 						onclick={() => privacyStore.toggle()}
 					>
 						{#if privacyStore.masked}
@@ -457,7 +463,7 @@
 					</button>
 					<button
 						title="退出登录"
-						class="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition"
+						class="rounded-lg p-2 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
 						onclick={handleLogout}
 					>
 						<LogOut size={16} />
@@ -467,34 +473,35 @@
 		</aside>
 
 		<!-- ========== 主内容区 ========== -->
-		<div class="flex-1 flex flex-col min-w-0">
+		<div class="flex min-w-0 flex-1 flex-col">
 			<!-- 顶部栏 -->
-			<header class="sticky top-0 z-20 bg-background/80 backdrop-blur border-b">
-				<div class="px-4 md:px-8 py-3 flex items-center gap-3">
+			<header class="sticky top-0 z-20 border-b bg-background/80 backdrop-blur">
+				<div class="flex items-center gap-3 px-4 py-3 md:px-8">
 					<!-- 移动端 -->
-					<div class="md:hidden w-8 h-8 rounded-lg bg-primary grid place-items-center text-primary-foreground text-sm font-bold shrink-0">
+					<div
+						class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary text-sm font-bold text-primary-foreground md:hidden"
+					>
 						账
 					</div>
-					<h1 class="md:hidden flex-1 min-w-0 text-base font-semibold truncate">
+					<h1 class="min-w-0 flex-1 truncate text-base font-semibold md:hidden">
 						{pageTitle}
 					</h1>
 					<button
-						class="md:hidden inline-flex items-center justify-center rounded-md p-2 hover:bg-accent shrink-0"
+						class="inline-flex shrink-0 items-center justify-center rounded-md p-2 hover:bg-accent md:hidden"
 						onclick={toggleSidebar}
 					>
 						<Menu size={20} />
 					</button>
 
 					<!-- 桌面端迷你统计 -->
-					<div class="hidden md:flex flex-1 items-center gap-4 text-xs justify-end">
+					<div class="hidden flex-1 items-center justify-end gap-4 text-xs md:flex">
 						{#if offlineCount > 0}
 							<button
-								class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition dark:bg-amber-950 dark:border-amber-800 dark:text-amber-400"
+								class="flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-amber-700 transition hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400"
 								onclick={async () => {
 									const r = await replayQueue();
 									if (r.ok > 0) hzToast.success(`已同步 ${r.ok} 条请求`);
-									if (r.remaining > 0)
-										hzToast.warning(`${r.remaining} 条仍未同步`);
+									if (r.remaining > 0) hzToast.warning(`${r.remaining} 条仍未同步`);
 								}}
 							>
 								<CloudOff size={14} />
@@ -504,20 +511,20 @@
 						{#if miniStats}
 							<div class="flex items-center gap-4">
 								<div class="text-right leading-tight">
-									<div class="text-muted-foreground text-[10px]">本月收入</div>
-									<div class="font-semibold tabular-nums text-sm text-[var(--color-income)]">
+									<div class="text-[10px] text-muted-foreground">本月收入</div>
+									<div class="text-sm font-semibold text-[var(--color-income)] tabular-nums">
 										{formatMoney(miniStats.in)}
 									</div>
 								</div>
 								<div class="text-right leading-tight">
-									<div class="text-muted-foreground text-[10px]">本月支出</div>
-									<div class="font-semibold tabular-nums text-sm text-[var(--color-expense)]">
+									<div class="text-[10px] text-muted-foreground">本月支出</div>
+									<div class="text-sm font-semibold text-[var(--color-expense)] tabular-nums">
 										{formatMoney(miniStats.out)}
 									</div>
 								</div>
 								<div class="text-right leading-tight">
-									<div class="text-muted-foreground text-[10px]">总资产</div>
-									<div class="font-semibold tabular-nums text-sm text-primary">
+									<div class="text-[10px] text-muted-foreground">总资产</div>
+									<div class="text-sm font-semibold text-primary tabular-nums">
 										{formatMoney(miniStats.asset)}
 									</div>
 								</div>
@@ -528,16 +535,18 @@
 			</header>
 
 			<!-- 页面内容 -->
-			<main class="flex-1 px-4 md:px-8 pt-4 md:pt-6 pb-24 md:pb-8 max-w-[1400px] w-full mx-auto">
+			<main class="mx-auto w-full max-w-[1400px] flex-1 px-4 pt-4 pb-24 md:px-8 md:pt-6 md:pb-8">
 				{@render children()}
 			</main>
 		</div>
 
 		<!-- ========== 移动端侧边栏抽屉 ========== -->
 		<Sheet bind:open={sidebarOpen} side="left">
-			<div class="flex flex-col h-full">
-				<div class="px-5 py-4 border-b flex items-center gap-2">
-					<div class="w-9 h-9 rounded-xl bg-primary grid place-items-center text-primary-foreground font-bold">
+			<div class="flex h-full flex-col">
+				<div class="flex items-center gap-2 border-b px-5 py-4">
+					<div
+						class="grid h-9 w-9 place-items-center rounded-xl bg-primary font-bold text-primary-foreground"
+					>
 						账
 					</div>
 					<div>
@@ -545,10 +554,12 @@
 						<div class="text-xs text-muted-foreground">简洁纯粹的记账本</div>
 					</div>
 				</div>
-				<nav class="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+				<nav class="flex-1 space-y-3 overflow-y-auto px-3 py-3">
 					{#each navGroups as group (group.title)}
 						<div>
-							<div class="px-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+							<div
+								class="px-3 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground/70 uppercase"
+							>
 								{group.title}
 							</div>
 							<div class="space-y-0.5">
@@ -556,9 +567,9 @@
 									<a
 										href={item.to}
 										class={cn(
-											'flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition',
+											'flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition',
 											isActive(item.to)
-												? 'bg-primary/10 text-primary font-medium'
+												? 'bg-primary/10 font-medium text-primary'
 												: 'text-muted-foreground hover:bg-accent hover:text-foreground'
 										)}
 									>
@@ -570,9 +581,9 @@
 						</div>
 					{/each}
 				</nav>
-				<div class="px-3 py-3 border-t">
+				<div class="border-t px-3 py-3">
 					<button
-						class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-destructive hover:bg-destructive/10"
+						class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/10"
 						onclick={async () => {
 							await handleLogout();
 						}}
@@ -585,7 +596,9 @@
 		</Sheet>
 
 		<!-- ========== 移动端底部 Tab Bar ========== -->
-		<nav class="md:hidden fixed bottom-0 inset-x-0 z-20 bg-background border-t pb-[env(safe-area-inset-bottom)]">
+		<nav
+			class="fixed inset-x-0 bottom-0 z-20 border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
+		>
 			<div class="grid grid-cols-5">
 				{#each mobileTabs as tab (tab.to)}
 					{#if tab.to === '/transactions/add'}
@@ -593,14 +606,16 @@
 							class="relative flex items-center justify-center"
 							onclick={() => goto('/transactions/add')}
 						>
-							<div class="absolute -top-5 w-14 h-14 rounded-full bg-primary text-primary-foreground grid place-items-center shadow-lg border-4 border-background">
+							<div
+								class="absolute -top-5 grid h-14 w-14 place-items-center rounded-full border-4 border-background bg-primary text-primary-foreground shadow-lg"
+							>
 								<Plus size={24} />
 							</div>
 						</button>
 					{:else if tab.more}
 						<!-- A3：「更多」打开完整导航抽屉，9 个低频功能不再无处可去 -->
 						<button
-							class="flex flex-col items-center justify-center gap-0.5 py-2.5 text-[11px] transition text-muted-foreground"
+							class="flex flex-col items-center justify-center gap-0.5 py-2.5 text-[11px] text-muted-foreground transition"
 							onclick={() => (sidebarOpen = true)}
 						>
 							<tab.icon size={20} />

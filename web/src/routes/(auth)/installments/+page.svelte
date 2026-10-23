@@ -123,14 +123,14 @@
 	{#if loading}
 		<div class="grid gap-3 md:grid-cols-2">
 			{#each [1, 2] as i}
-				<div class="h-32 rounded-xl animate-pulse bg-muted" ></div>
+				<div class="h-32 animate-pulse rounded-xl bg-muted"></div>
 			{/each}
 		</div>
 	{:else if list.length === 0}
 		<Card>
 			<div class="py-16 text-center">
 				<CreditCard size={32} class="mx-auto mb-3 text-muted-foreground opacity-50" />
-				<p class="text-muted-foreground text-sm">暂无分期</p>
+				<p class="text-sm text-muted-foreground">暂无分期</p>
 			</div>
 		</Card>
 	{:else}
@@ -138,14 +138,14 @@
 			{#each list as item (item.id)}
 				<Card class="group">
 					<CardContent class="p-4">
-						<div class="flex items-center justify-between mb-2">
-							<div class="font-medium truncate">{item.name}</div>
+						<div class="mb-2 flex items-center justify-between">
+							<div class="truncate font-medium">{item.name}</div>
 							<div class="flex items-center gap-1">
 								<span class="text-xs text-muted-foreground">
 									{item.status === 'active' ? '还款中' : '已结清'}
 								</span>
 								<button
-									class="p-1 rounded hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition"
+									class="rounded p-1 opacity-0 transition group-hover:opacity-100 hover:bg-destructive/10"
 									onclick={() => handleDelete(item)}
 								>
 									<Trash2 size={14} class="text-destructive" />
@@ -158,17 +158,19 @@
 								? Math.min((item.paid_months / item.total_months) * 100, 100)
 								: 0}
 						/>
-						<div class="flex items-center justify-between mt-2 text-sm">
+						<div class="mt-2 flex items-center justify-between text-sm">
 							<div>
 								<span class="font-semibold">{item.paid_months}/{item.total_months}</span>
-								<span class="text-muted-foreground ml-1">期</span>
+								<span class="ml-1 text-muted-foreground">期</span>
 							</div>
 							<div class="font-semibold tabular-nums">
 								月供 {formatMoney(item.monthly_amount)}
 							</div>
 						</div>
 						<!-- 分期页此前只显示「已还/总期数 + 月供」，看不到总额、剩余与下次还款日 -->
-						<div class="flex items-center justify-between mt-2 pt-2 border-t text-xs text-muted-foreground">
+						<div
+							class="mt-2 flex items-center justify-between border-t pt-2 text-xs text-muted-foreground"
+						>
 							<span>
 								剩余 {formatMoney(
 									Math.max(0, item.total_amount - item.monthly_amount * item.paid_months)
@@ -204,8 +206,14 @@
 			<div class="space-y-2">
 				<Label>总金额</Label>
 				<div class="relative">
-					<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
-					<Input class="pl-8" type="number" step="0.01" placeholder="0.00" bind:value={totalAmount} />
+					<span class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">¥</span>
+					<Input
+						class="pl-8"
+						type="number"
+						step="0.01"
+						placeholder="0.00"
+						bind:value={totalAmount}
+					/>
 				</div>
 			</div>
 			<div class="space-y-2">
@@ -218,15 +226,27 @@
 			<div class="space-y-2">
 				<Label>月供金额</Label>
 				<div class="relative">
-					<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
-					<Input class="pl-8" type="number" step="0.01" placeholder="自动计算" bind:value={monthlyAmount} />
+					<span class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">¥</span>
+					<Input
+						class="pl-8"
+						type="number"
+						step="0.01"
+						placeholder="自动计算"
+						bind:value={monthlyAmount}
+					/>
 				</div>
 			</div>
 			<div class="space-y-2">
 				<Label>利息总额</Label>
 				<div class="relative">
-					<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
-					<Input class="pl-8" type="number" step="0.01" placeholder="0.00" bind:value={interestAmount} />
+					<span class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">¥</span>
+					<Input
+						class="pl-8"
+						type="number"
+						step="0.01"
+						placeholder="0.00"
+						bind:value={interestAmount}
+					/>
 				</div>
 			</div>
 		</div>
@@ -235,7 +255,7 @@
 			<div class="space-y-2">
 				<Label>分类</Label>
 				<select
-					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 					bind:value={categoryId}
 				>
 					{#each appStore.categories.expense as cat}
@@ -254,7 +274,7 @@
 			<Input type="date" bind:value={firstRepayDate} />
 		</div>
 
-		<div class="flex gap-2 justify-end pt-2">
+		<div class="flex justify-end gap-2 pt-2">
 			<Button variant="outline" onclick={() => (showDialog = false)}>取消</Button>
 			<Button onclick={handleSave} disabled={saving}>
 				{saving ? '保存中...' : '保存'}

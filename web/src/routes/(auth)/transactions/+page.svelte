@@ -48,9 +48,7 @@
 	// 兜底：本批追加后一条新数据都没带来，说明已经到底（或游标无法前进），停止再拉
 	let endReached = $state(false);
 
-	const flatCount = $derived(
-		grouped.reduce((n, g) => n + (g.transactions?.length ?? 0), 0)
-	);
+	const flatCount = $derived(grouped.reduce((n, g) => n + (g.transactions?.length ?? 0), 0));
 	const hasMore = $derived(!endReached && grouped.length > 0 && flatCount < total);
 	const lastTx = $derived.by(() => {
 		for (let i = grouped.length - 1; i >= 0; i--) {
@@ -369,17 +367,13 @@
 	}
 
 	function getAccountName(tx: Transaction): string {
-		return (
-			tx.account_name || appStore.accounts.find((a) => a.id === tx.account_id)?.name || '—'
-		);
+		return tx.account_name || appStore.accounts.find((a) => a.id === tx.account_id)?.name || '—';
 	}
 
 	function getAccountDisplay(tx: Transaction): string {
 		if (tx.type === 'transfer' && tx.to_account_id) {
 			const to =
-				tx.to_account_name ||
-				appStore.accounts.find((a) => a.id === tx.to_account_id)?.name ||
-				'—';
+				tx.to_account_name || appStore.accounts.find((a) => a.id === tx.to_account_id)?.name || '—';
 			return `${getAccountName(tx)} → ${to}`;
 		}
 		return getAccountName(tx);
@@ -422,14 +416,14 @@
 <div class="flex flex-col gap-4">
 	<!-- 汇总卡片 -->
 	<Card>
-		<div class="grid grid-cols-3 p-4 gap-4">
+		<div class="grid grid-cols-3 gap-4 p-4">
 			<div class="text-center">
 				<div class="text-xs text-muted-foreground">收入</div>
 				<div class="mt-1 font-bold text-[var(--color-income)] tabular-nums">
 					{formatMoney(summary.total_income)}
 				</div>
 			</div>
-			<div class="text-center border-x">
+			<div class="border-x text-center">
 				<div class="text-xs text-muted-foreground">支出</div>
 				<div class="mt-1 font-bold text-[var(--color-expense)] tabular-nums">
 					{formatMoney(summary.total_expense)}
@@ -449,16 +443,16 @@
 	</Card>
 
 	<!-- 筛选栏 -->
-	<div class="flex items-center gap-2 flex-wrap">
+	<div class="flex flex-wrap items-center gap-2">
 		<Tabs bind:value={type}>
 			<TabsTrigger value="all">全部</TabsTrigger>
 			<TabsTrigger value="expense">支出</TabsTrigger>
 			<TabsTrigger value="income">收入</TabsTrigger>
 			<TabsTrigger value="transfer">转账</TabsTrigger>
 		</Tabs>
-		<div class="relative flex-1 min-w-[140px]">
-			<Search size={14} class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-			<Input class="pl-9 h-8" placeholder="搜索..." bind:value={keyword} />
+		<div class="relative min-w-[140px] flex-1">
+			<Search size={14} class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground" />
+			<Input class="h-8 pl-9" placeholder="搜索..." bind:value={keyword} />
 		</div>
 		<!-- B3：批量删除入口 -->
 		<Button
@@ -480,14 +474,14 @@
 			<Filter size={14} />
 			筛选
 			{#if hasFilters}
-				<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+				<span class="h-1.5 w-1.5 rounded-full bg-primary"></span>
 			{/if}
 		</Button>
 	</div>
 
 	{#if selectMode}
 		<Card>
-			<div class="p-3 flex items-center gap-3 text-sm">
+			<div class="flex items-center gap-3 p-3 text-sm">
 				<span class="text-muted-foreground">已选 {selectedIds.length} 笔</span>
 				<div class="flex-1"></div>
 				<Button
@@ -506,7 +500,7 @@
 	<!-- 筛选面板 -->
 	{#if showFilters}
 		<Card>
-			<div class="p-4 space-y-3">
+			<div class="space-y-3 p-4">
 				<div class="grid grid-cols-2 gap-4">
 					<div class="space-y-2">
 						<Label>开始日期</Label>
@@ -522,7 +516,7 @@
 					<div class="space-y-2">
 						<Label>分类</Label>
 						<select
-							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 							bind:value={categoryId}
 						>
 							<option value="">全部分类</option>
@@ -558,7 +552,7 @@
 					<div class="space-y-2">
 						<Label>标签</Label>
 						<select
-							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 							bind:value={tagId}
 						>
 							<option value="">全部标签</option>
@@ -570,7 +564,7 @@
 					<div class="space-y-2">
 						<Label>报销状态</Label>
 						<select
-							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 							bind:value={reimburseStatus}
 						>
 							<option value="">不限</option>
@@ -598,15 +592,15 @@
 	{#if loading}
 		<div class="space-y-2" data-testid="tx-skeleton">
 			{#each [1, 2, 3, 4] as i}
-				<div class="h-16 rounded-lg animate-pulse bg-muted"></div>
+				<div class="h-16 animate-pulse rounded-lg bg-muted"></div>
 			{/each}
 		</div>
 	{:else if grouped.length === 0}
 		<!-- F-08：区分「从未记过账」与「筛选无结果」 -->
 		<Card>
 			<div class="py-16 text-center" data-testid="tx-empty">
-				<div class="text-4xl mb-4 opacity-50">{hasFilters ? '🔍' : '📋'}</div>
-				<p class="text-muted-foreground mb-4">
+				<div class="mb-4 text-4xl opacity-50">{hasFilters ? '🔍' : '📋'}</div>
+				<p class="mb-4 text-muted-foreground">
 					{hasFilters ? '没有符合筛选条件的记录' : '还没有交易记录'}
 				</p>
 				{#if hasFilters}
@@ -629,13 +623,13 @@
 					{@const dayGroup = grouped[row.index]}
 					{#if dayGroup}
 						<div
-							class="absolute left-0 top-0 w-full"
+							class="absolute top-0 left-0 w-full"
 							style="transform: translateY({row.start}px);"
 							data-index={row.index}
 							use:measureRow={$virtualizer}
 						>
 							<div class="pb-4">
-								<div class="flex items-center justify-between mb-2 px-1">
+								<div class="mb-2 flex items-center justify-between px-1">
 									<span class="text-xs text-muted-foreground">
 										{formatRelativeDate(dayGroup.date)}
 									</span>
@@ -654,7 +648,9 @@
 										{@const disp = amountDisplay(tx)}
 										{@const category = getCategory(tx)}
 										{@const note = tx.description || tx.merchant || tx.remark}
-										<div class="w-full flex items-center gap-3 py-2.5 px-3 hover:bg-accent/50 transition">
+										<div
+											class="flex w-full items-center gap-3 px-3 py-2.5 transition hover:bg-accent/50"
+										>
 											{#if selectMode}
 												<input
 													type="checkbox"
@@ -664,28 +660,28 @@
 												/>
 											{/if}
 											<button
-												class="flex items-center gap-3 flex-1 min-w-0 text-left"
+												class="flex min-w-0 flex-1 items-center gap-3 text-left"
 												onclick={() => showPreview(tx)}
 											>
 												<div
-													class="w-2 h-2 rounded-full shrink-0"
+													class="h-2 w-2 shrink-0 rounded-full"
 													class:bg-muted-foreground={!category?.color}
 													style={category?.color ? `background-color: ${category.color}` : ''}
 												></div>
-												<div class="flex-1 min-w-0">
-													<div class="text-sm font-medium truncate">
+												<div class="min-w-0 flex-1">
+													<div class="truncate text-sm font-medium">
 														{#each highlightSegments(getCategoryName(tx), keyword) as seg}
 															{#if seg.hit}<mark
-																	class="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5"
+																	class="rounded bg-yellow-200 px-0.5 dark:bg-yellow-800"
 																	>{seg.text}</mark
 																>{:else}{seg.text}{/if}
 														{/each}
 													</div>
 													{#if note}
-														<div class="text-xs text-muted-foreground truncate">
+														<div class="truncate text-xs text-muted-foreground">
 															{#each highlightSegments(note, keyword) as seg}
 																{#if seg.hit}<mark
-																		class="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5"
+																		class="rounded bg-yellow-200 px-0.5 dark:bg-yellow-800"
 																		>{seg.text}</mark
 																	>{:else}{seg.text}{/if}
 															{/each}
@@ -693,13 +689,13 @@
 													{/if}
 												</div>
 												<!-- F-02：与日小计、详情弹窗共用同一套符号/颜色口径 -->
-												<div class="text-right shrink-0 ml-2">
-													<div class="font-semibold tabular-nums text-sm {toneClass(disp.tone)}">
+												<div class="ml-2 shrink-0 text-right">
+													<div class="text-sm font-semibold tabular-nums {toneClass(disp.tone)}">
 														{disp.sign}{formatMoney(disp.abs)}
 													</div>
 													{#if isForeign(tx)}
 														<div
-															class="text-[11px] text-muted-foreground tabular-nums truncate"
+															class="truncate text-[11px] text-muted-foreground tabular-nums"
 															title="原币 {tx.currency} {tx.amount} × 汇率 {fxRateOf(tx)}"
 														>
 															{currencySymbol(tx.currency)}
@@ -707,10 +703,10 @@
 															{fxRateOf(tx).toFixed(4)}
 														</div>
 													{/if}
-													<div class="text-xs text-muted-foreground truncate">
+													<div class="truncate text-xs text-muted-foreground">
 														{#each highlightSegments(getAccountDisplay(tx), keyword) as seg}
 															{#if seg.hit}<mark
-																	class="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5"
+																	class="rounded bg-yellow-200 px-0.5 dark:bg-yellow-800"
 																	>{seg.text}</mark
 																>{:else}{seg.text}{/if}
 														{/each}
@@ -720,7 +716,7 @@
 											<!-- B3：单笔删除入口 -->
 											{#if !selectMode}
 												<button
-													class="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+													class="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
 													onclick={() => handleDelete(tx)}
 													title="删除"
 												>
@@ -737,7 +733,7 @@
 			</div>
 
 			<!-- A1：分页 -->
-			<div class="text-center py-2">
+			<div class="py-2 text-center">
 				{#if hasMore}
 					<Button variant="outline" onclick={loadMore} disabled={loadingMore}>
 						{#if loadingMore}
@@ -772,20 +768,20 @@
 						{disp.sign}{formatMoney(disp.abs)}
 					</div>
 					{#if previewFx}
-						<div class="text-xs text-muted-foreground mt-1 tabular-nums space-y-0.5">
+						<div class="mt-1 space-y-0.5 text-xs text-muted-foreground tabular-nums">
 							<div>
 								原币 {previewTx.currency}
 								{currencySymbol(previewTx.currency)}
 								{Math.abs(Number(previewTx.amount) || 0).toFixed(2)}
 							</div>
 							<div>汇率 1 {previewTx.currency} = {previewFx.rate} {baseCurrency}</div>
-							<div class="text-foreground font-medium">
+							<div class="font-medium text-foreground">
 								折算 {currencySymbol(baseCurrency)}{previewFx.converted.toFixed(2)}
 							</div>
 						</div>
 					{/if}
 				{/if}
-				<div class="text-sm text-muted-foreground mt-1">
+				<div class="mt-1 text-sm text-muted-foreground">
 					{typeLabel(previewTx.type)}
 				</div>
 			</div>
@@ -833,9 +829,9 @@
 					</div>
 				{/if}
 				{#if (previewTx.images || []).length}
-					<div class="flex gap-2 flex-wrap">
+					<div class="flex flex-wrap gap-2">
 						{#each previewTx.images as url}
-							<img src={url} alt="凭证" class="w-16 h-16 object-cover rounded border" />
+							<img src={url} alt="凭证" class="h-16 w-16 rounded border object-cover" />
 						{/each}
 					</div>
 				{/if}
@@ -854,7 +850,10 @@
 			</div>
 
 			<div class="flex gap-2 pt-2">
-				<Button class="flex-1" onclick={() => previewTx && goto(`/transactions/edit/${previewTx.id}`)}>
+				<Button
+					class="flex-1"
+					onclick={() => previewTx && goto(`/transactions/edit/${previewTx.id}`)}
+				>
 					编辑
 				</Button>
 				<Button

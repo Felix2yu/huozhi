@@ -16,8 +16,24 @@ import { render, screen, waitFor } from '@testing-library/svelte';
 
 const CATEGORY = { id: 1, name: '餐饮', icon: '🍔', color: '#10B981', kind: 'expense' };
 const TXS = [
-	{ id: 1, type: 'expense', amount: 5000, category_id: 1, account_id: 9, tx_date: '2026-09-16', description: '午餐' },
-	{ id: 2, type: 'expense', amount: 8800, category_id: 404, account_id: 404, tx_date: '2026-09-15', merchant: '便利店' }
+	{
+		id: 1,
+		type: 'expense',
+		amount: 5000,
+		category_id: 1,
+		account_id: 9,
+		tx_date: '2026-09-16',
+		description: '午餐'
+	},
+	{
+		id: 2,
+		type: 'expense',
+		amount: 8800,
+		category_id: 404,
+		account_id: 404,
+		tx_date: '2026-09-15',
+		merchant: '便利店'
+	}
 ];
 
 const listFn = vi.fn(async () => ({

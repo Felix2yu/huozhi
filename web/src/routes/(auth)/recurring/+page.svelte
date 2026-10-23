@@ -55,7 +55,10 @@
 		if (item.recurring_type === 'weekly' && item.weekday >= 1 && item.weekday <= 7) {
 			return `每周${WEEKDAYS[item.weekday - 1]}`;
 		}
-		if ((item.recurring_type === 'daily' || item.recurring_type === 'custom') && item.interval > 1) {
+		if (
+			(item.recurring_type === 'daily' || item.recurring_type === 'custom') &&
+			item.interval > 1
+		) {
 			return `每 ${item.interval} 天`;
 		}
 		return base;
@@ -167,26 +170,26 @@
 	{#if loading}
 		<div class="space-y-2">
 			{#each [1, 2, 3] as i}
-				<div class="h-16 rounded-lg animate-pulse bg-muted" ></div>
+				<div class="h-16 animate-pulse rounded-lg bg-muted"></div>
 			{/each}
 		</div>
 	{:else if list.length === 0}
 		<Card>
 			<div class="py-16 text-center">
 				<Repeat size={32} class="mx-auto mb-3 text-muted-foreground opacity-50" />
-				<p class="text-muted-foreground text-sm">暂无周期任务</p>
+				<p class="text-sm text-muted-foreground">暂无周期任务</p>
 			</div>
 		</Card>
 	{:else}
 		<Card>
-			<CardContent class="p-0 divide-y">
+			<CardContent class="divide-y p-0">
 				{#each list as item (item.id)}
-					<div class="flex items-center gap-3 p-4 group">
-						<div class="w-10 h-10 rounded-lg bg-muted grid place-items-center">
+					<div class="group flex items-center gap-3 p-4">
+						<div class="grid h-10 w-10 place-items-center rounded-lg bg-muted">
 							<Repeat size={18} class="text-muted-foreground" />
 						</div>
-						<div class="flex-1 min-w-0">
-							<div class="font-medium truncate">{item.description || item.name}</div>
+						<div class="min-w-0 flex-1">
+							<div class="truncate font-medium">{item.description || item.name}</div>
 							<div class="text-xs text-muted-foreground">
 								{describeCycle(item)} · 下次 {nextRunLabel(item.next_run_at)}
 								{#if item.max_times > 0}
@@ -194,12 +197,12 @@
 								{/if}
 							</div>
 						</div>
-						<div class="text-right flex items-center gap-1">
+						<div class="flex items-center gap-1 text-right">
 							<div class="font-semibold tabular-nums">
 								{item.type === 'expense' ? '-' : '+'}{formatMoney(item.amount)}
 							</div>
 							<button
-								class="p-1 rounded hover:bg-accent transition"
+								class="rounded p-1 transition hover:bg-accent"
 								title={item.status === 'active' ? '暂停' : '启用'}
 								onclick={() => handleToggle(item)}
 							>
@@ -210,7 +213,7 @@
 								{/if}
 							</button>
 							<button
-								class="p-1 rounded hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition"
+								class="rounded p-1 opacity-0 transition group-hover:opacity-100 hover:bg-destructive/10"
 								onclick={() => handleDelete(item)}
 							>
 								<Trash2 size={14} class="text-destructive" />
@@ -237,7 +240,7 @@
 			<div class="space-y-2">
 				<Label>类型</Label>
 				<select
-					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 					bind:value={type}
 				>
 					<option value="expense">支出</option>
@@ -247,7 +250,7 @@
 			<div class="space-y-2">
 				<Label>金额</Label>
 				<div class="relative">
-					<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
+					<span class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">¥</span>
 					<Input class="pl-8" type="number" step="0.01" placeholder="0.00" bind:value={amount} />
 				</div>
 			</div>
@@ -257,10 +260,10 @@
 			<div class="space-y-2">
 				<Label>分类</Label>
 				<select
-					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 					bind:value={categoryId}
 				>
-					{#each (type === 'expense' ? appStore.categories.expense : appStore.categories.income) as cat}
+					{#each type === 'expense' ? appStore.categories.expense : appStore.categories.income as cat}
 						<option value={cat.id}>{cat.icon || '📁'} {cat.name}</option>
 					{/each}
 				</select>
@@ -280,7 +283,7 @@
 			<div class="space-y-2">
 				<Label>周期</Label>
 				<select
-					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 					bind:value={recurringType}
 				>
 					{#each Object.entries(TYPE_LABELS) as [value, label]}
@@ -299,7 +302,7 @@
 			<div class="space-y-2">
 				<Label>每月几号</Label>
 				<select
-					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 					bind:value={monthDay}
 				>
 					{#each Array.from({ length: 31 }, (_, i) => i + 1) as d}
@@ -314,7 +317,7 @@
 			<div class="space-y-2">
 				<Label>每周星期几</Label>
 				<select
-					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 					bind:value={weekday}
 				>
 					{#each WEEKDAYS as w, i}
@@ -329,7 +332,7 @@
 			</div>
 		{/if}
 
-		<div class="flex gap-2 justify-end pt-2">
+		<div class="flex justify-end gap-2 pt-2">
 			<Button variant="outline" onclick={() => (showDialog = false)}>取消</Button>
 			<Button onclick={handleSave} disabled={saving}>
 				{saving ? '保存中...' : '保存'}

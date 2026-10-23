@@ -19,9 +19,7 @@ let theme = $state<Theme>(getInitialTheme());
 function applyTheme(t: Theme) {
 	const root = document.documentElement;
 	const isDark =
-		t === 'dark' ||
-		(t === 'system' &&
-			window.matchMedia('(prefers-color-scheme: dark)').matches);
+		t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 	if (isDark) {
 		root.classList.add('dark');
 	} else {
@@ -35,11 +33,9 @@ if (typeof document !== 'undefined') {
 
 	// 监听系统主题变化
 	if (theme === 'system') {
-		window
-			.matchMedia('(prefers-color-scheme: dark)')
-			.addEventListener('change', () => {
-				applyTheme(theme);
-			});
+		window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+			applyTheme(theme);
+		});
 	}
 }
 

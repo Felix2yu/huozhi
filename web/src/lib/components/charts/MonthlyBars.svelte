@@ -10,7 +10,13 @@
 		LinearScale,
 		CategoryScale
 	} from 'chart.js';
-	import { baseOptions, INCOME_COLOR, EXPENSE_COLOR, useMounted, centsToYuan } from './chartSetup.svelte';
+	import {
+		baseOptions,
+		INCOME_COLOR,
+		EXPENSE_COLOR,
+		useMounted,
+		centsToYuan
+	} from './chartSetup.svelte';
 	import { privacyStore } from '#lib/stores/privacy';
 
 	interface Point {
@@ -57,9 +63,7 @@
 				enabled: true,
 				callbacks: {
 					label: (ctx: any) =>
-						masked
-							? `${ctx.dataset.label}: ••••`
-							: `${ctx.dataset.label}: ${ctx.parsed.y} 元`
+						masked ? `${ctx.dataset.label}: ••••` : `${ctx.dataset.label}: ${ctx.parsed.y} 元`
 				}
 			}
 		},
@@ -79,7 +83,7 @@
 			<Bar {data} {options} />
 		{/key}
 	{:else}
-		<div class="h-full grid place-items-center text-sm text-muted-foreground">
+		<div class="grid h-full place-items-center text-sm text-muted-foreground">
 			{points.length === 0 ? '暂无数据' : ''}
 		</div>
 	{/if}

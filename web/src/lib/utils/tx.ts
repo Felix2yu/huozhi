@@ -96,9 +96,12 @@ export function typeLabel(t: string): string {
 }
 
 /** 按日重算小计 —— 由去重后的条目算出，绝不累加服务端小计 */
-export function recomputeDaySubtotal(
-	day: { day_income: number; day_expense: number; day_balance: number; transactions: Txn[] }
-): void {
+export function recomputeDaySubtotal(day: {
+	day_income: number;
+	day_expense: number;
+	day_balance: number;
+	transactions: Txn[];
+}): void {
 	let income = 0;
 	let expense = 0;
 	for (const t of day.transactions ?? []) {

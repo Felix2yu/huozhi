@@ -13,8 +13,16 @@ import type { ChartData, ChartOptions } from 'chart.js';
 
 // 主题色取自 CSS 变量，保证浅色/深色主题下都可读
 export const PALETTE = [
-	'#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4',
-	'#3b82f6', '#6366f1', '#8b5cf6', '#ec4899', '#64748b'
+	'#ef4444',
+	'#f97316',
+	'#f59e0b',
+	'#10b981',
+	'#06b6d4',
+	'#3b82f6',
+	'#6366f1',
+	'#8b5cf6',
+	'#ec4899',
+	'#64748b'
 ];
 
 export const INCOME_COLOR = '#10b981';

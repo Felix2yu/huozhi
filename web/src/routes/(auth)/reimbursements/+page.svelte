@@ -146,23 +146,23 @@
 	{#if loading}
 		<div class="space-y-2">
 			{#each [1, 2, 3] as i}
-				<div class="h-16 rounded-lg animate-pulse bg-muted" ></div>
+				<div class="h-16 animate-pulse rounded-lg bg-muted"></div>
 			{/each}
 		</div>
 	{:else if list.length === 0}
 		<Card>
 			<div class="py-16 text-center">
 				<FileText size={32} class="mx-auto mb-3 text-muted-foreground opacity-50" />
-				<p class="text-muted-foreground text-sm">暂无报销单</p>
+				<p class="text-sm text-muted-foreground">暂无报销单</p>
 			</div>
 		</Card>
 	{:else}
 		<Card>
-			<CardContent class="p-0 divide-y">
+			<CardContent class="divide-y p-0">
 				{#each list as item (item.id)}
-					<div class="flex items-center gap-3 p-4 group">
-						<div class="flex-1 min-w-0">
-							<div class="font-medium truncate">{item.name}</div>
+					<div class="group flex items-center gap-3 p-4">
+						<div class="min-w-0 flex-1">
+							<div class="truncate font-medium">{item.name}</div>
 							<div class="text-xs text-muted-foreground">
 								<!-- transaction_ids 可能是 null（未关联交易的报销单），
 								     直接取 .length 会抛 TypeError 让整页白屏 -->
@@ -172,22 +172,20 @@
 								{/if}
 							</div>
 						</div>
-						<div class="text-right flex items-center gap-1">
+						<div class="flex items-center gap-1 text-right">
 							<div>
 								<div class="font-semibold tabular-nums">
 									{formatMoney(item.received_amount)}
-									<span class="text-muted-foreground text-sm">
+									<span class="text-sm text-muted-foreground">
 										/ {formatMoney(item.total_amount)}
 									</span>
 								</div>
 								<Badge
-									variant={
-										item.status === 'received'
-											? 'default'
-											: item.status === 'partial'
-												? 'secondary'
-												: 'outline'
-									}
+									variant={item.status === 'received'
+										? 'default'
+										: item.status === 'partial'
+											? 'secondary'
+											: 'outline'}
 									class="mt-1"
 								>
 									<!-- 后端 status 取值是 pending / received / partial，
@@ -200,13 +198,13 @@
 								</Badge>
 							</div>
 							<button
-								class="p-1 rounded hover:bg-accent opacity-0 group-hover:opacity-100 transition"
+								class="rounded p-1 opacity-0 transition group-hover:opacity-100 hover:bg-accent"
 								onclick={() => openEdit(item)}
 							>
 								<Pencil size={14} class="text-muted-foreground" />
 							</button>
 							<button
-								class="p-1 rounded hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition"
+								class="rounded p-1 opacity-0 transition group-hover:opacity-100 hover:bg-destructive/10"
 								onclick={() => handleDelete(item)}
 							>
 								<Trash2 size={14} class="text-destructive" />
@@ -234,7 +232,7 @@
 		<div class="space-y-2">
 			<Label>总金额</Label>
 			<div class="relative">
-				<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
+				<span class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">¥</span>
 				<Input
 					class="pl-8"
 					type="number"
@@ -255,7 +253,7 @@
 				<div class="space-y-2">
 					<Label>报销状态</Label>
 					<select
-						class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+						class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 						bind:value={status}
 					>
 						<option value="pending">待处理</option>
@@ -266,7 +264,7 @@
 				<div class="space-y-2">
 					<Label>已收金额</Label>
 					<div class="relative">
-						<span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">¥</span>
+						<span class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">¥</span>
 						<Input
 							class="pl-8"
 							type="number"
@@ -301,7 +299,7 @@
 			<Input bind:value={remark} placeholder="可选" />
 		</div>
 
-		<div class="flex gap-2 justify-end pt-2">
+		<div class="flex justify-end gap-2 pt-2">
 			<Button variant="outline" onclick={() => (showDialog = false)}>取消</Button>
 			<Button onclick={handleSave} disabled={saving}>
 				{saving ? '保存中...' : '保存'}
