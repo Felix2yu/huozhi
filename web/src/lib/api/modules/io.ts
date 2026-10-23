@@ -3,7 +3,7 @@ import { http } from '../http';
 export const ioApi = {
 	template: async () => {
 		const res = await fetch('/api/io/template', {
-			headers: { Authorization: `Bearer ${http.getToken()}` || '' }
+			headers: { Authorization: `Bearer ${http.getToken() ?? ''}` }
 		});
 		const blob = await res.blob();
 		const url = URL.createObjectURL(blob);
@@ -16,7 +16,7 @@ export const ioApi = {
 	exportCSV: async (params?: any) => {
 		const q = new URLSearchParams(params as any).toString();
 		const res = await fetch('/api/io/export?' + q, {
-			headers: { Authorization: `Bearer ${http.getToken()}` || '' }
+			headers: { Authorization: `Bearer ${http.getToken() ?? ''}` }
 		});
 		const blob = await res.blob();
 		const url = URL.createObjectURL(blob);
@@ -31,7 +31,7 @@ export const ioApi = {
 		fd.append('file', file);
 		return fetch(`/api/io/import?source=${source}&book_id=${book_id}`, {
 			method: 'POST',
-			headers: { Authorization: `Bearer ${http.getToken()}` || '' },
+			headers: { Authorization: `Bearer ${http.getToken() ?? ''}` },
 			body: fd
 		}).then((r) => r.json());
 	},
@@ -43,7 +43,7 @@ export const ioApi = {
 	// B8：全量备份（ZIP 快照，含 backup.json + 图片文件）
 	backup: async () => {
 		const res = await fetch('/api/io/backup', {
-			headers: { Authorization: `Bearer ${http.getToken()}` || '' }
+			headers: { Authorization: `Bearer ${http.getToken() ?? ''}` }
 		});
 		const blob = await res.blob();
 		const url = URL.createObjectURL(blob);
@@ -58,7 +58,7 @@ export const ioApi = {
 		const res = await fetch(`/api/io/restore?mode=${mode}`, {
 			method: 'POST',
 			headers: {
-				Authorization: `Bearer ${http.getToken()}` || ''
+				Authorization: `Bearer ${http.getToken() ?? ''}`
 			},
 			body: file
 		});
@@ -72,7 +72,7 @@ export const ioApi = {
 		const res = await fetch('/api/io/reset', {
 			method: 'POST',
 			headers: {
-				Authorization: `Bearer ${http.getToken()}` || '',
+				Authorization: `Bearer ${http.getToken() ?? ''}`,
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({ password, confirm: 'CLEAR_ALL_DATA' })
