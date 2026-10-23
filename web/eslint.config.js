@@ -18,9 +18,17 @@ export default defineConfig(
 	{
 		languageOptions: { globals: { ...globals.browser, ...globals.node } },
 		rules: {
-			// typescript-eslint strongly recommend that you do not use the no-undef lint rule on TypeScript projects.
-			// see: https://typescript-eslint.io/troubleshooting/faqs/eslint/#i-get-errors-from-the-no-undef-rule-about-global-variables-not-being-defined-even-though-there-are-no-typescript-errors
-			'no-undef': 'off'
+			// 类型由 svelte-check 负责，no-undef 在 TS 项目里会误报全局类型
+			'no-undef': 'off',
+			// 存量放宽：这两类在既有代码里成片存在，一次性改造等于重写前端。
+			// 降为 warn 保留可见性，新代码不应再引入。
+			'@typescript-eslint/no-explicit-any': 'warn',
+			'svelte/prefer-svelte-reactivity': 'warn',
+			// `_` 是「有意丢弃」的约定写法（each 的占位变量、忽略的回调参数）
+			'@typescript-eslint/no-unused-vars': [
+				'error',
+				{ argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }
+			]
 		}
 	},
 	{
