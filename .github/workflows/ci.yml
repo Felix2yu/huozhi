@@ -30,6 +30,9 @@ jobs:
       go-dir: .
       test-packages: ./...
       web-dir: web
+      # lint 纳入 CI：本仓 lint = prettier --check . && eslint .，实测 exit=0（0 error / 211 warning）。
+      # 规则块已与派生仓对齐；此前 prettier 先失败把 eslint 短路，356 个 error 一直没人看见。
+      web-lint-command: pnpm run lint
       web-test-command: pnpm run test:coverage
       # 类型检查必须显式串进 CI：build 只有 vite build + build-sw.mjs，不含 svelte-check；
       # check 走 plain 路径（TS6），产出真实诊断——check 绿 = 类型真的过。
