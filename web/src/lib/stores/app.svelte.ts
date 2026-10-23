@@ -9,7 +9,7 @@ const BOOK_ID_KEY = 'hz_book_id';
 let user = $state<User | null>(null);
 let token = $state<string | null>(null);
 let isAuth = $state<boolean>(false);
-let loading = $state<boolean>(false);
+const loading = $state<boolean>(false);
 
 // 初始化 token
 if (typeof localStorage !== 'undefined') {

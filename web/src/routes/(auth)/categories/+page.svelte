@@ -21,7 +21,6 @@
 		Plus,
 		Pencil,
 		Trash2,
-		ChevronRight,
 		CornerDownRight,
 		Search,
 		X,
@@ -946,7 +945,6 @@
 
 		<div class="space-y-2">
 			<Label for="cat-name">名称</Label>
-			<!-- svelte-ignore a11y_autofocus -->
 			<Input
 				id="cat-name"
 				bind:value={catName}

@@ -12,7 +12,6 @@
 	import { authApi } from '#lib/api/modules/auth';
 	import { appStore } from '#lib/stores/app';
 	import { hzToast } from '#lib/components/ui/toast';
-	import { Store } from '@lucide/svelte';
 
 	let username = $state('');
 	let password = $state('');
@@ -34,6 +33,8 @@
 			await appStore.loadBooks();
 			await appStore.loadDictionaries();
 			const redirect = page?.url?.searchParams?.get('redirect') || '/dashboard';
+			// redirect 来自 ?redirect= 查询参数，运行期才知道，无法静态 resolve
+			// eslint-disable-next-line svelte/no-navigation-without-resolve
 			goto(redirect);
 		} catch (e: any) {
 			error = e.message || '登录失败';
@@ -47,8 +48,9 @@
 		typeof localStorage !== 'undefined' ? localStorage.getItem('hz_token') : null
 	);
 	import { onMount } from 'svelte';
+	import { resolve } from '$app/paths';
 	onMount(() => {
-		if (token) goto('/dashboard');
+		if (token) goto(resolve('/(auth)/dashboard'));
 	});
 </script>
 
@@ -108,7 +110,7 @@
 			</form>
 			<div class="mt-6 text-center text-sm text-muted-foreground">
 				还没有账号？
-				<a href="/register" class="text-primary hover:underline">立即注册</a>
+				<a href={resolve('/register')} class="text-primary hover:underline">立即注册</a>
 			</div>
 		</CardContent>
 	</Card>

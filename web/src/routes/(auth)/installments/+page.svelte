@@ -34,7 +34,9 @@
 		loading = true;
 		try {
 			list = await installmentApi.list();
-		} catch {}
+		} catch {
+			/* 加载失败保留空态，页面另有空态提示 */
+		}
 		loading = false;
 	}
 
@@ -122,7 +124,7 @@
 	</div>
 	{#if loading}
 		<div class="grid gap-3 md:grid-cols-2">
-			{#each [1, 2] as i}
+			{#each [1, 2] as i (i)}
 				<div class="h-32 animate-pulse rounded-xl bg-muted"></div>
 			{/each}
 		</div>
@@ -258,7 +260,7 @@
 					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 					bind:value={categoryId}
 				>
-					{#each appStore.categories.expense as cat}
+					{#each appStore.categories.expense as cat (cat.id)}
 						<option value={cat.id}>{cat.icon || '📁'} {cat.name}</option>
 					{/each}
 				</select>

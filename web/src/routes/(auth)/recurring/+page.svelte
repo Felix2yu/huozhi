@@ -3,7 +3,6 @@
 	import Button from '#lib/components/ui/Button.svelte';
 	import Card from '#lib/components/ui/Card.svelte';
 	import CardContent from '#lib/components/ui/CardContent.svelte';
-	import Badge from '#lib/components/ui/Badge.svelte';
 	import Dialog from '#lib/components/ui/Dialog.svelte';
 	import Input from '#lib/components/ui/Input.svelte';
 	import Label from '#lib/components/ui/Label.svelte';
@@ -74,7 +73,9 @@
 		loading = true;
 		try {
 			list = await recurringApi.list();
-		} catch {}
+		} catch {
+			/* 加载失败保留空态，页面另有空态提示 */
+		}
 		loading = false;
 	}
 
@@ -169,7 +170,7 @@
 	</div>
 	{#if loading}
 		<div class="space-y-2">
-			{#each [1, 2, 3] as i}
+			{#each [1, 2, 3] as i (i)}
 				<div class="h-16 animate-pulse rounded-lg bg-muted"></div>
 			{/each}
 		</div>
@@ -263,7 +264,7 @@
 					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 					bind:value={categoryId}
 				>
-					{#each type === 'expense' ? appStore.categories.expense : appStore.categories.income as cat}
+					{#each type === 'expense' ? appStore.categories.expense : appStore.categories.income as cat (cat.id)}
 						<option value={cat.id}>{cat.icon || '📁'} {cat.name}</option>
 					{/each}
 				</select>
@@ -286,7 +287,7 @@
 					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 					bind:value={recurringType}
 				>
-					{#each Object.entries(TYPE_LABELS) as [value, label]}
+					{#each Object.entries(TYPE_LABELS) as [value, label] (value)}
 						<option {value}>{label}</option>
 					{/each}
 				</select>
@@ -305,7 +306,7 @@
 					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 					bind:value={monthDay}
 				>
-					{#each Array.from({ length: 31 }, (_, i) => i + 1) as d}
+					{#each Array.from({ length: 31 }, (_, i) => i + 1) as d (d)}
 						<option value={String(d)}>每月 {d} 号</option>
 					{/each}
 				</select>
@@ -320,7 +321,7 @@
 					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 					bind:value={weekday}
 				>
-					{#each WEEKDAYS as w, i}
+					{#each WEEKDAYS as w, i (w)}
 						<option value={String(i + 1)}>每周{w}</option>
 					{/each}
 				</select>

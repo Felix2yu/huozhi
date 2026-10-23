@@ -19,6 +19,7 @@
 	import { CURRENCIES } from '#lib/types';
 	import { onMount } from 'svelte';
 	import { browser } from '$app/env';
+	import { resolve } from '$app/paths';
 	import {
 		User,
 		Palette,
@@ -260,7 +261,9 @@
 		ratesStore.ensure(currency);
 		try {
 			apiKeyInfo = await http.get('/api-key');
-		} catch {}
+		} catch {
+			/* 取不到 api-key 信息按未配置展示 */
+		}
 		apiKeyLoading = false;
 	});
 
@@ -490,7 +493,7 @@
 			await authApi.deleteAccount({ password: delPwd, confirm: delConfirm });
 			appStore.logout();
 			hzToast.success('账号已注销');
-			goto('/login');
+			goto(resolve('/login'));
 		} catch (e: any) {
 			hzToast.error(e.message || '注销失败');
 		} finally {
@@ -511,9 +514,11 @@
 	async function handleLogout() {
 		try {
 			await http.post<void>('/auth/logout');
-		} catch {}
+		} catch {
+			/* 登出接口失败也要清本地会话 */
+		}
 		appStore.logout();
-		goto('/login');
+		goto(resolve('/login'));
 	}
 </script>
 
@@ -609,7 +614,7 @@
 						class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 						bind:value={monthStart}
 					>
-						{#each Array.from({ length: 28 }, (_, i) => i + 1) as d}
+						{#each Array.from({ length: 28 }, (_, i) => i + 1) as d (d)}
 							<option value={d}>每月 {d} 日</option>
 						{/each}
 					</select>
@@ -708,7 +713,7 @@
 							class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 							bind:value={currency}
 						>
-							{#each CURRENCIES as c}
+							{#each CURRENCIES as c (c.code)}
 								<option value={c.code}>{c.code} {c.label}</option>
 							{/each}
 						</select>
@@ -837,7 +842,7 @@
 				<div class="space-y-2">
 					<Label>字体大小</Label>
 					<div class="grid grid-cols-4 gap-2">
-						{#each Object.entries({ sm: '小', md: '标准', lg: '大', xl: '特大' }) as [key, label]}
+						{#each Object.entries( { sm: '小', md: '标准', lg: '大', xl: '特大' } ) as [key, label] (key)}
 							<button
 								class="flex flex-col items-center gap-1.5 rounded-lg border p-3 transition"
 								class:border-primary={fontSize === key}
@@ -1087,7 +1092,7 @@
 				<div class="space-y-2">
 					<Label>客户端配置</Label>
 					<div class="flex flex-wrap gap-2">
-						{#each mcpClients as c}
+						{#each mcpClients as c (c.key)}
 							<Button
 								size="sm"
 								variant={mcpClient === c.key ? 'default' : 'outline'}

@@ -10,10 +10,10 @@
 	import { bookApi } from '#lib/api/modules/books';
 	import { appStore } from '#lib/stores/app';
 	import { hzToast } from '#lib/components/ui/toast';
+	import { resolve } from '$app/paths';
 	import {
 		BookMarked,
 		Plus,
-		Users,
 		Pencil,
 		Trash2,
 		UserPlus,
@@ -116,7 +116,9 @@
 		loadingMembers = true;
 		try {
 			members = await bookApi.listMembers(book.id);
-		} catch {}
+		} catch {
+			/* 加载失败保留空态，页面另有空态提示 */
+		}
 		loadingMembers = false;
 	}
 
@@ -198,7 +200,7 @@
 							class="flex flex-1 items-center gap-3 text-left transition hover:bg-accent/50"
 							onclick={() => {
 								appStore.setCurrentBook(book.id);
-								goto('/dashboard');
+								goto(resolve('/(auth)/dashboard'));
 							}}
 						>
 							<span class="grid h-10 w-10 place-items-center rounded-lg bg-muted text-xl">
@@ -280,7 +282,7 @@
 		<div class="space-y-2">
 			<Label>图标</Label>
 			<div class="flex flex-wrap gap-1">
-				{#each iconOptions as icon}
+				{#each iconOptions as icon (icon)}
 					<button
 						class="h-8 w-8 rounded text-lg transition hover:bg-accent {bookIcon === icon
 							? 'bg-primary/10'
@@ -343,7 +345,7 @@
 				<div class="text-sm text-muted-foreground">暂无成员</div>
 			{:else}
 				<div class="space-y-2">
-					{#each members as member}
+					{#each members as member (member.id)}
 						<div class="flex items-center justify-between rounded-lg border p-2">
 							<div class="flex items-center gap-2">
 								<div class="grid h-8 w-8 place-items-center rounded-full bg-muted text-xs">

@@ -35,15 +35,6 @@
 		)
 	);
 
-	const hiddenClasses = $derived(
-		cn(
-			side === 'right' && 'translate-x-full',
-			side === 'left' && '-translate-x-full',
-			side === 'top' && '-translate-y-full',
-			side === 'bottom' && 'translate-y-full'
-		)
-	);
-
 	$effect(() => {
 		if (open) {
 			document.body.style.overflow = 'hidden';

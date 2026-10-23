@@ -30,7 +30,9 @@ function setHidden(v: boolean) {
 	if (typeof localStorage !== 'undefined') {
 		try {
 			localStorage.setItem(KEY, v ? '1' : '0');
-		} catch {}
+		} catch {
+			/* localStorage 被禁用时用内存值，checkAuth 会以服务端为准校正 */
+		}
 	}
 	// 展示偏好，失败不影响主流程（下次 checkAuth 会以服务端为准校正）
 	if (http.getToken()) {

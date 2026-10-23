@@ -13,10 +13,10 @@
 	import { appStore } from '#lib/stores/app';
 	import { hzToast } from '#lib/components/ui/toast';
 	import { detectBankName, detectAccountType } from '#lib/utils/bank-themes';
-	import AccountIcon from '#lib/components/AccountIcon.svelte';
 	import IconPicker from '#lib/components/IconPicker.svelte';
 	import type { Account, AccountType } from '#lib/types';
 	import { Save, X, Archive } from '@lucide/svelte';
+	import { resolve } from '$app/paths';
 
 	let accountId = $derived(Number((page?.params as any)?.id));
 	let account = $state<Account | null>(null);
@@ -73,7 +73,7 @@
 			// 由 revealFullCardNo() 按需触发。
 		} catch {
 			hzToast.error('加载账户失败');
-			goto('/accounts');
+			goto(resolve('/(auth)/accounts'));
 		} finally {
 			loading = false;
 		}
@@ -134,7 +134,7 @@
 			await accountApi.update(accountId, data);
 			hzToast.success('账户更新成功');
 			await appStore.loadDictionaries();
-			goto('/accounts');
+			goto(resolve('/(auth)/accounts'));
 		} catch (e: any) {
 			hzToast.error(e.message || '更新失败');
 		} finally {
@@ -152,7 +152,7 @@
 			await accountApi.remove(accountId);
 			hzToast.success('账户已归档');
 			await appStore.loadDictionaries();
-			goto('/accounts');
+			goto(resolve('/(auth)/accounts'));
 		} catch (e: any) {
 			hzToast.error(e.message || '归档失败');
 		}
@@ -199,7 +199,7 @@
 						bind:value={type}
 						onchange={() => (typeTouched = true)}
 					>
-						{#each accountTypes as t}
+						{#each accountTypes as t (t.value)}
 							<option value={t.value}>{t.label}</option>
 						{/each}
 					</select>
@@ -321,7 +321,7 @@
 						<Save size={16} />
 						{saving ? '保存中...' : '保存'}
 					</Button>
-					<Button variant="outline" onclick={() => goto('/accounts')}>
+					<Button variant="outline" onclick={() => goto(resolve('/(auth)/accounts'))}>
 						<X size={16} />
 						取消
 					</Button>

@@ -10,7 +10,7 @@
 	import TrendLine from '#lib/components/charts/TrendLine.svelte';
 	import MonthlyBars from '#lib/components/charts/MonthlyBars.svelte';
 	import type { StatisticsData, AssetOverview } from '#lib/types';
-	import { BarChart3, ArrowUpRight, ArrowDownRight, TrendingUp, Wallet } from '@lucide/svelte';
+	import { ArrowUpRight, ArrowDownRight, TrendingUp } from '@lucide/svelte';
 
 	let data = $state<StatisticsData | null>(null);
 	let assets = $state<AssetOverview | null>(null);
@@ -95,7 +95,9 @@
 				d.by_account = d.by_account ?? {};
 				data = d;
 			}
-		} catch {}
+		} catch {
+			/* 统计接口失败保留上一次数据 */
+		}
 		loading = false;
 	}
 
@@ -122,7 +124,7 @@
 
 	{#if loading}
 		<div class="space-y-4">
-			{#each [1, 2, 3] as i}
+			{#each [1, 2, 3] as i (i)}
 				<div class="h-32 animate-pulse rounded-xl bg-muted"></div>
 			{/each}
 		</div>
@@ -308,7 +310,7 @@
 							<TrendLine points={data.trend} />
 						{:else}
 							<div class="max-h-80 space-y-1 overflow-auto">
-								{#each data.trend as point}
+								{#each data.trend as point (point.date)}
 									<div class="flex items-center gap-3 text-xs">
 										<span class="w-16 shrink-0 text-muted-foreground">{point.date}</span>
 										<div

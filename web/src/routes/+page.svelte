@@ -2,18 +2,19 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { appStore } from '#lib/stores/app';
+	import { resolve } from '$app/paths';
 
 	onMount(async () => {
 		try {
 			const ok = await appStore.checkAuth();
 			if (ok) {
-				goto('/dashboard', { replaceState: true });
+				goto(resolve('/(auth)/dashboard'), { replaceState: true });
 			} else {
-				goto('/login', { replaceState: true });
+				goto(resolve('/login'), { replaceState: true });
 			}
 		} catch (e) {
 			console.error('Auth check failed', e);
-			goto('/login', { replaceState: true });
+			goto(resolve('/login'), { replaceState: true });
 		}
 	});
 </script>

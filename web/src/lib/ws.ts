@@ -49,11 +49,15 @@ export function connectWs() {
 				for (const fn of listeners) {
 					try {
 						fn(msg);
-					} catch {}
+					} catch {
+						/* 单个监听器抛错不能影响其余派发 */
+					}
 				}
 				// 同时派发 DOM event（方便其他代码监听）
 				window.dispatchEvent(new CustomEvent('hz:sync', { detail: msg }));
-			} catch {}
+			} catch {
+				/* DOM 事件派发失败不影响 WS 主流程 */
+			}
 		};
 
 		ws.onclose = () => {

@@ -26,6 +26,7 @@
 	} from '#lib/utils/tx';
 	import type { Category, DayGroup, Transaction, TransactionListData } from '#lib/types';
 	import { Plus, Search, Filter, X, Trash2, CheckSquare, Loader2, Copy } from '@lucide/svelte';
+	import { resolve } from '$app/paths';
 
 	type TabType = 'all' | 'expense' | 'income' | 'transfer';
 	let type = $state<TabType>('all');
@@ -274,7 +275,7 @@
 		if (tx.currency) params.set('currency', tx.currency);
 		if ((tx as any).exchange_rate) params.set('exchange_rate', String((tx as any).exchange_rate));
 		previewOpen = false;
-		goto(`/transactions/add?${params.toString()}`);
+		goto(resolve(`/(auth)/transactions/add?${params.toString()}`));
 	}
 
 	async function handleBatchDelete() {
@@ -591,7 +592,7 @@
 	<!-- 交易列表 -->
 	{#if loading}
 		<div class="space-y-2" data-testid="tx-skeleton">
-			{#each [1, 2, 3, 4] as i}
+			{#each [1, 2, 3, 4] as i (i)}
 				<div class="h-16 animate-pulse rounded-lg bg-muted"></div>
 			{/each}
 		</div>
@@ -609,7 +610,7 @@
 						清除筛选条件
 					</Button>
 				{:else}
-					<Button onclick={() => goto('/transactions/add')}>
+					<Button onclick={() => goto(resolve('/(auth)/transactions/add'))}>
 						<Plus size={16} />
 						记一笔
 					</Button>
@@ -670,7 +671,7 @@
 												></div>
 												<div class="min-w-0 flex-1">
 													<div class="truncate text-sm font-medium">
-														{#each highlightSegments(getCategoryName(tx), keyword) as seg}
+														{#each highlightSegments(getCategoryName(tx), keyword) as seg, i (i)}
 															{#if seg.hit}<mark
 																	class="rounded bg-yellow-200 px-0.5 dark:bg-yellow-800"
 																	>{seg.text}</mark
@@ -679,7 +680,7 @@
 													</div>
 													{#if note}
 														<div class="truncate text-xs text-muted-foreground">
-															{#each highlightSegments(note, keyword) as seg}
+															{#each highlightSegments(note, keyword) as seg, i (i)}
 																{#if seg.hit}<mark
 																		class="rounded bg-yellow-200 px-0.5 dark:bg-yellow-800"
 																		>{seg.text}</mark
@@ -704,7 +705,7 @@
 														</div>
 													{/if}
 													<div class="truncate text-xs text-muted-foreground">
-														{#each highlightSegments(getAccountDisplay(tx), keyword) as seg}
+														{#each highlightSegments(getAccountDisplay(tx), keyword) as seg, i (i)}
 															{#if seg.hit}<mark
 																	class="rounded bg-yellow-200 px-0.5 dark:bg-yellow-800"
 																	>{seg.text}</mark
@@ -830,7 +831,7 @@
 				{/if}
 				{#if (previewTx.images || []).length}
 					<div class="flex flex-wrap gap-2">
-						{#each previewTx.images as url}
+						{#each previewTx.images as url (url)}
 							<img src={url} alt="凭证" class="h-16 w-16 rounded border object-cover" />
 						{/each}
 					</div>
@@ -852,7 +853,9 @@
 			<div class="flex gap-2 pt-2">
 				<Button
 					class="flex-1"
-					onclick={() => previewTx && goto(`/transactions/edit/${previewTx.id}`)}
+					onclick={() =>
+						previewTx &&
+						goto(resolve('/(auth)/transactions/edit/[id]', { id: String(previewTx.id) }))}
 				>
 					编辑
 				</Button>

@@ -42,7 +42,9 @@
 		loading = true;
 		try {
 			plans = await savingApi.list();
-		} catch {}
+		} catch {
+			/* 加载失败保留空态，页面另有空态提示 */
+		}
 		loading = false;
 	}
 
@@ -172,7 +174,7 @@
 	</div>
 	{#if loading}
 		<div class="grid gap-3 md:grid-cols-2">
-			{#each [1, 2] as i}
+			{#each [1, 2] as i (i)}
 				<div class="h-32 animate-pulse rounded-xl bg-muted"></div>
 			{/each}
 		</div>

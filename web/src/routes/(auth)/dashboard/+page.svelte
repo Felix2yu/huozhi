@@ -3,12 +3,11 @@
 	import Button from '#lib/components/ui/Button.svelte';
 	import Card from '#lib/components/ui/Card.svelte';
 	import CardContent from '#lib/components/ui/CardContent.svelte';
-	import CardHeader from '#lib/components/ui/CardHeader.svelte';
-	import CardTitle from '#lib/components/ui/CardTitle.svelte';
 	import { appStore } from '#lib/stores/app';
 	import AccountIcon from '#lib/components/AccountIcon.svelte';
 	import { accountApi, txApi, statsApi } from '#lib/api/modules';
 	import { formatMoney, getMonthRange, formatRelativeDate } from '#lib/utils/format';
+	import { resolve } from '$app/paths';
 	import type {
 		CreditRepayItem,
 		Transaction,
@@ -86,7 +85,7 @@
 
 {#if loading}
 	<div class="space-y-4">
-		{#each [1, 2, 3] as i}
+		{#each [1, 2, 3] as i (i)}
 			<div class="h-28 animate-pulse rounded-xl bg-muted"></div>
 		{/each}
 	</div>
@@ -166,7 +165,7 @@
 		<div class="grid grid-cols-4 gap-2 md:grid-cols-5 md:gap-3">
 			<button
 				class="flex flex-col items-center gap-2 rounded-xl border p-3 transition hover:bg-accent"
-				onclick={() => goto('/transactions/add')}
+				onclick={() => goto(resolve('/(auth)/transactions/add'))}
 			>
 				<div
 					class="grid h-10 w-10 place-items-center rounded-xl bg-primary text-primary-foreground"
@@ -177,7 +176,7 @@
 			</button>
 			<button
 				class="flex flex-col items-center gap-2 rounded-xl border p-3 transition hover:bg-accent"
-				onclick={() => goto('/budgets')}
+				onclick={() => goto(resolve('/(auth)/budgets'))}
 			>
 				<div class="grid h-10 w-10 place-items-center rounded-xl bg-muted">
 					<Target size={20} />
@@ -186,7 +185,7 @@
 			</button>
 			<button
 				class="flex flex-col items-center gap-2 rounded-xl border p-3 transition hover:bg-accent"
-				onclick={() => goto('/statistics')}
+				onclick={() => goto(resolve('/(auth)/statistics'))}
 			>
 				<div class="grid h-10 w-10 place-items-center rounded-xl bg-muted">
 					<BarChart3 size={20} />
@@ -195,7 +194,7 @@
 			</button>
 			<button
 				class="flex flex-col items-center gap-2 rounded-xl border p-3 transition hover:bg-accent"
-				onclick={() => goto('/accounts')}
+				onclick={() => goto(resolve('/(auth)/accounts'))}
 			>
 				<div class="grid h-10 w-10 place-items-center rounded-xl bg-muted">
 					<Wallet size={20} />
@@ -204,7 +203,7 @@
 			</button>
 			<button
 				class="hidden flex-col items-center gap-2 rounded-xl border p-3 transition hover:bg-accent md:flex"
-				onclick={() => goto('/cards')}
+				onclick={() => goto(resolve('/(auth)/cards'))}
 			>
 				<div class="grid h-10 w-10 place-items-center rounded-xl bg-muted">
 					<CreditCard size={20} />
@@ -219,7 +218,10 @@
 		<section class="mt-6">
 			<div class="mb-3 flex items-center justify-between">
 				<h2 class="text-sm font-medium">信用卡还款</h2>
-				<a href="/cards" class="flex items-center text-xs text-primary hover:underline">
+				<a
+					href={resolve('/(auth)/cards')}
+					class="flex items-center text-xs text-primary hover:underline"
+				>
 					查看全部
 					<ChevronRight size={14} />
 				</a>
@@ -255,7 +257,10 @@
 	<section class="mt-6">
 		<div class="mb-3 flex items-center justify-between">
 			<h2 class="text-sm font-medium">最近交易</h2>
-			<a href="/transactions" class="flex items-center text-xs text-primary hover:underline">
+			<a
+				href={resolve('/(auth)/transactions')}
+				class="flex items-center text-xs text-primary hover:underline"
+			>
 				查看全部
 				<ChevronRight size={14} />
 			</a>
@@ -266,7 +271,11 @@
 					<div class="py-12 text-center text-muted-foreground">
 						<Receipt size={32} class="mx-auto mb-3 opacity-50" />
 						<p class="text-sm">暂无交易记录</p>
-						<Button class="mt-4" size="sm" onclick={() => goto('/transactions/add')}>
+						<Button
+							class="mt-4"
+							size="sm"
+							onclick={() => goto(resolve('/(auth)/transactions/add'))}
+						>
 							<Plus size={16} />
 							记一笔
 						</Button>
@@ -280,7 +289,7 @@
 						<button
 							type="button"
 							class="flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition hover:bg-accent/50"
-							onclick={() => goto(`/transactions/edit/${tx.id}`)}
+							onclick={() => goto(resolve('/(auth)/transactions/edit/[id]', { id: String(tx.id) }))}
 						>
 							<!-- C19：class 属性为空（重构残留），图标没有底色 -->
 							<div

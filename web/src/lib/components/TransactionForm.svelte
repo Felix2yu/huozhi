@@ -27,11 +27,12 @@
 	import { appStore } from '#lib/stores/app';
 	import { hzToast } from '#lib/components/ui/toast';
 	import { aiApi } from '#lib/api/modules/ai';
-	import { formatDate, formatMoney, currencySymbol } from '#lib/utils/format';
+	import { formatDate, currencySymbol } from '#lib/utils/format';
 	import { clampMoneyInput } from '#lib/utils/tx';
 	import { ratesStore } from '#lib/stores/rates.svelte';
 	import { CURRENCIES } from '#lib/types';
 	import { onMount } from 'svelte';
+	import { resolve } from '$app/paths';
 	import {
 		Sparkles,
 		Save,
@@ -234,7 +235,7 @@
 			})
 			.catch(() => {
 				hzToast.error('加载交易失败');
-				goto('/transactions');
+				goto(resolve('/(auth)/transactions'));
 			});
 	});
 
@@ -320,14 +321,14 @@
 			if (isEdit && id) {
 				await txApi.update(Number(id), data);
 				hzToast.success('更新成功');
-				goto('/transactions');
+				goto(resolve('/(auth)/transactions'));
 			} else {
 				await txApi.create(data);
 				hzToast.success('记账成功');
 				if (keepGoing) {
 					resetForNext();
 				} else {
-					goto('/transactions');
+					goto(resolve('/(auth)/transactions'));
 				}
 			}
 		} catch (e: any) {
@@ -482,7 +483,7 @@
 						value={currency}
 						onchange={(e) => onCurrencyChange((e.currentTarget as HTMLSelectElement).value)}
 					>
-						{#each CURRENCIES as c}
+						{#each CURRENCIES as c (c.code)}
 							<option value={c.code}>{c.code} {c.label}</option>
 						{/each}
 					</select>
@@ -677,7 +678,7 @@
 					<Save size={16} />
 					{isEdit ? '保存修改' : '保存'}
 				</Button>
-				<Button variant="outline" onclick={() => goto('/transactions')}>
+				<Button variant="outline" onclick={() => goto(resolve('/(auth)/transactions'))}>
 					<X size={16} />
 					取消
 				</Button>

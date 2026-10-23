@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { cn } from '#lib/utils/cn';
-	import { derived } from 'svelte/store';
 
 	let {
 		class: className = '',

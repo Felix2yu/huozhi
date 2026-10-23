@@ -10,6 +10,7 @@
 	import CardTitle from '#lib/components/ui/CardTitle.svelte';
 	import { authApi } from '#lib/api/modules/auth';
 	import { hzToast } from '#lib/components/ui/toast';
+	import { resolve } from '$app/paths';
 
 	let username = $state('');
 	let email = $state('');
@@ -51,7 +52,7 @@
 				password
 			});
 			hzToast.success('注册成功，请登录');
-			goto('/login');
+			goto(resolve('/login'));
 		} catch (e: any) {
 			error = e.message || '注册失败';
 			hzToast.error(error);
@@ -113,7 +114,7 @@
 			</form>
 			<div class="mt-6 text-center text-sm text-muted-foreground">
 				已有账号？
-				<a href="/login" class="text-primary hover:underline">立即登录</a>
+				<a href={resolve('/login')} class="text-primary hover:underline">立即登录</a>
 			</div>
 		</CardContent>
 	</Card>

@@ -132,7 +132,7 @@
 						<AccountIcon {bankName} {name} {type} size={32} />
 						<span class="text-[10px] text-muted-foreground">自动</span>
 					</button>
-					{#each filteredIcons as icon}
+					{#each filteredIcons as icon (icon.id)}
 						<button
 							type="button"
 							class="flex flex-col items-center gap-1 rounded p-2 transition hover:bg-accent"

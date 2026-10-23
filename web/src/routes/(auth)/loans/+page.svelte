@@ -80,7 +80,9 @@
 		loading = true;
 		try {
 			list = await loanApi.list();
-		} catch {}
+		} catch {
+			/* 加载失败保留空态，页面另有空态提示 */
+		}
 		loading = false;
 	}
 	onMount(loadData);
@@ -260,7 +262,7 @@
 
 	{#if loading}
 		<div class="space-y-2">
-			{#each [1, 2, 3] as i}
+			{#each [1, 2, 3] as i (i)}
 				<div class="h-16 animate-pulse rounded-lg bg-muted"></div>
 			{/each}
 		</div>
@@ -410,7 +412,7 @@
 					bind:value={accountId}
 					disabled={!!editingItem}
 				>
-					{#each fundAccounts as a}
+					{#each fundAccounts as a (a.id)}
 						<option value={a.id}>{a.name}</option>
 					{/each}
 				</select>
@@ -514,7 +516,7 @@
 					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus:ring-1 focus:ring-ring focus:outline-none"
 					bind:value={repayAccountId}
 				>
-					{#each fundAccounts as a}
+					{#each fundAccounts as a (a.id)}
 						<option value={a.id}>{a.name}</option>
 					{/each}
 				</select>

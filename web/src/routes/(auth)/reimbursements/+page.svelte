@@ -41,7 +41,9 @@
 		loading = true;
 		try {
 			list = await reimbApi.list();
-		} catch {}
+		} catch {
+			/* 加载失败保留空态，页面另有空态提示 */
+		}
 		loading = false;
 	}
 
@@ -145,7 +147,7 @@
 	</div>
 	{#if loading}
 		<div class="space-y-2">
-			{#each [1, 2, 3] as i}
+			{#each [1, 2, 3] as i (i)}
 				<div class="h-16 animate-pulse rounded-lg bg-muted"></div>
 			{/each}
 		</div>

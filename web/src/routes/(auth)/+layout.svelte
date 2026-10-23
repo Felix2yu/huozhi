@@ -5,7 +5,6 @@
 	import { cn } from '#lib/utils/cn';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Sheet from '#lib/components/ui/Sheet.svelte';
-	import Badge from '#lib/components/ui/Badge.svelte';
 	import { appStore } from '#lib/stores/app';
 	import { privacyStore } from '#lib/stores/privacy';
 	import { hzToast } from '#lib/components/ui/toast';
@@ -14,6 +13,7 @@
 	import { getMonthRange, formatMoney } from '#lib/utils/format';
 	import { connectWs, disconnectWs, onSync } from '#lib/ws';
 	import type { WsMessage } from '#lib/ws';
+	import { resolve } from '$app/paths';
 	import {
 		LayoutDashboard,
 		Receipt,
@@ -30,13 +30,11 @@
 		Settings,
 		Plus,
 		LogOut,
-		BookMarked,
 		Menu,
 		Home,
 		CloudOff,
 		ChevronDown,
 		Check,
-		MinusCircle,
 		Database,
 		HandCoins,
 		Eye,
@@ -53,7 +51,7 @@
 			const ok = await appStore.checkAuth();
 			if (!ok) {
 				const path = page?.url?.pathname || '/dashboard';
-				goto(`/login?redirect=${encodeURIComponent(path)}`);
+				goto(resolve(`/login?redirect=${encodeURIComponent(path)}`));
 				return;
 			}
 			await appStore.loadBooks();
@@ -61,7 +59,7 @@
 		} catch (e) {
 			console.warn('初始化失败', e);
 			// 认证失败（token 失效 / 接口异常）时跳登录，避免卡在加载屏
-			if (!appStore.isAuth) goto('/login');
+			if (!appStore.isAuth) goto(resolve('/login'));
 		} finally {
 			// 关键：无论成功 / 失败 / 未登录，都必须结束加载态，
 			// 否则 checking 永远为 true，整页停留在「正在加载货殖...」且点击无反应
@@ -164,43 +162,43 @@
 		{
 			title: '记账',
 			items: [
-				{ to: '/dashboard', label: '首页总览', icon: LayoutDashboard },
-				{ to: '/transactions', label: '账单流水', icon: Receipt },
-				{ to: '/categories', label: '分类管理', icon: PieChart }
+				{ to: resolve('/(auth)/dashboard'), label: '首页总览', icon: LayoutDashboard },
+				{ to: resolve('/(auth)/transactions'), label: '账单流水', icon: Receipt },
+				{ to: resolve('/(auth)/categories'), label: '分类管理', icon: PieChart }
 			]
 		},
 		{
 			title: '资产',
 			items: [
-				{ to: '/accounts', label: '账户资产', icon: Wallet },
-				{ to: '/cards', label: '我的银行卡', icon: CreditCard },
-				{ to: '/savings', label: '存钱计划', icon: TrendingUp },
-				{ to: '/installments', label: '分期管理', icon: CreditCard },
-				{ to: '/loans', label: '借贷管理', icon: HandCoins }
+				{ to: resolve('/(auth)/accounts'), label: '账户资产', icon: Wallet },
+				{ to: resolve('/(auth)/cards'), label: '我的银行卡', icon: CreditCard },
+				{ to: resolve('/(auth)/savings'), label: '存钱计划', icon: TrendingUp },
+				{ to: resolve('/(auth)/installments'), label: '分期管理', icon: CreditCard },
+				{ to: resolve('/(auth)/loans'), label: '借贷管理', icon: HandCoins }
 			]
 		},
 		{
 			title: '规则',
 			items: [
-				{ to: '/budgets', label: '预算管理', icon: Target },
-				{ to: '/recurring', label: '周期记账', icon: Repeat },
-				{ to: '/reimbursements', label: '报销管理', icon: FileText },
-				{ to: '/tags', label: '标签中心', icon: Tags }
+				{ to: resolve('/(auth)/budgets'), label: '预算管理', icon: Target },
+				{ to: resolve('/(auth)/recurring'), label: '周期记账', icon: Repeat },
+				{ to: resolve('/(auth)/reimbursements'), label: '报销管理', icon: FileText },
+				{ to: resolve('/(auth)/tags'), label: '标签中心', icon: Tags }
 			]
 		},
 		{
 			title: '分析与协作',
 			items: [
-				{ to: '/statistics', label: '统计分析', icon: BarChart3 },
-				{ to: '/bill-export', label: '账单导出', icon: FileText },
-				{ to: '/shared-books', label: '共享账本', icon: Users }
+				{ to: resolve('/(auth)/statistics'), label: '统计分析', icon: BarChart3 },
+				{ to: resolve('/(auth)/bill-export'), label: '账单导出', icon: FileText },
+				{ to: resolve('/(auth)/shared-books'), label: '共享账本', icon: Users }
 			]
 		},
 		{
 			title: '系统',
 			items: [
-				{ to: '/data', label: '数据管理', icon: Database },
-				{ to: '/settings', label: '系统设置', icon: Settings }
+				{ to: resolve('/(auth)/data'), label: '数据管理', icon: Database },
+				{ to: resolve('/(auth)/settings'), label: '系统设置', icon: Settings }
 			]
 		}
 	];
@@ -211,11 +209,11 @@
 	// A3：底部原来只覆盖 5/14 功能。改为 4 个高频入口 + 1 个「更多」抽屉，
 	// 把使用频次最高的「统计」提上来，其余 9 个功能从抽屉一键直达。
 	const mobileTabs = [
-		{ to: '/dashboard', label: '首页', icon: Home },
-		{ to: '/transactions', label: '账单', icon: Receipt },
-		{ to: '/transactions/add', label: '', icon: Plus },
-		{ to: '/statistics', label: '统计', icon: BarChart3 },
-		{ to: '', label: '更多', icon: Menu, more: true }
+		{ to: resolve('/(auth)/dashboard'), label: '首页', icon: Home },
+		{ to: resolve('/(auth)/transactions'), label: '账单', icon: Receipt },
+		{ to: resolve('/(auth)/transactions/add'), label: '', icon: Plus },
+		{ to: resolve('/(auth)/statistics'), label: '统计', icon: BarChart3 },
+		{ to: resolve(''), label: '更多', icon: Menu, more: true }
 	];
 
 	let currentPath = $derived(page?.url?.pathname || '');
@@ -293,7 +291,7 @@
 			// ignore
 		}
 		appStore.logout();
-		goto('/login');
+		goto(resolve('/login'));
 	}
 </script>
 
@@ -425,7 +423,7 @@
 
 			<!-- 底部操作区 -->
 			<div class="space-y-2 border-t px-3 py-3">
-				<Button class="w-full" onclick={() => goto('/transactions/add')}>
+				<Button class="w-full" onclick={() => goto(resolve('/(auth)/transactions/add'))}>
 					<Plus size={16} />
 					记一笔
 				</Button>
@@ -604,7 +602,7 @@
 					{#if tab.to === '/transactions/add'}
 						<button
 							class="relative flex items-center justify-center"
-							onclick={() => goto('/transactions/add')}
+							onclick={() => goto(resolve('/(auth)/transactions/add'))}
 						>
 							<div
 								class="absolute -top-5 grid h-14 w-14 place-items-center rounded-full border-4 border-background bg-primary text-primary-foreground shadow-lg"

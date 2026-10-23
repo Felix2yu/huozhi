@@ -39,7 +39,7 @@ if (typeof document !== 'undefined') {
 	}
 }
 
-let isDark = $derived(
+const isDark = $derived(
 	theme === 'dark' ||
 		(theme === 'system' &&
 			typeof window !== 'undefined' &&

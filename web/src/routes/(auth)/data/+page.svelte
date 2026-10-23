@@ -12,6 +12,7 @@
 	import { authApi } from '#lib/api/modules/auth';
 	import { accountApi } from '#lib/api/modules/accounts';
 	import { hzToast } from '#lib/components/ui/toast';
+	import { resolve } from '$app/paths';
 	import {
 		Download,
 		Upload,
@@ -23,7 +24,6 @@
 		AlertTriangle,
 		Trash2,
 		DatabaseZap,
-		Clock,
 		CalendarClock,
 		Save,
 		CheckCircle2,
@@ -70,7 +70,9 @@
 		try {
 			if (r) localStorage.setItem(IMPORT_RESULT_KEY, JSON.stringify(r));
 			else localStorage.removeItem(IMPORT_RESULT_KEY);
-		} catch {}
+		} catch {
+			/* 本地缓存写失败不影响导入结果展示 */
+		}
 	}
 
 	// 自动备份设置
@@ -575,7 +577,7 @@
 
 				<button
 					class="flex w-full items-center justify-between rounded-lg border p-3 transition hover:bg-accent"
-					onclick={() => goto('/bill-export')}
+					onclick={() => goto(resolve('/(auth)/bill-export'))}
 				>
 					<span class="flex items-center gap-2">
 						<FileText size={16} />

@@ -11,10 +11,10 @@
 	import { appStore } from '#lib/stores/app';
 	import { hzToast } from '#lib/components/ui/toast';
 	import { detectBankName, detectAccountType } from '#lib/utils/bank-themes';
-	import AccountIcon from '#lib/components/AccountIcon.svelte';
 	import IconPicker from '#lib/components/IconPicker.svelte';
 	import type { AccountType } from '#lib/types';
 	import { Save, X } from '@lucide/svelte';
+	import { resolve } from '$app/paths';
 
 	let name = $state('');
 	let type = $state<AccountType>('bank');
@@ -85,7 +85,7 @@
 			await accountApi.create(data);
 			hzToast.success('账户创建成功');
 			await appStore.loadDictionaries();
-			goto('/accounts');
+			goto(resolve('/(auth)/accounts'));
 		} catch (e: any) {
 			hzToast.error(e.message || '创建失败');
 		} finally {
@@ -131,7 +131,7 @@
 					bind:value={type}
 					onchange={() => (typeTouched = true)}
 				>
-					{#each accountTypes as t}
+					{#each accountTypes as t (t.value)}
 						<option value={t.value}>{t.label}</option>
 					{/each}
 				</select>
@@ -238,7 +238,7 @@
 					<Save size={16} />
 					{loading ? '保存中...' : '保存'}
 				</Button>
-				<Button variant="outline" onclick={() => goto('/accounts')}>
+				<Button variant="outline" onclick={() => goto(resolve('/(auth)/accounts'))}>
 					<X size={16} />
 					取消
 				</Button>

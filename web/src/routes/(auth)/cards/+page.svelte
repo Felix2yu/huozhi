@@ -11,7 +11,8 @@
 	import { getBankTheme, getCardGradient } from '#lib/utils/bank-themes';
 	import { resolveAccountIcon } from '#lib/utils/bank-icons';
 	import type { Account, CreditRepayItem } from '#lib/types';
-	import { Plus, CreditCard, Wallet } from '@lucide/svelte';
+	import { Plus, CreditCard } from '@lucide/svelte';
+	import { resolve } from '$app/paths';
 
 	let creditCards = $state<Account[]>([]);
 	let bankCards = $state<Account[]>([]);
@@ -64,7 +65,7 @@
 		<section>
 			<div class="mb-4 flex items-center justify-between">
 				<h2 class="text-sm font-medium">我的信用卡</h2>
-				<Button size="sm" onclick={() => goto('/accounts/new')}>
+				<Button size="sm" onclick={() => goto(resolve('/(auth)/accounts/new'))}>
 					<Plus size={16} />
 					添加卡
 				</Button>
@@ -72,13 +73,12 @@
 
 			<div class="grid gap-4 md:grid-cols-2">
 				{#each creditCards as card (card.id)}
-					{@const theme = getBankTheme(card.bank_name)}
 					{@const ic = resolveCardIcon(card)}
 					<button
 						type="button"
 						class="relative h-56 cursor-pointer overflow-hidden rounded-2xl p-5 text-left text-white transition-transform hover:scale-[1.02]"
 						style="background: {getCardGradient(card.bank_name)};"
-						onclick={() => goto(`/accounts/${card.id}`)}
+						onclick={() => goto(resolve('/(auth)/accounts/[id]', { id: String(card.id) }))}
 					>
 						<!-- 装饰圆 -->
 						<div
@@ -137,7 +137,7 @@
 		<section>
 			<div class="mb-4 flex items-center justify-between">
 				<h2 class="text-sm font-medium">我的储蓄卡</h2>
-				<Button size="sm" onclick={() => goto('/accounts/new')}>
+				<Button size="sm" onclick={() => goto(resolve('/(auth)/accounts/new'))}>
 					<Plus size={16} />
 					添加卡
 				</Button>
@@ -145,13 +145,12 @@
 
 			<div class="grid gap-4 md:grid-cols-2">
 				{#each bankCards as card (card.id)}
-					{@const theme = getBankTheme(card.bank_name)}
 					{@const ic = resolveCardIcon(card)}
 					<button
 						type="button"
 						class="relative h-48 cursor-pointer overflow-hidden rounded-2xl p-5 text-left text-white transition-transform hover:scale-[1.02]"
 						style="background: {getCardGradient(card.bank_name)};"
-						onclick={() => goto(`/accounts/${card.id}`)}
+						onclick={() => goto(resolve('/(auth)/accounts/[id]', { id: String(card.id) }))}
 					>
 						<!-- 装饰圆 -->
 						<div
@@ -202,7 +201,7 @@
 		<section>
 			<div class="mb-4 flex items-center justify-between">
 				<h2 class="text-sm font-medium">我的银行卡</h2>
-				<Button size="sm" onclick={() => goto('/accounts/new')}>
+				<Button size="sm" onclick={() => goto(resolve('/(auth)/accounts/new'))}>
 					<Plus size={16} />
 					添加卡
 				</Button>

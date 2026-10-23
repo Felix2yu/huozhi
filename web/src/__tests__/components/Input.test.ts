@@ -30,6 +30,8 @@ describe('Input component - Bug #3 $bindable value', () => {
 
 	it('cn() 工具函数正确合并 class', () => {
 		expect(cn('base', 'extra')).toBe('base extra');
+		// 这里就是要在断言里传常量 falsy，规则不适用
+		// eslint-disable-next-line no-constant-binary-expression
 		expect(cn('base', false && 'hidden')).toBe('base');
 		expect(cn('base', undefined, null, 'extra')).toBe('base extra');
 		expect(cn({ active: true, disabled: false })).toBe('active');

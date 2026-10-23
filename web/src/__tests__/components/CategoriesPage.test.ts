@@ -116,7 +116,6 @@ describe('分类管理页 - 层级展示', () => {
 		mountPage();
 		await waitFor(() => screen.getByText('餐饮'));
 		const foodGroup = groupAt(0);
-		const trafficGroup = groupAt(1);
 
 		await fireEvent.click(toggleOf(foodGroup));
 

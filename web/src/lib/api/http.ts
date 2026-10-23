@@ -82,7 +82,9 @@ function loadQueue(): QueueItem[] {
 function saveQueue(items: QueueItem[]): void {
 	try {
 		localStorage.setItem(QUEUE_KEY, JSON.stringify(items));
-	} catch {}
+	} catch {
+		/* localStorage 不可用时队列仅驻内存，下次请求会重写 */
+	}
 }
 
 function enqueueOffline(item: Omit<QueueItem, 'id' | 'timestamp' | 'retries'>): void {

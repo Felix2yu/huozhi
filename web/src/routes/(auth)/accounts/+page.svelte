@@ -10,6 +10,7 @@
 	import { accountApi } from '#lib/api/modules/accounts';
 	import { formatMoney } from '#lib/utils/format';
 	import type { Account, AccountSummary } from '#lib/types';
+	import { resolve } from '$app/paths';
 	import {
 		Plus,
 		Wallet,
@@ -131,7 +132,7 @@
 	<!-- 新增按钮 -->
 	<div class="flex items-center justify-between">
 		<h2 class="text-sm font-medium">账户列表</h2>
-		<Button size="sm" onclick={() => goto('/accounts/new')}>
+		<Button size="sm" onclick={() => goto(resolve('/(auth)/accounts/new'))}>
 			<Plus size={16} />
 			新增账户
 		</Button>
@@ -144,7 +145,7 @@
 			<div class="py-16 text-center">
 				<div class="mb-4 text-4xl opacity-50">💳</div>
 				<p class="mb-4 text-muted-foreground">还没有添加任何账户</p>
-				<Button onclick={() => goto('/accounts/new')}>
+				<Button onclick={() => goto(resolve('/(auth)/accounts/new'))}>
 					<Plus size={16} />
 					立即添加
 				</Button>
@@ -152,7 +153,7 @@
 		</Card>
 	{:else}
 		<!-- 活跃账户：按类型分组 -->
-		{#each Object.entries(byType) as [type, accs]}
+		{#each Object.entries(byType) as [type, accs] (type)}
 			{@const info = labels[type] || { label: type, icon: Wallet }}
 			<section>
 				<div class="mb-3 flex items-center gap-2">
@@ -167,7 +168,7 @@
 						<div class="relative">
 							<Card
 								class="cursor-pointer transition hover:border-primary/50"
-								onclick={() => goto(`/accounts/${acc.id}`)}
+								onclick={() => goto(resolve('/(auth)/accounts/[id]', { id: String(acc.id) }))}
 							>
 								<CardContent class="p-4">
 									<div class="flex items-start justify-between">
@@ -217,7 +218,7 @@
 										onclick={(e) => {
 											e.stopPropagation();
 											menuOpen = null;
-											goto(`/accounts/${acc.id}`);
+											goto(resolve('/(auth)/accounts/[id]', { id: String(acc.id) }));
 										}}
 									>
 										<Pencil size={14} /> 编辑

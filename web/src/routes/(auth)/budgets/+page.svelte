@@ -37,6 +37,7 @@
 			// book_id 传 0 表示「全部账本」，后端会按用户聚合所有账本
 			budgets = await budgetApi.list({ book_id: appStore.currentBookId || 0 });
 		} catch {
+			/* 加载失败保留空态，页面另有空态提示 */
 		} finally {
 			// 必须结束加载态，否则页面会永久停在骨架屏
 			loading = false;
@@ -202,7 +203,7 @@
 
 	{#if loading}
 		<div class="grid gap-3 md:grid-cols-2">
-			{#each [1, 2] as i}
+			{#each [1, 2] as i (i)}
 				<div class="h-32 animate-pulse rounded-xl bg-muted"></div>
 			{/each}
 		</div>
@@ -306,7 +307,7 @@
 				bind:value={categoryId}
 			>
 				<option value={0}>全部分类</option>
-				{#each appStore.categories.expense as cat}
+				{#each appStore.categories.expense as cat (cat.id)}
 					<option value={cat.id}>{cat.icon || '📁'} {cat.name}</option>
 				{/each}
 			</select>
