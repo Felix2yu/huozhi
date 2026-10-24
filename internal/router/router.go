@@ -269,6 +269,15 @@ func New(mode string, staticDir string) *gin.Engine {
 		public.GET("/bills", handlers.ListPublicBills)
 	}
 
+	// 外部系统只读对接（需要API key认证）
+	// 给自建系统（如「牵丝」往来记录）按账单关联开销：只有读，没有写。
+	integration := api.Group("/integration")
+	integration.Use(middleware.APIKeyAuth())
+	{
+		integration.GET("/bills", handlers.IntegrationListBills)
+		integration.GET("/bills/:id", handlers.IntegrationGetBill)
+	}
+
 	// MCP（Model Context Protocol）：让 AI 助手用自然语言读写账单。
 	// 内部实现见 internal/mcp，与 HTTP API 共用同一套业务核心层。
 	mountMCP(r)
