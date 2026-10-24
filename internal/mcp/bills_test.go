@@ -84,7 +84,9 @@ func call(t *testing.T, s *Server, uid uint, name string, args map[string]any) (
 	if err != nil {
 		t.Fatal(err)
 	}
-	payload, ok, err := s.HandleBytes(context.Background(), uid, raw)
+	// 工具调用默认按「读写」执行：这些用例覆盖的是业务逻辑本身，
+	// 权限收口另有 scope_test.go 专门验证。
+	payload, ok, err := s.HandleBytes(WithScope(context.Background(), models.ScopeWrite), uid, raw)
 	if err != nil {
 		t.Fatalf("HandleBytes: %v", err)
 	}
@@ -166,7 +168,8 @@ func TestInitializeHandshake(t *testing.T) {
 func TestToolsListCount(t *testing.T) {
 	s := newTestServer(t)
 	raw, _ := json.Marshal(Request{JSONRPC: "2.0", ID: json.RawMessage(`1`), Method: "tools/list"})
-	payload, _, _ := s.HandleBytes(context.Background(), 1, raw)
+	// 注册表完整性用读写权限看全量清单；scope 过滤另有 scope_test.go 覆盖
+	payload, _, _ := s.HandleBytes(WithScope(context.Background(), models.ScopeWrite), 1, raw)
 	var resp Response
 	_ = json.Unmarshal(payload, &resp)
 	b, _ := json.Marshal(resp.Result)

@@ -89,6 +89,7 @@ func main() {
 	// 自动迁移
 	err = database.AutoMigrate(db,
 		&models.User{},
+		&models.APIKey{},
 		&models.Book{},
 		&models.BookMember{},
 		&models.AccountGroup{},
@@ -114,6 +115,9 @@ func main() {
 	}
 	// 复合索引（AutoMigrate 无法表达）：流水列表的主排序/io 路径见 database.EnsureIndexes
 	database.EnsureIndexes(db)
+	// 单密钥 → 多密钥（带 scope）迁移：把 users.api_key 搬进 api_keys，
+	// 否则升级后所有 MCP 客户端与只读消费方会一起失效。
+	database.MigrateAPIKeys(db)
 	log.Println("数据库迁移完成")
 
 	// 启动HTTP服务

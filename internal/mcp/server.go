@@ -64,6 +64,24 @@ func (s *Server) Tools() []Tool {
 	return out
 }
 
+// toolsFor 按本次请求的权限返回工具清单：只读密钥看不到写工具。
+//
+// 直接隐藏而不是「列出来再报错」：模型不会反复尝试一个注定失败的工具，
+// 也避免把写能力暴露给只取数的应用。
+func (s *Server) toolsFor(ctx context.Context) []Tool {
+	all := s.Tools()
+	if canWrite(ctx) {
+		return all
+	}
+	out := make([]Tool, 0, len(all))
+	for _, t := range all {
+		if !toolRequiresWrite(t) {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
 // ==================== 会话 ====================
 
 // Session 一次 MCP 连接。SSE 流按需创建，没有客户端监听 GET 流时为空。
@@ -313,7 +331,7 @@ func (s *Server) call(ctx context.Context, uid uint, req *Request) (any, *Error)
 		return EmptyResult{}, nil
 
 	case "tools/list":
-		return ListToolsResult{Tools: s.Tools()}, nil
+		return ListToolsResult{Tools: s.toolsFor(ctx)}, nil
 
 	case "tools/call":
 		var p CallToolParams
@@ -348,12 +366,23 @@ func (s *Server) call(ctx context.Context, uid uint, req *Request) (any, *Error)
 func (s *Server) callTool(ctx context.Context, uid uint, p CallToolParams) (any, *Error) {
 	s.mu.RLock()
 	h, ok := s.handlers[p.Name]
+	spec := s.tools[p.Name]
 	s.mu.RUnlock()
 	if !ok {
 		// 未知工具同样以工具错误返回（而不是 JSON-RPC 错误），
 		// 这样模型能看到可用工具提示并自行纠正。
 		return CallToolResult{
 			Content: []Content{{Type: "text", Text: fmt.Sprintf("未知工具 %q。可用工具：%v", p.Name, s.toolNames())}},
+			IsError: true,
+		}, nil
+	}
+	// 权限闸门放在唯一的分发点上：不管走哪条传输、哪个客户端，写工具都过这里。
+	// 以工具错误返回而非 JSON-RPC 错误，让模型能把「密钥权限不够」讲给用户听。
+	if toolRequiresWrite(spec) && !canWrite(ctx) {
+		return CallToolResult{
+			Content: []Content{{Type: "text", Text: fmt.Sprintf(
+				"当前密钥只有只读权限，不能执行写操作 %q。若确需写入，请在货殖「设置 → API 密钥」为这个客户端新建一把「读写」密钥，或改用账号登录的 JWT。",
+				p.Name)}},
 			IsError: true,
 		}, nil
 	}

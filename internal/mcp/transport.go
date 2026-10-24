@@ -2,9 +2,12 @@ package mcp
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
+
+	"huozhi/internal/middleware"
 
 	"github.com/gin-gonic/gin"
 )
@@ -65,7 +68,7 @@ func (s *Server) handlePost(c *gin.Context) {
 	sess := s.TouchSession(sessID, uid)
 	c.Header(SessionHeader, sess.ID)
 
-	payload, hasResponse, err := s.HandleBytes(c.Request.Context(), uid, raw)
+	payload, hasResponse, err := s.HandleBytes(mcpContext(c), uid, raw)
 	if err != nil {
 		// 只有 JSON 解析失败才会走到这里，无法回带 id
 		writeJSON(c, http.StatusBadRequest, Response{
@@ -234,6 +237,13 @@ func splitLines(b []byte) [][]byte {
 
 func writeJSON(c *gin.Context, status int, v any) {
 	c.JSON(status, v)
+}
+
+// mcpContext 把中间件解析出的密钥权限带进工具分发层。
+// 这里是「鉴权」与「是否允许写」之间唯一的接头：漏了这行，所有密钥都会被
+// 当成只读（失败关闭），写工具对 MCP 客户端整体失效。
+func mcpContext(c *gin.Context) context.Context {
+	return WithScope(c.Request.Context(), c.GetString(middleware.CtxScope))
 }
 
 func uidOf(c *gin.Context) uint {

@@ -17,14 +17,22 @@ import (
 // （amount 元、tx_date "YYYY-MM-DD HH:MM:SS"）必须保持不变，
 // 新增字段（amount_fen / category / account / book）只能追加。
 
-func pubSetAPIKey(t *testing.T, uid uint) string {
+// pubSetAPIKey 给用户建一把密钥（新模型：api_keys + scope），默认读写。
+// 只读消费方（牵丝/幕间）用 pubSetAPIKey(t, uid, models.ScopeRead)。
+func pubSetAPIKey(t *testing.T, uid uint, scope ...string) string {
 	t.Helper()
-	key := middleware.GenerateAPIKey()
-	if err := database.DB.Model(&models.User{}).Where("id = ?", uid).
-		Updates(map[string]interface{}{"api_key": key, "api_key_enabled": true}).Error; err != nil {
-		t.Fatalf("set api key: %v", err)
+	s := models.ScopeWrite
+	if len(scope) > 0 {
+		s = scope[0]
 	}
-	return key
+	row := models.APIKey{
+		UserID: uid, Name: "测试密钥", Key: middleware.GenerateAPIKey(),
+		Scope: s, Enabled: true,
+	}
+	if err := database.DB.Create(&row).Error; err != nil {
+		t.Fatalf("create api key: %v", err)
+	}
+	return row.Key
 }
 
 func pubReq(method, path, key string) *httptest.ResponseRecorder {
@@ -151,9 +159,40 @@ func TestPublicBills(t *testing.T) {
 	})
 
 	t.Run("禁用密钥后立即失效", func(t *testing.T) {
-		database.DB.Model(&models.User{}).Where("id = ?", uid).Update("api_key_enabled", false)
+		database.DB.Model(&models.APIKey{}).Where("key = ?", key).Update("enabled", false)
 		if w := pubReq("GET", "/api/public/bills", key); w.Code != 401 {
 			t.Fatalf("期望 401，实际 %d", w.Code)
+		}
+	})
+
+	// 只读密钥同样能读：分权只针对写操作（MCP 写工具），读接口不区分。
+	t.Run("只读密钥可读", func(t *testing.T) {
+		readKey := pubSetAPIKey(t, uid, models.ScopeRead)
+		if w := pubReq("GET", "/api/public/bills?page_size=5", readKey); w.Code != 200 {
+			t.Fatalf("只读密钥读公开账单期望 200，实际 %d", w.Code)
+		}
+	})
+
+	// 吊销 = 软删除 api_keys 行。此时 users.api_key 里可能还留着同一个值，
+	// 鉴权不能再从那里把它读回来，否则「吊销」只是把列表里的行藏起来。
+	t.Run("吊销后不因历史字段复活", func(t *testing.T) {
+		revoked := middleware.GenerateAPIKey()
+		if err := database.DB.Model(&models.User{}).Where("id = ?", uid).
+			Updates(map[string]interface{}{"api_key": revoked, "api_key_enabled": true}).Error; err != nil {
+			t.Fatalf("set legacy api key: %v", err)
+		}
+		row := models.APIKey{UserID: uid, Name: "待吊销", Key: revoked, Scope: models.ScopeWrite, Enabled: true}
+		if err := database.DB.Create(&row).Error; err != nil {
+			t.Fatalf("create api key: %v", err)
+		}
+		if w := pubReq("GET", "/api/public/bills", revoked); w.Code != 200 {
+			t.Fatalf("吊销前期望 200，实际 %d", w.Code)
+		}
+		if err := database.DB.Delete(&models.APIKey{}, row.ID).Error; err != nil {
+			t.Fatalf("delete api key: %v", err)
+		}
+		if w := pubReq("GET", "/api/public/bills", revoked); w.Code != 401 {
+			t.Fatalf("吊销后期望 401，实际 %d", w.Code)
 		}
 	})
 }

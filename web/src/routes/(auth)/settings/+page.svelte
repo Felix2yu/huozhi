@@ -29,6 +29,7 @@
 		Sun,
 		Monitor,
 		Key,
+		Plus,
 		Copy,
 		Eye,
 		EyeOff,
@@ -68,15 +69,29 @@
 	let confirmPwd = $state('');
 	let pwdLoading = $state(false);
 
-	// API Key 状态
-	let apiKeyInfo = $state<{
-		api_key: string;
-		api_key_enabled: boolean;
-		has_api_key: boolean;
-	} | null>(null);
-	let apiKeyLoading = $state(true);
-	let showApiKey = $state(false);
-	let toggleLoading = $state(false);
+	// API 密钥（多把、按 scope 分权）
+	// 只有一把密钥时权限只能取并集，只读消费方必然连带拿到写权限，
+	// 所以这里按「名称 + 只读/读写」管理多把。
+	type ApiKeyRow = {
+		id: number;
+		name: string;
+		key: string;
+		scope: 'read' | 'write';
+		enabled: boolean;
+		legacy: boolean;
+		last_used_at: string;
+		created_at: string;
+	};
+	let apiKeys = $state<ApiKeyRow[]>([]);
+	let apiKeysLoading = $state(true);
+	/** 当前展开明文的密钥 id；同一时间只展开一把 */
+	let revealKeyId = $state<number | null>(null);
+	/** 正在执行停用/吊销的密钥 id，用于按钮 loading */
+	let keyBusyId = $state<number | null>(null);
+	let newKeyOpen = $state(false);
+	let newKeyName = $state('');
+	let newKeyScope = $state<'read' | 'write'>('read');
+	let keySaving = $state(false);
 
 	// 头像上传
 	let avatarUploading = $state(false);
@@ -259,12 +274,7 @@
 		savedSnap = takeSnapshot();
 		// 汇率：进入设置页就确保有数据可展示（未过期直接复用缓存）
 		ratesStore.ensure(currency);
-		try {
-			apiKeyInfo = await http.get('/api-key');
-		} catch {
-			/* 取不到 api-key 信息按未配置展示 */
-		}
-		apiKeyLoading = false;
+		await loadApiKeys();
 	});
 
 	// ===== 基准货币与汇率 =====
@@ -322,37 +332,94 @@
 		else hzToast.warning(ratesStore.error || '刷新失败，当前展示的是上次成功获取的汇率');
 	}
 
-	async function handleGenerateApiKey() {
+	// ===== API 密钥 =====
+	async function loadApiKeys() {
 		try {
-			const res = await http.post<{ api_key: string; api_key_enabled: boolean }>(
-				'/api-key/generate'
-			);
-			apiKeyInfo = { ...apiKeyInfo, ...res, has_api_key: true };
-			showApiKey = true;
-			hzToast.success('API密钥已生成');
+			apiKeys = await http.get<ApiKeyRow[]>('/api-keys');
 		} catch (e: any) {
-			hzToast.error(e.message || '生成失败');
+			hzToast.error(e.message || '读取密钥失败');
+		} finally {
+			apiKeysLoading = false;
 		}
 	}
 
-	async function handleToggleApiKey() {
-		toggleLoading = true;
+	function openNewKey() {
+		newKeyName = '';
+		// 缺省只读：新建密钥最常见的目的是接一个只取数的应用
+		newKeyScope = 'read';
+		newKeyOpen = true;
+	}
+
+	async function handleCreateKey() {
+		keySaving = true;
 		try {
-			const res = await http.post<{ api_key_enabled: boolean }>('/api-key/toggle');
-			if (apiKeyInfo) apiKeyInfo.api_key_enabled = res.api_key_enabled;
-			hzToast.success(res.api_key_enabled ? 'API密钥已启用' : 'API密钥已禁用');
+			const row = await http.post<ApiKeyRow>('/api-keys', {
+				name: newKeyName.trim() || undefined,
+				scope: newKeyScope
+			});
+			apiKeys = [...apiKeys, row];
+			// 新建后直接展开明文：这是唯一一次「你正想复制它」的时刻
+			revealKeyId = row.id;
+			newKeyOpen = false;
+			hzToast.success(row.scope === 'write' ? '已生成读写密钥' : '已生成只读密钥');
+		} catch (e: any) {
+			hzToast.error(e.message || '生成失败');
+		} finally {
+			keySaving = false;
+		}
+	}
+
+	async function patchKey(row: ApiKeyRow, body: Record<string, unknown>, okMsg: string) {
+		keyBusyId = row.id;
+		try {
+			const next = await http.patch<ApiKeyRow>(`/api-keys/${row.id}`, body);
+			apiKeys = apiKeys.map((k) => (k.id === row.id ? next : k));
+			hzToast.success(okMsg);
 		} catch (e: any) {
 			hzToast.error(e.message || '操作失败');
 		} finally {
-			toggleLoading = false;
+			keyBusyId = null;
 		}
 	}
 
-	function copyApiKey() {
-		if (apiKeyInfo?.api_key) {
-			navigator.clipboard.writeText(apiKeyInfo.api_key);
-			hzToast.success('已复制到剪贴板');
+	async function handleDeleteKey(row: ApiKeyRow) {
+		const ok = confirm(
+			`吊销「${row.name}」？正在用这把密钥的客户端会立即失去访问权限，且无法恢复。`
+		);
+		if (!ok) return;
+		keyBusyId = row.id;
+		try {
+			await http.delete(`/api-keys/${row.id}`);
+			apiKeys = apiKeys.filter((k) => k.id !== row.id);
+			if (revealKeyId === row.id) revealKeyId = null;
+			hzToast.success('已吊销');
+		} catch (e: any) {
+			hzToast.error(e.message || '吊销失败');
+		} finally {
+			keyBusyId = null;
 		}
+	}
+
+	function copyKey(key: string) {
+		navigator.clipboard.writeText(key);
+		hzToast.success('已复制到剪贴板');
+	}
+
+	/** 未展开时只露头尾，便于核对是哪把，又不至于被旁人一眼看全 */
+	function maskKey(key: string) {
+		if (!key) return '';
+		return key.length > 16 ? `${key.slice(0, 8)}••••${key.slice(-4)}` : key;
+	}
+
+	function scopeLabel(scope: string) {
+		return scope === 'write' ? '读写' : '只读';
+	}
+
+	function fmtKeyTime(v: string) {
+		if (!v || v.startsWith('0001')) return '从未使用';
+		const d = new Date(v);
+		const p = (n: number) => String(n).padStart(2, '0');
+		return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 	}
 
 	// ====== AI 助手（MCP）======
@@ -379,8 +446,11 @@
 		}
 	];
 
+	// MCP 片段用「读写」密钥：MCP 要能记账/改账/删账，
+	// 只读密钥接上去会让写工具从 tools/list 里消失。
+	const writeKeyRow = $derived(apiKeys.find((k) => k.enabled && k.scope === 'write'));
 	const maskedKey = $derived(
-		apiKeyInfo?.api_key && showApiKey ? apiKeyInfo.api_key : 'YOUR_API_KEY'
+		writeKeyRow && revealKeyId === writeKeyRow.id ? writeKeyRow.key : 'YOUR_API_KEY'
 	);
 
 	const mcpSnippet = $derived(
@@ -989,71 +1059,158 @@
 
 	<!-- API密钥 -->
 	<section>
-		<div class="mb-3 flex items-center gap-2">
-			<Key size={16} />
-			<h2 class="text-sm font-medium">API密钥</h2>
+		<div class="mb-3 flex items-center justify-between gap-2">
+			<div class="flex items-center gap-2">
+				<Key size={16} />
+				<h2 class="text-sm font-medium">API 密钥</h2>
+			</div>
+			<Button size="sm" variant="outline" onclick={openNewKey}>
+				<Plus size={14} />
+				新建密钥
+			</Button>
 		</div>
 		<Card>
-			<CardContent class="space-y-4 p-4">
-				{#if apiKeyLoading}
+			<CardContent class="space-y-3 p-4">
+				<p class="text-xs text-muted-foreground">
+					<span class="font-medium text-foreground">只读</span
+					>密钥只能取数，给牵丝、幕间这类应用用；<span class="font-medium text-foreground"
+						>读写</span
+					>密钥还能通过 MCP 记账、改账、删账，给 AI 客户端用。
+				</p>
+				{#if apiKeysLoading}
 					<div class="animate-pulse text-sm text-muted-foreground">加载中...</div>
-				{:else if !apiKeyInfo?.has_api_key}
+				{:else if apiKeys.length === 0}
 					<p class="text-sm text-muted-foreground">
-						尚未生成API密钥，生成后可通过密钥访问公开账单接口。
+						还没有密钥。新建一把只读密钥，就能让其它应用读取账单。
 					</p>
-					<Button size="sm" onclick={handleGenerateApiKey}>
-						<Key size={14} />
-						生成API密钥
-					</Button>
 				{:else}
-					<div class="space-y-3">
-						<div class="flex items-center gap-2">
-							<span class="text-sm">状态:</span>
-							<Badge variant={apiKeyInfo.api_key_enabled ? 'default' : 'secondary'}>
-								{apiKeyInfo.api_key_enabled ? '已启用' : '已禁用'}
-							</Badge>
-						</div>
-						<div class="space-y-2">
-							<Label>API密钥</Label>
-							<div class="flex items-center gap-2">
-								<Input
-									readonly
-									value={showApiKey ? apiKeyInfo.api_key || '' : '••••••••••••••••'}
-									class="font-mono text-xs"
-								/>
-								<Button size="icon" variant="outline" onclick={() => (showApiKey = !showApiKey)}>
-									{#if showApiKey}<EyeOff size={14} />{:else}<Eye size={14} />{/if}
-								</Button>
-								<Button size="icon" variant="outline" onclick={copyApiKey}>
-									<Copy size={14} />
-								</Button>
+					<div class="space-y-2">
+						{#each apiKeys as k (k.id)}
+							<div class="rounded-lg border border-border p-3">
+								<div class="flex flex-wrap items-center gap-2">
+									<span class="text-sm font-medium">{k.name}</span>
+									<Badge variant={k.scope === 'write' ? 'default' : 'secondary'}
+										>{scopeLabel(k.scope)}</Badge
+									>
+									{#if k.legacy}
+										<Badge variant="secondary">历史密钥</Badge>
+									{/if}
+									{#if !k.enabled}
+										<Badge variant="secondary">已停用</Badge>
+									{/if}
+									<span class="ml-auto text-xs text-muted-foreground">
+										最后使用 {fmtKeyTime(k.last_used_at)}
+									</span>
+								</div>
+								<div class="mt-2 flex items-center gap-2">
+									<Input
+										readonly
+										value={revealKeyId === k.id ? k.key : maskKey(k.key)}
+										class="font-mono text-xs"
+									/>
+									<Button
+										size="icon"
+										variant="outline"
+										title={revealKeyId === k.id ? '隐藏' : '显示完整密钥'}
+										onclick={() => (revealKeyId = revealKeyId === k.id ? null : k.id)}
+									>
+										{#if revealKeyId === k.id}<EyeOff size={14} />{:else}<Eye size={14} />{/if}
+									</Button>
+									<Button size="icon" variant="outline" title="复制" onclick={() => copyKey(k.key)}>
+										<Copy size={14} />
+									</Button>
+								</div>
+								<div class="mt-2 flex flex-wrap gap-2">
+									<Button
+										size="sm"
+										variant="outline"
+										disabled={keyBusyId === k.id}
+										onclick={() =>
+											patchKey(k, { enabled: !k.enabled }, k.enabled ? '已停用' : '已启用')}
+									>
+										{k.enabled ? '停用' : '启用'}
+									</Button>
+									<Button
+										size="sm"
+										variant="outline"
+										disabled={keyBusyId === k.id}
+										onclick={() =>
+											patchKey(
+												k,
+												{ scope: k.scope === 'write' ? 'read' : 'write' },
+												k.scope === 'write' ? '已改为只读' : '已改为读写'
+											)}
+									>
+										{k.scope === 'write' ? '改为只读' : '改为读写'}
+									</Button>
+									<Button
+										size="sm"
+										variant="outline"
+										class="text-destructive"
+										disabled={keyBusyId === k.id}
+										onclick={() => handleDeleteKey(k)}
+									>
+										吊销
+									</Button>
+								</div>
 							</div>
-						</div>
-						<div class="flex gap-2">
-							<Button
-								size="sm"
-								variant="outline"
-								onclick={handleToggleApiKey}
-								disabled={toggleLoading}
-							>
-								{apiKeyInfo.api_key_enabled ? '禁用' : '启用'}
-							</Button>
-							<Button size="sm" variant="outline" onclick={handleGenerateApiKey}>重新生成</Button>
-						</div>
-						<div class="text-xs text-muted-foreground">
-							<p>
-								使用方式: <code class="rounded bg-muted px-1 py-0.5"
-									>Authorization: Bearer {apiKeyInfo.api_key_enabled
-										? '[API_KEY]'
-										: '[已禁用]'}</code
-								>
-							</p>
-						</div>
+						{/each}
 					</div>
 				{/if}
 			</CardContent>
 		</Card>
 	</section>
+
+	<Dialog bind:open={newKeyOpen}>
+		<div class="space-y-4">
+			<h3 class="text-sm font-medium">新建 API 密钥</h3>
+			<div class="space-y-2">
+				<Label>名称</Label>
+				<Input
+					bind:value={newKeyName}
+					placeholder="例如：牵丝、幕间、Claude Desktop"
+					maxlength={50}
+				/>
+				<p class="text-xs text-muted-foreground">只用于在列表里区分用途，可留空。</p>
+			</div>
+			<div class="space-y-2">
+				<Label>权限</Label>
+				<div class="grid grid-cols-2 gap-2">
+					<button
+						type="button"
+						class="rounded-lg border p-3 text-left text-sm {newKeyScope === 'read'
+							? 'border-primary bg-primary/5'
+							: 'border-border'}"
+						onclick={() => (newKeyScope = 'read')}
+					>
+						<div class="font-medium">只读</div>
+						<div class="mt-1 text-xs text-muted-foreground">
+							只能查询账单，不能改动。接牵丝、幕间选这个。
+						</div>
+					</button>
+					<button
+						type="button"
+						class="rounded-lg border p-3 text-left text-sm {newKeyScope === 'write'
+							? 'border-primary bg-primary/5'
+							: 'border-border'}"
+						onclick={() => (newKeyScope = 'write')}
+					>
+						<div class="font-medium">读写</div>
+						<div class="mt-1 text-xs text-muted-foreground">
+							可通过 MCP 记账、改账、删账。给 AI 客户端用。
+						</div>
+					</button>
+				</div>
+			</div>
+			<div class="flex justify-end gap-2">
+				<Button variant="outline" onclick={() => (newKeyOpen = false)}>取消</Button>
+				<Button onclick={handleCreateKey} disabled={keySaving}>
+					{#if keySaving}<Loader2 size={14} class="animate-spin" />{/if}
+					生成
+				</Button>
+			</div>
+		</div>
+	</Dialog>
 
 	<!-- AI 助手（MCP） -->
 	<section>
@@ -1079,13 +1236,14 @@
 					</div>
 				</div>
 
-				{#if !apiKeyInfo?.has_api_key}
+				{#if !writeKeyRow}
 					<p class="text-xs text-amber-600 dark:text-amber-400">
-						请先在上方「API密钥」处生成并启用密钥，MCP 使用它作为鉴权凭据。
+						还没有启用的「读写」密钥。MCP
+						用只读密钥连上去也能查账，但记账、改账、删账这类工具不会出现在工具列表里；要写入请在上方新建一把读写密钥。
 					</p>
-				{:else if !apiKeyInfo.api_key_enabled}
-					<p class="text-xs text-amber-600 dark:text-amber-400">
-						API密钥当前已禁用，MCP 将无法连接。
+				{:else if revealKeyId !== writeKeyRow.id}
+					<p class="text-xs text-muted-foreground">
+						下面的配置里密钥写作 YOUR_API_KEY。点上方「{writeKeyRow.name}」的眼睛图标展开明文后，这里会自动填上，可直接复制。
 					</p>
 				{/if}
 

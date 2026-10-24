@@ -136,66 +136,6 @@ func TestRegisterMultipleUsersWithEmptyAPIKey(t *testing.T) {
 	}
 }
 
-// ============ Bug #2 回归: APIKey 生成/查询/切换完整流程 ============
-func TestGenerateAndToggleAPIKey(t *testing.T) {
-	_, tok := newUser(t)
-
-	// 初始状态: 无 API Key
-	w0 := do(authReq("GET", "/api/api-key", tok, nil))
-	if w0.Code != 200 {
-		t.Fatalf("get apikey info code=%d body=%s", w0.Code, w0.Body.String())
-	}
-	data0 := decode(t, w0)["data"].(map[string]interface{})
-	if data0["has_api_key"].(bool) != false {
-		t.Fatalf("expected has_api_key=false initially, got %v", data0["has_api_key"])
-	}
-	if data0["api_key"].(string) != "" {
-		t.Fatalf("expected empty api_key, got %v", data0["api_key"])
-	}
-
-	// 生成 API Key
-	w1 := do(authReq("POST", "/api/api-key/generate", tok, nil))
-	if w1.Code != 200 {
-		t.Fatalf("generate apikey code=%d body=%s", w1.Code, w1.Body.String())
-	}
-	data1 := decode(t, w1)["data"].(map[string]interface{})
-	apikey := data1["api_key"].(string)
-	if len(apikey) != 64 {
-		t.Fatalf("expected 64-char hex apikey, got len=%d", len(apikey))
-	}
-
-	// 生成后 has_api_key = true, api_key_enabled = true
-	w2 := do(authReq("GET", "/api/api-key", tok, nil))
-	data2 := decode(t, w2)["data"].(map[string]interface{})
-	if data2["has_api_key"].(bool) != true {
-		t.Fatal("expected has_api_key=true after generation")
-	}
-	if data2["api_key_enabled"].(bool) != true {
-		t.Fatal("expected api_key_enabled=true after generation")
-	}
-
-	// 切换禁用
-	w3 := do(authReq("POST", "/api/api-key/toggle", tok, nil))
-	data3 := decode(t, w3)["data"].(map[string]interface{})
-	if data3["api_key_enabled"].(bool) != false {
-		t.Fatal("expected api_key_enabled=false after toggle")
-	}
-
-	// 再切换回来
-	w4 := do(authReq("POST", "/api/api-key/toggle", tok, nil))
-	data4 := decode(t, w4)["data"].(map[string]interface{})
-	if data4["api_key_enabled"].(bool) != true {
-		t.Fatal("expected api_key_enabled=true after second toggle")
-	}
-
-	// 覆盖场景: ToggleAPIKey 在无 APIKey 时会先生成一个
-	_, tok2 := newUser(t)
-	w5 := do(authReq("POST", "/api/api-key/toggle", tok2, nil))
-	if w5.Code != 200 {
-		t.Fatalf("toggle apikey when none exists code=%d body=%s", w5.Code, w5.Body.String())
-	}
-}
-
 // ============ Bug #1 更严苛: 不同注册方式空字段组合都能过 ============
 func TestRegisterWithNullAPIKeyCombinations(t *testing.T) {
 	// 分别测试: 只填 username, username+email, username+phone, 全部填

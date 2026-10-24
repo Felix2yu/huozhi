@@ -157,7 +157,7 @@ func setupAuthDB(t *testing.T) *gorm.DB {
 			t.Error(err)
 		}
 	})
-	if err := db.AutoMigrate(&models.User{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.APIKey{}); err != nil {
 		t.Fatal(err)
 	}
 	return db

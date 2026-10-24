@@ -58,6 +58,41 @@ type User struct {
 	TokenVersion int `gorm:"default:0" json:"-"`
 }
 
+// ==================== 外部访问密钥 ====================
+
+// 密钥权限范围。write 隐含 read（读写密钥当然能读）。
+const (
+	// ScopeRead 只读：只能取数（公开账单接口、MCP 的只读工具）。
+	// 牵丝、幕间这类「只取数不写账」的消费方应当用这把。
+	ScopeRead = "read"
+	// ScopeWrite 读写：可取数，也可通过 MCP 建/改/删账单。给 AI 客户端用。
+	ScopeWrite = "write"
+)
+
+// APIKey 外部访问密钥。
+//
+// 一个用户可以持有多把，按 scope 分权——这是「MCP 要能写、但牵丝/幕间只能读」
+// 的前提：若只有一把密钥，权限就只能取并集，只读消费方必然连带拿到写权限。
+//
+// 密钥按明文存（与历史上的 users.api_key 一致），因此 UI 必须能随时吊销；
+// 若日后要改成哈希存储，只需把 Key 换成 KeyHash 并同步 APIKeyAuth 的比较方式。
+type APIKey struct {
+	BaseModel
+	UserID uint   `gorm:"not null;index" json:"user_id"`
+	Name   string `gorm:"size:50;not null" json:"name"` // 备注用途：牵丝 / 幕间 / Claude Desktop
+	Key    string `gorm:"size:64;uniqueIndex;not null" json:"key"`
+	Scope  string `gorm:"size:10;not null;default:read" json:"scope"`
+	// Enabled 停用后立即失效，但仍保留记录（可恢复），与吊销（删除）区分。
+	Enabled bool `gorm:"default:true" json:"enabled"`
+	// LastUsedAt 最后使用时间，用于判断某把密钥是否还在被消费方使用，便于清理。
+	LastUsedAt time.Time `json:"last_used_at"`
+	// Legacy 由 users.api_key 迁移而来，UI 上标注以便用户知道「这把是老的」。
+	Legacy bool `gorm:"default:false" json:"legacy"`
+}
+
+// CanWrite 是否具备写权限。未知 scope 一律按只读处理（失败关闭）。
+func (k APIKey) CanWrite() bool { return k.Scope == ScopeWrite }
+
 // ==================== 账本 ====================
 
 // Book 账本

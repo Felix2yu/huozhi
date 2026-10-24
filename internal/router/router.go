@@ -98,10 +98,11 @@ func New(mode string, staticDir string) *gin.Engine {
 			auth.POST("/ai/classify", handlers.AIClassify)
 			auth.POST("/ai/smart-record", handlers.AISmartRecord)
 
-			// API密钥管理
-			auth.POST("/api-key/generate", handlers.GenerateAPIKeyHandler)
-			auth.GET("/api-key", handlers.GetAPIKeyInfo)
-			auth.POST("/api-key/toggle", handlers.ToggleAPIKey)
+			// API密钥管理（多把、按 scope 分权）
+			auth.GET("/api-keys", handlers.ListAPIKeys)
+			auth.POST("/api-keys", handlers.CreateAPIKey)
+			auth.PATCH("/api-keys/:id", handlers.UpdateAPIKey)
+			auth.DELETE("/api-keys/:id", handlers.DeleteAPIKey)
 
 			// 账本
 			books := auth.Group("/books")

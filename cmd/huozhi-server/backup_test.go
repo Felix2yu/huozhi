@@ -57,7 +57,7 @@ func backupAppDB(t *testing.T, dbPath string) *gorm.DB {
 		t.Fatalf("gorm.Open: %v", err)
 	}
 	if err := db.AutoMigrate(
-		&models.User{}, &models.Book{}, &models.BookMember{}, &models.AccountGroup{},
+		&models.User{}, &models.APIKey{}, &models.Book{}, &models.BookMember{}, &models.AccountGroup{},
 		&models.Account{}, &models.Category{}, &models.Tag{}, &models.Transaction{},
 		&models.TransactionTag{}, &models.Budget{}, &models.SavingPlan{}, &models.SavingRecord{},
 		&models.Recurring{}, &models.Installment{}, &models.Reimbursement{}, &models.Loan{},

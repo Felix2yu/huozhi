@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"huozhi/internal/database"
 	"huozhi/internal/models"
 	"huozhi/pkg/jwt"
 	"net/http"
@@ -21,17 +20,25 @@ import (
 //  3. ?api_key=<API Key>（便于浏览器 / 网关调试）
 //
 // 判定顺序是先 JWT 后 API Key：JWT 是本地可验签的，不需要查库，命中就返回。
+//
+// 鉴权只负责「你是谁 + 你有多大权」：JWT（本人登录）一律读写；API Key 按
+// 密钥自身的 scope 注入。写工具是否放行由 MCP 层按这个 scope 决定，
+// 这样「MCP 保留写能力」与「牵丝/幕间只读」可以同时成立。
 func MCPAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if uid := uidFromJWT(c); uid > 0 {
 			c.Set("uid", uid)
 			c.Set("auth_type", "jwt")
+			c.Set(CtxScope, models.ScopeWrite)
 			c.Next()
 			return
 		}
-		if uid := uidFromAPIKey(c); uid > 0 {
-			c.Set("uid", uid)
+		if k, username := apiKeyFromMCP(c); k != nil {
+			c.Set("uid", k.UserID)
+			c.Set("username", username)
 			c.Set("auth_type", "api_key")
+			c.Set(CtxScope, k.Scope)
+			c.Set(CtxAPIKeyID, k.ID)
 			c.Next()
 			return
 		}
@@ -71,8 +78,9 @@ func uidFromJWT(c *gin.Context) uint {
 	return claims.UserID
 }
 
-// uidFromAPIKey 从 X-API-Key / Authorization: Bearer / ?api_key= 里解析 API Key
-func uidFromAPIKey(c *gin.Context) uint {
+// apiKeyFromMCP 从 X-API-Key / Authorization: Bearer / ?api_key= 里解析 API Key。
+// 能走到这里说明 Bearer 不是有效 JWT，所以同一个头可以直接当密钥再试一次。
+func apiKeyFromMCP(c *gin.Context) (*models.APIKey, string) {
 	key := strings.TrimSpace(c.GetHeader("X-API-Key"))
 	if key == "" {
 		if h := c.GetHeader("Authorization"); h != "" {
@@ -85,13 +93,5 @@ func uidFromAPIKey(c *gin.Context) uint {
 	if key == "" {
 		key = strings.TrimSpace(c.Query("api_key"))
 	}
-	if key == "" || !ValidateAPIKey(key) {
-		return 0
-	}
-	var user models.User
-	if err := database.DB.Where("api_key = ? AND api_key_enabled = ? AND status = ?", key, true, 1).
-		First(&user).Error; err != nil {
-		return 0
-	}
-	return user.ID
+	return ResolveAPIKey(key)
 }
