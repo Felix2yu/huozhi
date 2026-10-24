@@ -262,20 +262,13 @@ func New(mode string, staticDir string) *gin.Engine {
 	}
 
 	// 公开API（需要API key认证）
+	// 这是货殖对外唯一的只读账单契约：幕间按 id 取单张，牵丝搜索并勾选多张。
+	// 只读——写操作仍必须走登录态。
 	public := api.Group("/public")
 	public.Use(middleware.APIKeyAuth())
 	{
 		public.GET("/bills/:id", handlers.GetPublicBill)
 		public.GET("/bills", handlers.ListPublicBills)
-	}
-
-	// 外部系统只读对接（需要API key认证）
-	// 给自建系统（如「牵丝」往来记录）按账单关联开销：只有读，没有写。
-	integration := api.Group("/integration")
-	integration.Use(middleware.APIKeyAuth())
-	{
-		integration.GET("/bills", handlers.IntegrationListBills)
-		integration.GET("/bills/:id", handlers.IntegrationGetBill)
 	}
 
 	// MCP（Model Context Protocol）：让 AI 助手用自然语言读写账单。
